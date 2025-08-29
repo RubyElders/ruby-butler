@@ -1,0 +1,11 @@
+[package]
+name = "rb-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+regex = "1.11.1"
+semver = "1.0.26"
+
+[dev-dependencies]
+tempfile = "3.21.0"
