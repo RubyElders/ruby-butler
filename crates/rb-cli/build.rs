@@ -1,6 +1,4 @@
-use std::process::Command;
 use std::env;
-use std::path::Path;
 
 fn main() {
     // Only run this in release builds to avoid copying during development

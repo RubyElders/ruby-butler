@@ -1,5 +1,6 @@
 use colored::*;
 use rb_core::ruby::{RubyRuntimeDetector, RubyType};
+use rb_core::butler::ButlerRuntime;
 use std::path::PathBuf;
 use home;
 use log::{debug, info};
@@ -35,20 +36,116 @@ fn list_rubies(search_dir: &PathBuf, requested_version: Option<&str>) {
                 return;
             }
 
-            // Display all found rubies
+            // Collect all ruby display data first for proper alignment calculation
+            let mut ruby_display_data = Vec::new();
+            
             for ruby in &rubies {
                 let ruby_type = match ruby.kind {
-                    RubyType::CRuby => "CRuby".green(),
+                    RubyType::CRuby => "CRuby",
                 };
-                let version = format!("({})", ruby.version).cyan();
-                let path = ruby.root.display().to_string().bright_black();
+                let ruby_header = format!("{} ({})", ruby_type, ruby.version);
                 
-                println!("{} {} {}", ruby_type, version, path);
+                // Try to infer gem runtime and compose full ButlerRuntime
+                match ruby.infer_gem_runtime() {
+                    Ok(gem_runtime) => {
+                        debug!("Inferred gem runtime for Ruby {}: {}", ruby.version, gem_runtime.gem_home.display());
+                        
+                        // Create ButlerRuntime with Ruby and Gem runtimes
+                        let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
+                        
+                        let gem_dirs = butler.gem_dirs();
+                        let bin_dirs = butler.bin_dirs();
+                        
+                        ruby_display_data.push((
+                            ruby_header,
+                            ruby.root.display().to_string(),
+                            Some(gem_runtime.gem_home.display().to_string()),
+                            gem_dirs.iter().map(|d| d.display().to_string()).collect::<Vec<_>>(),
+                            bin_dirs.iter().map(|d| d.display().to_string()).collect::<Vec<_>>(),
+                        ));
+                        
+                        debug!("Composed ButlerRuntime for Ruby {}: {} bin dirs, {} gem dirs", 
+                               ruby.version, bin_dirs.len(), gem_dirs.len());
+                    }
+                    Err(e) => {
+                        debug!("Failed to infer gem runtime for Ruby {}: {}", ruby.version, e);
+                        
+                        // Create ButlerRuntime with Ruby only
+                        let butler = ButlerRuntime::new(ruby.clone(), None);
+                        
+                        let gem_dirs = butler.gem_dirs();
+                        let bin_dirs = butler.bin_dirs();
+                        
+                        ruby_display_data.push((
+                            ruby_header,
+                            ruby.root.display().to_string(),
+                            None, // No gem home
+                            gem_dirs.iter().map(|d| d.display().to_string()).collect::<Vec<_>>(),
+                            bin_dirs.iter().map(|d| d.display().to_string()).collect::<Vec<_>>(),
+                        ));
+                    }
+                }
+            }
+            
+            // Calculate maximum label width for alignment
+            let label_width = ["Ruby path", "Gem home", "Gem paths", "Bin paths"]
+                .iter()
+                .map(|s| s.len())
+                .max()
+                .unwrap_or(9);
+            
+            // Display all rubies with proper alignment
+            for (ruby_header, ruby_path, gem_home, gem_paths, bin_paths) in ruby_display_data {
+                // Display Ruby header
+                let ruby_type = if ruby_header.starts_with("CRuby") { "CRuby".green() } else { ruby_header.as_str().green() };
+                let version_start = ruby_header.find('(').unwrap_or(0);
+                let version = ruby_header[version_start..].cyan();
+                
+                println!("{} {}", ruby_type, version);
+                
+                // Display Ruby path with alignment
+                println!("    {:<width$}: {}", 
+                    "Ruby path".bright_blue().bold(), 
+                    ruby_path.bright_black(),
+                    width = label_width
+                );
+                
+                // Display gem home with alignment
+                match gem_home {
+                    Some(home_path) => {
+                        println!("    {:<width$}: {}", 
+                            "Gem home".bright_blue().bold(), 
+                            home_path.bright_cyan(),
+                            width = label_width
+                        );
+                    }
+                    None => {
+                        println!("    {:<width$}: {}", 
+                            "Gem home".bright_blue().bold(), 
+                            "Unable to determine".yellow(),
+                            width = label_width
+                        );
+                    }
+                }
+                
+                // Display gem paths with alignment
+                println!("    {:<width$}:", "Gem paths".bright_blue().bold(), width = label_width);
+                for gem_path in gem_paths {
+                    println!("    {:<width$}  {}", "", gem_path.cyan(), width = label_width);
+                }
+                
+                // Display bin paths with alignment
+                println!("    {:<width$}:", "Bin paths".bright_blue().bold(), width = label_width);
+                for bin_path in bin_paths {
+                    println!("    {:<width$}  {}", "", bin_path.green(), width = label_width);
+                }
+                
+                println!(); // Add spacing between rubies
             }
 
             println!();
 
-            // Handle Ruby selection
+            // Handle Ruby selection - unified output format
             if let Some(version_str) = requested_version {
                 debug!("Looking for requested Ruby version: {}", version_str);
                 
@@ -63,8 +160,9 @@ fn list_rubies(search_dir: &PathBuf, requested_version: Option<&str>) {
                 match found {
                     Some(ruby) => {
                         info!("Selected Ruby installation: {} {}", ruby.kind.as_str(), ruby.version);
-                        println!("{}: {} {} at {}", 
-                            "Selected Ruby".bold(),
+                        println!("{}: {} {} {} at {}", 
+                            "Ruby detected".bold(),
+                            "(selected)".bright_blue(),
                             ruby.kind.as_str().green(),
                             format!("({})", ruby.version).cyan(),
                             ruby.root.display().to_string().bright_black()
@@ -82,11 +180,12 @@ fn list_rubies(search_dir: &PathBuf, requested_version: Option<&str>) {
                     }
                 }
             } else {
-                // Show latest Ruby
+                // Show latest Ruby with note that it was auto-selected
                 if let Some(latest) = RubyRuntimeDetector::latest(&rubies) {
                     info!("Latest Ruby installation: {} {}", latest.kind.as_str(), latest.version);
-                    println!("{}: {} {} at {}", 
-                        "Latest Ruby detected".bold(),
+                    println!("{}: {} {} {} at {}", 
+                        "Ruby detected".bold(),
+                        "(latest)".bright_blue(),
                         latest.kind.as_str().green(),
                         format!("({})", latest.version).cyan(),
                         latest.root.display().to_string().bright_black()

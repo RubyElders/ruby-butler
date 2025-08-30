@@ -42,7 +42,7 @@ fn test_runtime_command_with_rubies() {
     assert!(stdout.contains("(3.2.5)"));
     assert!(stdout.contains("(3.1.0)"));
     assert!(stdout.contains("(3.3.1)"));
-    assert!(stdout.contains("Latest Ruby detected"));
+    assert!(stdout.contains("Ruby detected: (latest)"));
     assert!(stdout.contains("(3.3.1)")); // Should be the latest
 }
 
