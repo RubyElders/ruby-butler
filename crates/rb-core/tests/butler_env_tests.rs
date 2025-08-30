@@ -1,4 +1,4 @@
-mod common;
+use rb_tests::RubySandbox;
 use std::io;
 use rb_core::butler::ButlerRuntime;
 use rb_core::ruby::{RubyRuntime, RubyType, RubyRuntimeDetector};
@@ -8,7 +8,7 @@ use semver::Version;
 #[test]
 fn test_butler_with_detector_and_latest_ruby() -> io::Result<()> {
     // Setup sandbox and add one ruby version
-    let sandbox = common::RubySandbox::new()?;
+    let sandbox = RubySandbox::new()?;
     let _ruby_dir = sandbox.add_ruby_dir("3.2.1")?;
 
     // Discover rubies using detector
@@ -28,7 +28,7 @@ fn test_butler_with_detector_and_latest_ruby() -> io::Result<()> {
 
 #[test]
 fn test_butler_runtime_with_only_ruby() -> io::Result<()> {
-    let sandbox = common::RubySandbox::new()?;
+    let sandbox = RubySandbox::new()?;
     let _ruby_dir = sandbox.add_ruby_dir("3.1.0")?;
 
     let rubies = RubyRuntimeDetector::discover(sandbox.root())?;
@@ -61,7 +61,7 @@ fn test_butler_runtime_with_only_ruby() -> io::Result<()> {
 
 #[test]
 fn test_butler_runtime_with_ruby_and_gem() -> io::Result<()> {
-    let sandbox = common::RubySandbox::new()?;
+    let sandbox = RubySandbox::new()?;
     let _ruby_dir = sandbox.add_ruby_dir("3.2.1")?;
 
     let rubies = RubyRuntimeDetector::discover(sandbox.root())?;
@@ -104,7 +104,7 @@ fn test_butler_runtime_with_ruby_and_gem() -> io::Result<()> {
 
 #[test]
 fn test_butler_runtime_with_multiple_rubies() -> io::Result<()> {
-    let sandbox = common::RubySandbox::new()?;
+    let sandbox = RubySandbox::new()?;
     
     // Add multiple Ruby versions
     let _ruby_dir_1 = sandbox.add_ruby_dir("3.1.0")?;
@@ -129,7 +129,7 @@ fn test_butler_runtime_with_multiple_rubies() -> io::Result<()> {
 
 #[test]
 fn test_butler_runtime_path_building_platform_specific() -> io::Result<()> {
-    let sandbox = common::RubySandbox::new()?;
+    let sandbox = RubySandbox::new()?;
     let _ruby_dir = sandbox.add_ruby_dir("3.0.0")?;
 
     let rubies = RubyRuntimeDetector::discover(sandbox.root())?;

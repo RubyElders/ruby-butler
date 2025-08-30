@@ -1,20 +1,28 @@
 [package]
-name = "rb-core"
+name = "rb-cli"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Core library for Ruby environment detection and management"
+description = "Command-line interface for Ruby Butler"
 readme = "README.md"
 repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[lib]
+name = "rb_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rb"
+path = "src/bin/rb.rs"
+
 [dependencies]
-regex = "1.11.1"
-semver = "1.0.26"
+clap = { version = "4.0", features = ["derive", "color", "help", "usage"] }
+rb-core = { path = "../rb-core" }
 home = "0.5"
+colored = "2.0"
 
 [dev-dependencies]
-tempfile = "3.21.0"
 rb-tests = { path = "../rb-tests" }

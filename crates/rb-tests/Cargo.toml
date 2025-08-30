@@ -1,0 +1,11 @@
+[package]
+name = "rb-tests"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Shared testing utilities for Ruby Butler"
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+tempfile = "3.0"

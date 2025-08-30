@@ -1,7 +1,5 @@
 use rb_core::RubyRuntimeDetector;
-
-mod common;
-use common::RubySandbox;
+use rb_tests::RubySandbox;
 
 #[test]
 fn discovers_only_ruby_xyz_directories() -> std::io::Result<()> {

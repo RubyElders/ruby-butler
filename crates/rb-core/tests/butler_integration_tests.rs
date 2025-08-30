@@ -1,4 +1,4 @@
-mod common;
+use rb_tests::RubySandbox;
 use std::io;
 use rb_core::butler::ButlerRuntime;
 use rb_core::ruby::{RubyRuntime, RubyType, RubyRuntimeDetector};
@@ -7,7 +7,7 @@ use semver::Version;
 
 #[test]
 fn test_butler_runtime_with_only_ruby() -> io::Result<()> {
-    let sandbox = common::RubySandbox::new()?;
+    let sandbox = RubySandbox::new()?;
     let ruby_dir = sandbox.add_ruby_dir("3.1.0")?;
     std::fs::create_dir_all(ruby_dir.join("bin"))?;
 
@@ -41,7 +41,7 @@ fn test_butler_runtime_with_only_ruby() -> io::Result<()> {
 
 #[test]
 fn test_butler_runtime_with_ruby_and_gem() -> io::Result<()> {
-    let sandbox = common::RubySandbox::new()?;
+    let sandbox = RubySandbox::new()?;
     let ruby_dir = sandbox.add_ruby_dir("3.2.1")?;
     std::fs::create_dir_all(ruby_dir.join("bin"))?;
 
@@ -86,7 +86,7 @@ fn test_butler_runtime_with_ruby_and_gem() -> io::Result<()> {
 
 #[test]
 fn test_butler_runtime_with_multiple_rubies() -> io::Result<()> {
-    let sandbox = common::RubySandbox::new()?;
+    let sandbox = RubySandbox::new()?;
     
     // Add multiple Ruby versions
     let ruby_dir_1 = sandbox.add_ruby_dir("3.1.0")?;
@@ -113,7 +113,7 @@ fn test_butler_runtime_with_multiple_rubies() -> io::Result<()> {
 
 #[test]
 fn test_butler_runtime_path_building_platform_specific() -> io::Result<()> {
-    let sandbox = common::RubySandbox::new()?;
+    let sandbox = RubySandbox::new()?;
     let ruby_dir = sandbox.add_ruby_dir("3.0.0")?;
     std::fs::create_dir_all(ruby_dir.join("bin"))?;
 

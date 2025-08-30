@@ -38,4 +38,3 @@ impl RubySandbox {
         self.add_dir(format!("ruby-{}", version.as_ref()))
     }
 }
-
