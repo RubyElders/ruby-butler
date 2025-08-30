@@ -2,22 +2,10 @@ use colored::*;
 use rb_core::ruby::{RubyRuntimeDetector, RubyType};
 use rb_core::butler::ButlerRuntime;
 use std::path::PathBuf;
-use home;
 use log::{debug, info};
 use semver::Version;
 
-const DEFAULT_RUBIES_DIR: &str = ".rubies";
-
-pub fn runtime_command(rubies_dir: Option<PathBuf>, ruby_version: Option<String>) {
-    let search_dir = rubies_dir.unwrap_or_else(|| {
-        let home_dir = home::home_dir()
-            .expect("Could not determine home directory");
-        debug!("Using home directory: {}", home_dir.display());
-        let rubies_dir = home_dir.join(DEFAULT_RUBIES_DIR);
-        debug!("No rubies directory specified, using default: {}", rubies_dir.display());
-        rubies_dir
-    });
-
+pub fn runtime_command(search_dir: PathBuf, ruby_version: Option<String>) {
     info!("Searching for Ruby installations in: {}", search_dir.display());
     list_rubies(&search_dir, ruby_version.as_deref());
 }
@@ -203,8 +191,9 @@ fn list_rubies(search_dir: &PathBuf, requested_version: Option<&str>) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rb_tests::RubySandbox;
+
+    const DEFAULT_RUBIES_DIR: &str = ".rubies";
 
     #[test]
     fn test_runtime_command_with_directory() {
@@ -213,14 +202,14 @@ mod tests {
 
         // This test just verifies the function can be called without panicking
         // The actual output testing is done in integration tests
-        let path = Some(sandbox.root().to_path_buf());
+        let path = sandbox.root().to_path_buf();
         
         // We can't easily test the output here since it prints to stdout
         // But we can at least verify the function executes without error
         // when given a valid directory with Ruby installations
         
         // For now, just test that the function signature works
-        assert!(path.is_some());
+        assert!(path.exists());
     }
 
     #[test]
