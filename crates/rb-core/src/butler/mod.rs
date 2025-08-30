@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use log::debug;
 use crate::ruby::RubyRuntime;
 use crate::gems::GemRuntime;
 
@@ -13,6 +14,14 @@ pub struct ButlerRuntime {
 impl ButlerRuntime {
     /// Create a new ButlerRuntime with a mandatory RubyRuntime and optional GemRuntime
     pub fn new(ruby_runtime: RubyRuntime, gem_runtime: Option<GemRuntime>) -> Self {
+        debug!("Creating ButlerRuntime with Ruby: {} {}", ruby_runtime.kind.as_str(), ruby_runtime.version);
+        
+        if let Some(ref gem_runtime) = gem_runtime {
+            debug!("Including GemRuntime with gem_home: {}", gem_runtime.gem_home.display());
+        } else {
+            debug!("No GemRuntime provided");
+        }
+        
         Self {
             ruby_runtime,
             gem_runtime,
@@ -26,12 +35,16 @@ impl ButlerRuntime {
         
         // Gem runtime bin dir first (highest priority) - for user-installed tools
         if let Some(ref gem_runtime) = self.gem_runtime {
+            debug!("Adding gem bin directory to PATH: {}", gem_runtime.gem_bin.display());
             dirs.push(gem_runtime.gem_bin.clone());
         }
         
         // Ruby runtime bin dir second - for core Ruby executables
-        dirs.push(self.ruby_runtime.bin_dir());
+        let ruby_bin = self.ruby_runtime.bin_dir();
+        debug!("Adding ruby bin directory to PATH: {}", ruby_bin.display());
+        dirs.push(ruby_bin);
         
+        debug!("Total bin directories: {}", dirs.len());
         dirs
     }
 
@@ -40,38 +53,60 @@ impl ButlerRuntime {
         let mut dirs = Vec::new();
         
         // Ruby runtime always has a lib dir for gems
-        dirs.push(self.ruby_runtime.lib_dir());
+        let ruby_lib = self.ruby_runtime.lib_dir();
+        debug!("Adding ruby lib directory for gems: {}", ruby_lib.display());
+        dirs.push(ruby_lib);
         
         if let Some(ref gem_runtime) = self.gem_runtime {
+            debug!("Adding gem home directory: {}", gem_runtime.gem_home.display());
             dirs.push(gem_runtime.gem_home.clone());
         }
         
+        debug!("Total gem directories: {}", dirs.len());
         dirs
     }
 
     /// Returns the gem_home from GemRuntime if present, otherwise returns None
     pub fn gem_home(&self) -> Option<PathBuf> {
-        self.gem_runtime.as_ref()
-            .map(|gem_runtime| gem_runtime.gem_home.clone())
+        let result = self.gem_runtime.as_ref()
+            .map(|gem_runtime| gem_runtime.gem_home.clone());
+            
+        if let Some(ref gem_home) = result {
+            debug!("Gem home directory: {}", gem_home.display());
+        } else {
+            debug!("No gem home directory (no GemRuntime)");
+        }
+        
+        result
     }
 
     /// Build PATH string with bin directories prepended to the existing PATH
     pub fn build_path(&self, existing_path: Option<String>) -> String {
+        debug!("Building PATH environment variable");
+        
         let mut path_parts = Vec::new();
         
         // Add our bin directories first
         for bin_dir in self.bin_dirs() {
-            path_parts.push(bin_dir.display().to_string());
+            let bin_str = bin_dir.display().to_string();
+            debug!("Adding to PATH: {}", bin_str);
+            path_parts.push(bin_str);
         }
         
         // Add existing PATH if provided
         if let Some(existing) = existing_path {
+            debug!("Appending existing PATH: {}", existing);
             path_parts.push(existing);
+        } else {
+            debug!("No existing PATH provided");
         }
         
         // On Windows, use semicolon; on Unix, use colon
         let separator = if cfg!(windows) { ";" } else { ":" };
-        path_parts.join(separator)
+        let result = path_parts.join(separator);
+        
+        debug!("Final PATH: {}", result);
+        result
     }
 }
 

@@ -2,6 +2,7 @@
 use semver::Version;
 use std::env::consts::EXE_SUFFIX;
 use std::path::{Path, PathBuf};
+use log::debug;
 use crate::butler::runtime_provider::RuntimeProvider;
 use crate::gems::GemRuntime;
 
@@ -42,12 +43,16 @@ impl RubyRuntime {
 
     /// `<root>/bin`
     pub fn bin_dir(&self) -> PathBuf {
-        self.root.join("bin")
+        let bin_dir = self.root.join("bin");
+        debug!("Inferred bin directory for {} {}: {}", self.kind.as_str(), self.version, bin_dir.display());
+        bin_dir
     }
 
     /// `<root>/bin/ruby{EXE_SUFFIX}`
     pub fn ruby_executable_path(&self) -> PathBuf {
-        self.bin_dir().join(format!("ruby{EXE_SUFFIX}"))
+        let ruby_exe = self.bin_dir().join(format!("ruby{EXE_SUFFIX}"));
+        debug!("Ruby executable path for {} {}: {}", self.kind.as_str(), self.version, ruby_exe.display());
+        ruby_exe
     }
 
     /// `<root>/lib/ruby/gems/<major>.<minor>.0`
@@ -55,11 +60,13 @@ impl RubyRuntime {
     /// Note: RubyGems uses the ruby ABI dir (major.minor.0).
     /// If you later discover a platform that differs, branch on `self.kind`.
     pub fn lib_dir(&self) -> PathBuf {
-        self.root
+        let lib_dir = self.root
             .join("lib")
             .join("ruby")
             .join("gems")
-            .join(format!("{}.{}.0", self.version.major, self.version.minor))
+            .join(format!("{}.{}.0", self.version.major, self.version.minor));
+        debug!("Inferred lib directory for {} {}: {}", self.kind.as_str(), self.version, lib_dir.display());
+        lib_dir
     }
 
     /// Create a GemRuntime based on ~/.gem/ruby/version pattern
@@ -67,14 +74,25 @@ impl RubyRuntime {
     /// This creates a GemRuntime pointing to ~/.gem/ruby/<full.version>
     /// which follows the standard user gem installation pattern.
     pub fn infer_gem_runtime(&self) -> Result<GemRuntime, std::io::Error> {
+        debug!("Inferring gem runtime for {} {}", self.kind.as_str(), self.version);
+        
         let home_dir = home::home_dir()
             .ok_or_else(|| std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 "Could not determine home directory"
             ))?;
         
+        debug!("Using home directory: {}", home_dir.display());
+        
         let gem_base = home_dir.join(".gem");
-        Ok(GemRuntime::for_base_dir(&gem_base, &self.version))
+        debug!("Using gem base directory: {}", gem_base.display());
+        
+        let gem_runtime = GemRuntime::for_base_dir(&gem_base, &self.version);
+        debug!("Created gem runtime - home: {}, bin: {}", 
+               gem_runtime.gem_home.display(), 
+               gem_runtime.gem_bin.display());
+        
+        Ok(gem_runtime)
     }
 }
 

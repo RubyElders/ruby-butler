@@ -2,41 +2,89 @@ use colored::*;
 use rb_core::ruby::{RubyRuntimeDetector, RubyType};
 use std::path::PathBuf;
 use home;
+use log::{debug, info};
+use semver::Version;
 
 const DEFAULT_RUBIES_DIR: &str = ".rubies";
 
-pub fn runtime_command(directory: Option<PathBuf>) {
-    let search_dir = directory.unwrap_or_else(|| {
-        home::home_dir()
-            .expect("Could not determine home directory")
-            .join(DEFAULT_RUBIES_DIR)
+pub fn runtime_command(rubies_dir: Option<PathBuf>, ruby_version: Option<String>) {
+    let search_dir = rubies_dir.unwrap_or_else(|| {
+        let home_dir = home::home_dir()
+            .expect("Could not determine home directory");
+        debug!("Using home directory: {}", home_dir.display());
+        let rubies_dir = home_dir.join(DEFAULT_RUBIES_DIR);
+        debug!("No rubies directory specified, using default: {}", rubies_dir.display());
+        rubies_dir
     });
 
-    list_rubies(&search_dir);
+    info!("Searching for Ruby installations in: {}", search_dir.display());
+    list_rubies(&search_dir, ruby_version.as_deref());
 }
 
-fn list_rubies(search_dir: &PathBuf) {
+fn list_rubies(search_dir: &PathBuf, requested_version: Option<&str>) {
     println!("{}", format!("Following rubies were found in {}:", search_dir.display()).bold());
     println!();
 
+    debug!("Starting Ruby discovery process");
     match RubyRuntimeDetector::discover(search_dir) {
         Ok(rubies) => {
+            info!("Ruby discovery completed successfully, found {} installations", rubies.len());
+            
             if rubies.is_empty() {
                 println!("{}", "No Ruby installations found.".yellow());
-            } else {
-                for ruby in &rubies {
-                    let ruby_type = match ruby.kind {
-                        RubyType::CRuby => "CRuby".green(),
-                    };
-                    let version = format!("({})", ruby.version).cyan();
-                    let path = ruby.root.display().to_string().bright_black();
-                    
-                    println!("{} {} {}", ruby_type, version, path);
-                }
+                return;
+            }
 
-                println!();
+            // Display all found rubies
+            for ruby in &rubies {
+                let ruby_type = match ruby.kind {
+                    RubyType::CRuby => "CRuby".green(),
+                };
+                let version = format!("({})", ruby.version).cyan();
+                let path = ruby.root.display().to_string().bright_black();
                 
+                println!("{} {} {}", ruby_type, version, path);
+            }
+
+            println!();
+
+            // Handle Ruby selection
+            if let Some(version_str) = requested_version {
+                debug!("Looking for requested Ruby version: {}", version_str);
+                
+                // Try to parse the version and find exact match
+                let found = if let Ok(requested_version) = Version::parse(version_str) {
+                    rubies.iter().find(|ruby| ruby.version == requested_version)
+                } else {
+                    // If parsing fails, try string matching
+                    rubies.iter().find(|ruby| ruby.version.to_string() == version_str)
+                };
+                
+                match found {
+                    Some(ruby) => {
+                        info!("Selected Ruby installation: {} {}", ruby.kind.as_str(), ruby.version);
+                        println!("{}: {} {} at {}", 
+                            "Selected Ruby".bold(),
+                            ruby.kind.as_str().green(),
+                            format!("({})", ruby.version).cyan(),
+                            ruby.root.display().to_string().bright_black()
+                        );
+                    }
+                    None => {
+                        eprintln!("{}: Ruby version {} not found", "Error".red().bold(), version_str.cyan());
+                        eprintln!("Available versions: {}", 
+                            rubies.iter()
+                                .map(|r| r.version.to_string())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                // Show latest Ruby
                 if let Some(latest) = RubyRuntimeDetector::latest(&rubies) {
+                    info!("Latest Ruby installation: {} {}", latest.kind.as_str(), latest.version);
                     println!("{}: {} {} at {}", 
                         "Latest Ruby detected".bold(),
                         latest.kind.as_str().green(),
@@ -47,6 +95,7 @@ fn list_rubies(search_dir: &PathBuf) {
             }
         }
         Err(e) => {
+            debug!("Ruby discovery failed with error: {}", e);
             eprintln!("{}: {}", "Error".red().bold(), e);
             std::process::exit(1);
         }

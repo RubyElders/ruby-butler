@@ -7,8 +7,9 @@ fn test_runtime_command_with_empty_directory() {
     let sandbox = RubySandbox::new().expect("Failed to create sandbox");
     
     let output = Command::new("cargo")
-        .args(&["run", "--bin", "rb", "--", "runtime", "--directory"])
+        .args(&["run", "--bin", "rb", "--", "-R"])
         .arg(sandbox.root())
+        .arg("runtime")
         .current_dir("f:\\sync\\elders\\ruby-butler2\\crates\\rb-cli")
         .output()
         .expect("Failed to execute command");
@@ -28,8 +29,9 @@ fn test_runtime_command_with_rubies() {
     sandbox.add_ruby_dir("3.3.1").expect("Failed to create ruby-3.3.1");
 
     let output = Command::new("cargo")
-        .args(&["run", "--bin", "rb", "--", "runtime", "--directory"])
+        .args(&["run", "--bin", "rb", "--", "-R"])
         .arg(sandbox.root())
+        .arg("runtime")
         .current_dir("f:\\sync\\elders\\ruby-butler2\\crates\\rb-cli")
         .output()
         .expect("Failed to execute command");
@@ -72,8 +74,9 @@ fn test_runtime_command_alias() {
     sandbox.add_ruby_dir("3.2.5").expect("Failed to create ruby-3.2.5");
 
     let output = Command::new("cargo")
-        .args(&["run", "--bin", "rb", "--", "rt", "--directory"])
+        .args(&["run", "--bin", "rb", "--", "-R"])
         .arg(sandbox.root())
+        .arg("rt")
         .current_dir("f:\\sync\\elders\\ruby-butler2\\crates\\rb-cli")
         .output()
         .expect("Failed to execute command");
