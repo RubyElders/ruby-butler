@@ -1,3 +1,12 @@
+use crate::butler::env_provider::EnvProvider;
+impl EnvProvider for RubyRuntime {
+    fn env_vars(&self, _current_path: Option<String>) -> Vec<(String, String)> {
+        vec![]
+    }
+    fn extra_path(&self) -> Vec<std::path::PathBuf> {
+        vec![self.bin_dir().clone()]
+    }
+}
 use semver::Version;
 use std::env::consts::EXE_SUFFIX;
 use std::path::{Path, PathBuf};
