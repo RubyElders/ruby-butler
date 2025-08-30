@@ -12,11 +12,11 @@ const STYLES: Styles = Styles::styled()
 
 #[derive(Clone, Debug, ValueEnum)]
 pub enum LogLevel {
-    /// No logging output (default)
+    /// Maintain dignified silence (default)
     None,
-    /// Show informational messages and errors
+    /// Provide informational updates with appropriate discretion
     Info,
-    /// Show detailed debug information for troubleshooting
+    /// Furnish comprehensive diagnostic details for troubleshooting
     Debug,
 }
 
@@ -32,27 +32,27 @@ impl From<LogLevel> for log::LevelFilter {
 
 #[derive(Parser)]
 #[command(name = "rb")]
-#[command(about = "🎩 Ruby Butler - An elegant Ruby version manager for distinguished developers")]
-#[command(long_about = "🎩 Ruby Butler\n\nA refined tool for managing Ruby installations and gem environments,\ncrafted with the discerning taste of the Ruby community's most distinguished members.\n\nBrought to you by RubyElders.com")]
-#[command(author = "by RubyElders.com")]
+#[command(about = "🎩 Ruby Butler - Your distinguished Ruby environment manager")]
+#[command(long_about = "🎩 Ruby Butler\n\nA sophisticated Ruby environment manager that orchestrates your Ruby installations\nand gem collections with the refined precision of a proper gentleman's gentleman.\n\nNot merely a version switcher, but your devoted aide in curating Ruby environments\nwith the elegance and attention to detail befitting a distinguished developer.\n\n                        At your service,\n                        RubyElders.com")]
+#[command(author = "RubyElders.com")]
 #[command(version = "0.1.0")]
 #[command(propagate_version = true)]
 #[command(styles = STYLES)]
 pub struct Cli {
-    /// Set the log level for output verbosity
-    #[arg(long, value_enum, default_value = "none", global = true, help = "Set the log level for output verbosity")]
+    /// Specify verbosity for diagnostic output (increases with each use)
+    #[arg(long, value_enum, default_value = "none", global = true, help = "Specify verbosity for diagnostic output")]
     pub log_level: LogLevel,
 
-    /// Increase verbosity (-v for info, -vv for debug)
-    #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count, global = true, help = "Increase verbosity (-v for info, -vv for debug)")]
+    /// Enhance verbosity gradually (-v for details, -vv for comprehensive diagnostics)
+    #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count, global = true, help = "Enhance verbosity gradually (-v for details, -vv for comprehensive diagnostics)")]
     pub verbose: u8,
 
-    /// Directory to search for Ruby installations
-    #[arg(short = 'R', long = "rubies-dir", global = true, help = "Directory to search for Ruby installations (default: ~/.rubies)")]
+    /// Designate the directory containing your Ruby installations
+    #[arg(short = 'R', long = "rubies-dir", global = true, help = "Designate the directory containing your Ruby installations (default: ~/.rubies)")]
     pub rubies_dir: Option<std::path::PathBuf>,
 
-    /// Select specific Ruby version (defaults to latest)
-    #[arg(short = 'r', long = "ruby", global = true, help = "Select specific Ruby version (defaults to latest)")]
+    /// Request a particular Ruby version for your environment
+    #[arg(short = 'r', long = "ruby", global = true, help = "Request a particular Ruby version for your environment (defaults to latest available)")]
     pub ruby_version: Option<String>,
 
     #[command(subcommand)]
@@ -73,14 +73,14 @@ impl Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// 🔍 Discover and list available Ruby runtimes with distinguished grace
+    /// 🔍 Survey your distinguished Ruby estate and present available environments
     #[command(visible_alias = "rt")]
     Runtime,
     
-    /// ⚡ Execute a command in the Ruby environment with composed PATH and gem settings
+    /// ⚡ Execute commands within your meticulously prepared Ruby environment
     #[command(visible_alias = "x")]
     Exec {
-        /// The program to execute and its arguments
+        /// The program and its arguments to execute with proper environmental preparation
         #[arg(trailing_var_arg = true, required = true)]
         args: Vec<String>,
     },

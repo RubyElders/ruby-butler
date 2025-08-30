@@ -16,8 +16,8 @@ fn test_runtime_command_with_empty_directory() {
         .expect("Failed to execute command");
 
     let stdout = String::from_utf8(output.stdout).expect("Invalid UTF-8");
-    assert!(stdout.contains("Following rubies were found"));
-    assert!(stdout.contains("No Ruby installations found"));
+    assert!(stdout.contains("Your Ruby Estate Survey"));
+    assert!(stdout.contains("No Ruby installations discovered"));
 }
 
 #[test]
@@ -38,12 +38,12 @@ fn test_runtime_command_with_rubies() {
         .expect("Failed to execute command");
 
     let stdout = String::from_utf8(output.stdout).expect("Invalid UTF-8");
-    assert!(stdout.contains("Following rubies were found"));
+    assert!(stdout.contains("Your Ruby Estate Survey"));
     assert!(stdout.contains("CRuby"));
     assert!(stdout.contains("(3.2.5)"));
     assert!(stdout.contains("(3.1.0)"));
     assert!(stdout.contains("(3.3.1)"));
-    assert!(stdout.contains("Ruby detected: (latest)"));
+    assert!(stdout.contains("Environment Ready: (latest available)"));
     assert!(stdout.contains("(3.3.1)")); // Should be the latest
 }
 
@@ -124,7 +124,7 @@ fn test_runtime_command_alias() {
         .expect("Failed to execute command");
 
     let stdout = String::from_utf8(output.stdout).expect("Invalid UTF-8");
-    assert!(stdout.contains("Following rubies were found"));
+    assert!(stdout.contains("Your Ruby Estate Survey"));
     assert!(stdout.contains("CRuby"));
     assert!(stdout.contains("(3.2.5)"));
 }

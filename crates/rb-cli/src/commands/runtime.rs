@@ -6,12 +6,13 @@ use log::{debug, info};
 use semver::Version;
 
 pub fn runtime_command(search_dir: PathBuf, ruby_version: Option<String>) {
-    info!("Searching for Ruby installations in: {}", search_dir.display());
-    list_rubies(&search_dir, ruby_version.as_deref());
+    info!("Surveying Ruby installations in the distinguished directory: {}", search_dir.display());
+    present_ruby_estate(&search_dir, ruby_version.as_deref());
 }
 
-fn list_rubies(search_dir: &PathBuf, requested_version: Option<&str>) {
-    println!("{}", format!("Following rubies were found in {}:", search_dir.display()).bold());
+fn present_ruby_estate(search_dir: &PathBuf, requested_version: Option<&str>) {
+    println!("{}", format!("📚 Your Ruby Estate Survey").bold());
+    println!("{}", format!("   Examining installations within: {}", search_dir.display()).bright_black());
     println!();
 
     debug!("Starting Ruby discovery process");
@@ -20,7 +21,8 @@ fn list_rubies(search_dir: &PathBuf, requested_version: Option<&str>) {
             info!("Ruby discovery completed successfully, found {} installations", rubies.len());
             
             if rubies.is_empty() {
-                println!("{}", "No Ruby installations found.".yellow());
+                println!("{}", "No Ruby installations discovered in the designated quarters.".yellow());
+                println!("{}", "   Perhaps consider installing Ruby environments to properly establish your estate.".bright_black());
                 return;
             }
 
@@ -75,30 +77,30 @@ fn list_rubies(search_dir: &PathBuf, requested_version: Option<&str>) {
                 }
             }
             
-            // Calculate maximum label width for alignment
-            let label_width = ["Ruby path", "Gem home", "Gem paths", "Bin paths"]
+            // Calculate maximum label width for proper presentation
+            let label_width = ["Installation", "Gem home", "Gem libraries", "Executable paths"]
                 .iter()
                 .map(|s| s.len())
                 .max()
-                .unwrap_or(9);
+                .unwrap_or(12);
             
-            // Display all rubies with proper alignment
+            // Present each Ruby environment with appropriate refinement
             for (ruby_header, ruby_path, gem_home, gem_paths, bin_paths) in ruby_display_data {
-                // Display Ruby header
-                let ruby_type = if ruby_header.starts_with("CRuby") { "CRuby".green() } else { ruby_header.as_str().green() };
+                // Present Ruby header with distinction
+                let ruby_type = if ruby_header.starts_with("CRuby") { "💎 CRuby".green() } else { ruby_header.as_str().green() };
                 let version_start = ruby_header.find('(').unwrap_or(0);
                 let version = ruby_header[version_start..].cyan();
                 
                 println!("{} {}", ruby_type, version);
                 
-                // Display Ruby path with alignment
+                // Present installation location with proper alignment
                 println!("    {:<width$}: {}", 
-                    "Ruby path".bright_blue().bold(), 
+                    "Installation".bright_blue().bold(), 
                     ruby_path.bright_black(),
                     width = label_width
                 );
                 
-                // Display gem home with alignment
+                // Present gem home with appropriate dignity
                 match gem_home {
                     Some(home_path) => {
                         println!("    {:<width$}: {}", 
@@ -110,80 +112,82 @@ fn list_rubies(search_dir: &PathBuf, requested_version: Option<&str>) {
                     None => {
                         println!("    {:<width$}: {}", 
                             "Gem home".bright_blue().bold(), 
-                            "Unable to determine".yellow(),
+                            "Gem home undetermined".yellow(),
                             width = label_width
                         );
                     }
                 }
                 
-                // Display gem paths with alignment
-                println!("    {:<width$}:", "Gem paths".bright_blue().bold(), width = label_width);
+                // Present gem library collections
+                println!("    {:<width$}:", "Gem libraries".bright_blue().bold(), width = label_width);
                 for gem_path in gem_paths {
                     println!("    {:<width$}  {}", "", gem_path.cyan(), width = label_width);
                 }
                 
-                // Display bin paths with alignment
-                println!("    {:<width$}:", "Bin paths".bright_blue().bold(), width = label_width);
+                // Present executable paths with proper ceremony
+                println!("    {:<width$}:", "Executable paths".bright_blue().bold(), width = label_width);
                 for bin_path in bin_paths {
                     println!("    {:<width$}  {}", "", bin_path.green(), width = label_width);
                 }
                 
-                println!(); // Add spacing between rubies
+                println!(); // Maintain dignified spacing between entries
             }
 
             println!();
 
-            // Handle Ruby selection - unified output format
+            // Handle Ruby selection with appropriate ceremony
             if let Some(version_str) = requested_version {
-                debug!("Looking for requested Ruby version: {}", version_str);
+                debug!("Seeking your requested Ruby version: {}", version_str);
                 
-                // Try to parse the version and find exact match
+                // Attempt to locate the precise version requested
                 let found = if let Ok(requested_version) = Version::parse(version_str) {
                     rubies.iter().find(|ruby| ruby.version == requested_version)
                 } else {
-                    // If parsing fails, try string matching
+                    // If version parsing is unsuccessful, attempt string matching
                     rubies.iter().find(|ruby| ruby.version.to_string() == version_str)
                 };
                 
                 match found {
                     Some(ruby) => {
-                        info!("Selected Ruby installation: {} {}", ruby.kind.as_str(), ruby.version);
-                        println!("{}: {} {} {} at {}", 
-                            "Ruby detected".bold(),
-                            "(selected)".bright_blue(),
+                        info!("Your requested Ruby environment has been located: {} {}", ruby.kind.as_str(), ruby.version);
+                        println!("{}: {} {} {} {}", 
+                            "Environment Selected".bold(),
+                            "(as requested)".bright_blue(),
                             ruby.kind.as_str().green(),
                             format!("({})", ruby.version).cyan(),
-                            ruby.root.display().to_string().bright_black()
+                            format!("residing at {}", ruby.root.display()).bright_black()
                         );
                     }
                     None => {
-                        eprintln!("{}: Ruby version {} not found", "Error".red().bold(), version_str.cyan());
-                        eprintln!("Available versions: {}", 
+                        eprintln!("{}: The requested Ruby version {} could not be located in your estate", 
+                                "Selection Failed".red().bold(), version_str.cyan());
+                        eprintln!("Available versions in your collection: {}", 
                             rubies.iter()
                                 .map(|r| r.version.to_string())
                                 .collect::<Vec<_>>()
                                 .join(", ")
+                                .bright_cyan()
                         );
                         std::process::exit(1);
                     }
                 }
             } else {
-                // Show latest Ruby with note that it was auto-selected
+                // Present the finest Ruby with appropriate recognition
                 if let Some(latest) = RubyRuntimeDetector::latest(&rubies) {
-                    info!("Latest Ruby installation: {} {}", latest.kind.as_str(), latest.version);
-                    println!("{}: {} {} {} at {}", 
-                        "Ruby detected".bold(),
-                        "(latest)".bright_blue(),
+                    info!("Presenting your finest Ruby installation: {} {}", latest.kind.as_str(), latest.version);
+                    println!("{}: {} {} {} {}", 
+                        "Environment Ready".bold(),
+                        "(latest available)".bright_blue(),
                         latest.kind.as_str().green(),
                         format!("({})", latest.version).cyan(),
-                        latest.root.display().to_string().bright_black()
+                        format!("residing at {}", latest.root.display()).bright_black()
                     );
                 }
             }
         }
         Err(e) => {
-            debug!("Ruby discovery failed with error: {}", e);
-            eprintln!("{}: {}", "Error".red().bold(), e);
+            debug!("Ruby estate survey encountered difficulties: {}", e);
+            eprintln!("{}: {}", "Survey Failed".red().bold(), e);
             std::process::exit(1);
         }
     }

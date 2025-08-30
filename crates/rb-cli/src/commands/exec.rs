@@ -7,19 +7,20 @@ use which::which_in;
 
 pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
     if program_args.is_empty() {
-        eprintln!("{}: No program specified to execute", "Error".red().bold());
-        eprintln!("Usage: rb exec <program> [args...]");
-        eprintln!("Example: rb exec gem list");
+        eprintln!("{}: No program specified for execution", "Request Incomplete".red().bold());
+        eprintln!("Proper usage: rb exec <program> [arguments...]");
+        eprintln!("For example: rb exec gem list");
+        eprintln!("             rb exec bundle install");
         std::process::exit(1);
     }
 
-    // Get current PATH
+    // Obtain the current PATH for environment composition
     let current_path = env::var("PATH").ok();
     
-    // Compose the environment
+    // Compose the distinguished Ruby environment
     let env_vars = butler.env_vars(current_path);
     
-    // Extract program and arguments
+    // Extract the program and its accompanying arguments
     let program = &program_args[0];
     let args = if program_args.len() > 1 {
         &program_args[1..]
@@ -27,12 +28,13 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
         &[]
     };
 
-    // Resolve the program within the composed PATH
+    // Locate the program within our meticulously prepared PATH
     let resolved_program = match which_in(program, env_vars.get("PATH"), ".") {
         Ok(path) => path,
         Err(_) => {
-            eprintln!("{}: Program '{}' not found in PATH", "Error".red().bold(), program.cyan());
-            eprintln!("Available PATH directories:");
+            eprintln!("{}: The program '{}' could not be located within the prepared environment", 
+                     "Program Not Found".red().bold(), program.cyan());
+            eprintln!("Available directories in your prepared PATH:");
             if let Some(path_var) = env_vars.get("PATH") {
                 let separator = if cfg!(windows) { ";" } else { ":" };
                 for dir in path_var.split(separator) {
@@ -43,41 +45,42 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
         }
     };
 
-    info!("Executing {} with composed Ruby environment", 
+    info!("Preparing to execute {} within the carefully composed Ruby environment", 
           resolved_program.display());
     
-    debug!("Resolved program: {}", resolved_program.display());
-    debug!("Arguments: {:?}", args);
+    debug!("Program resolved to: {}", resolved_program.display());
+    debug!("Arguments prepared: {:?}", args);
     
-    // Log environment variables being set
+    // Document the environmental preparations being applied
     for (key, value) in &env_vars {
-        debug!("Setting {}={}", key, value);
+        debug!("Establishing {}={}", key, value);
     }
 
-    // Execute the program with the composed environment
+    // Execute the program within our distinguished environment
     let mut cmd = Command::new(&resolved_program);
     cmd.args(args);
     
-    // Set environment variables
+    // Apply the meticulously prepared environment variables
     for (key, value) in env_vars {
         cmd.env(key, value);
     }
 
-    debug!("Starting process...");
+    debug!("Commencing program execution...");
     
-    // Execute and forward exit code
+    // Execute and honor the program's exit status
     match cmd.status() {
         Ok(status) => {
             if let Some(code) = status.code() {
-                debug!("Process exited with code: {}", code);
+                debug!("Program concluded with exit code: {}", code);
                 std::process::exit(code);
             } else {
-                debug!("Process terminated by signal");
+                debug!("Program was terminated by system signal");
                 std::process::exit(1);
             }
         }
         Err(e) => {
-            eprintln!("{}: Failed to execute program: {}", "Error".red().bold(), e);
+            eprintln!("{}: Execution encountered difficulties: {}", 
+                     "Execution Failed".red().bold(), e);
             std::process::exit(1);
         }
     }
