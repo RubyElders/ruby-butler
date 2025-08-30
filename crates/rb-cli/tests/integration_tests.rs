@@ -11,7 +11,6 @@ fn test_runtime_command_with_empty_directory() {
         .args(&["run", "--bin", "rb", "--", "-R"])
         .arg(sandbox.root())
         .arg("runtime")
-        .current_dir("f:\\sync\\elders\\ruby-butler2\\crates\\rb-cli")
         .output()
         .expect("Failed to execute command");
 
@@ -33,7 +32,6 @@ fn test_runtime_command_with_rubies() {
         .args(&["run", "--bin", "rb", "--", "-R"])
         .arg(sandbox.root())
         .arg("runtime")
-        .current_dir("f:\\sync\\elders\\ruby-butler2\\crates\\rb-cli")
         .output()
         .expect("Failed to execute command");
 
@@ -119,7 +117,6 @@ fn test_runtime_command_alias() {
         .args(&["run", "--bin", "rb", "--", "-R"])
         .arg(sandbox.root())
         .arg("rt")
-        .current_dir("f:\\sync\\elders\\ruby-butler2\\crates\\rb-cli")
         .output()
         .expect("Failed to execute command");
 
