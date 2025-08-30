@@ -6,30 +6,10 @@ use rb_core::gems::GemRuntime;
 use semver::Version;
 
 #[test]
-fn test_butler_with_detector_and_latest_ruby() -> io::Result<()> {
-    // Setup sandbox and add one ruby version
-    let sandbox = common::RubySandbox::new()?;
-    let _ruby_dir = sandbox.add_ruby_dir("3.2.1")?;
-
-    // Discover rubies using detector
-    let rubies = RubyRuntimeDetector::discover(sandbox.root())?;
-    assert_eq!(rubies.len(), 1);
-    let latest = RubyRuntimeDetector::latest(&rubies).expect("should find latest ruby");
-    assert_eq!(latest.version.to_string(), "3.2.1");
-
-    // Compose ButlerRuntime with only RubyRuntime
-    let butler = ButlerRuntime::new(latest.clone(), None);
-    let path_val = butler.build_path(Some("/usr/bin".to_string()));
-    assert!(path_val.contains(&latest.bin_dir().display().to_string()));
-    assert!(path_val.contains("/usr/bin"));
-
-    Ok(())
-}
-
-#[test]
 fn test_butler_runtime_with_only_ruby() -> io::Result<()> {
     let sandbox = common::RubySandbox::new()?;
-    let _ruby_dir = sandbox.add_ruby_dir("3.1.0")?;
+    let ruby_dir = sandbox.add_ruby_dir("3.1.0")?;
+    std::fs::create_dir_all(ruby_dir.join("bin"))?;
 
     let rubies = RubyRuntimeDetector::discover(sandbox.root())?;
     assert_eq!(rubies.len(), 1);
@@ -62,18 +42,20 @@ fn test_butler_runtime_with_only_ruby() -> io::Result<()> {
 #[test]
 fn test_butler_runtime_with_ruby_and_gem() -> io::Result<()> {
     let sandbox = common::RubySandbox::new()?;
-    let _ruby_dir = sandbox.add_ruby_dir("3.2.1")?;
+    let ruby_dir = sandbox.add_ruby_dir("3.2.1")?;
+    std::fs::create_dir_all(ruby_dir.join("bin"))?;
 
     let rubies = RubyRuntimeDetector::discover(sandbox.root())?;
     let ruby = &rubies[0];
 
     // Create a GemRuntime
     let gem_base = sandbox.root().join(".gem");
+    std::fs::create_dir_all(&gem_base)?;
     let gem_runtime = GemRuntime::for_base_dir(&gem_base, &ruby.version);
 
     let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
 
-    // Test bin_dirs - should have gem first (higher priority), then ruby
+    // Test bin_dirs - should have both ruby and gem bin dirs
     let bin_dirs = butler.bin_dirs();
     assert_eq!(bin_dirs.len(), 2);
     
@@ -107,8 +89,10 @@ fn test_butler_runtime_with_multiple_rubies() -> io::Result<()> {
     let sandbox = common::RubySandbox::new()?;
     
     // Add multiple Ruby versions
-    let _ruby_dir_1 = sandbox.add_ruby_dir("3.1.0")?;
-    let _ruby_dir_2 = sandbox.add_ruby_dir("3.2.1")?;
+    let ruby_dir_1 = sandbox.add_ruby_dir("3.1.0")?;
+    let ruby_dir_2 = sandbox.add_ruby_dir("3.2.1")?;
+    std::fs::create_dir_all(ruby_dir_1.join("bin"))?;
+    std::fs::create_dir_all(ruby_dir_2.join("bin"))?;
 
     let rubies = RubyRuntimeDetector::discover(sandbox.root())?;
     assert_eq!(rubies.len(), 2);
@@ -130,7 +114,8 @@ fn test_butler_runtime_with_multiple_rubies() -> io::Result<()> {
 #[test]
 fn test_butler_runtime_path_building_platform_specific() -> io::Result<()> {
     let sandbox = common::RubySandbox::new()?;
-    let _ruby_dir = sandbox.add_ruby_dir("3.0.0")?;
+    let ruby_dir = sandbox.add_ruby_dir("3.0.0")?;
+    std::fs::create_dir_all(ruby_dir.join("bin"))?;
 
     let rubies = RubyRuntimeDetector::discover(sandbox.root())?;
     let ruby = &rubies[0];
@@ -159,8 +144,8 @@ fn test_butler_runtime_path_building_platform_specific() -> io::Result<()> {
 }
 
 #[test]
-fn test_butler_runtime_without_filesystem() {
-    // Test with a ruby that doesn't need real filesystem paths
+fn test_butler_runtime_empty_gem_runtime() -> io::Result<()> {
+    // Test with a ruby that has no gem directories
     let ruby = RubyRuntime::new(
         RubyType::CRuby,
         Version::parse("3.0.0").unwrap(),
@@ -178,4 +163,6 @@ fn test_butler_runtime_without_filesystem() {
     assert_eq!(gem_dirs.len(), 1);
 
     assert_eq!(butler.gem_home(), None);
+
+    Ok(())
 }

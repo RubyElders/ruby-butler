@@ -9,9 +9,12 @@ pub struct GemRuntime {
 }
 
 impl GemRuntime {
-    /// base: e.g. ~/.gem
+    /// Create a GemRuntime from a base directory
+    /// 
+    /// The gem_home will be base/ruby/version where version is the full version (x.y.z)
+    /// base: e.g. ~/.gem, /usr/lib/ruby/gems
     pub fn for_base_dir(base: &Path, ruby_version: &Version) -> Self {
-        let ver = format!("{}.{}.0", ruby_version.major, ruby_version.minor);
+        let ver = format!("{}.{}.{}", ruby_version.major, ruby_version.minor, ruby_version.patch);
         let gem_home = base.join("ruby").join(ver);
         let gem_bin = gem_home.join("bin");
         Self { gem_home, gem_bin }
@@ -40,5 +43,18 @@ mod tests {
         let gem = GemRuntime::for_base_dir(base, &ver);
         assert_eq!(gem.bin_dir(), Some(gem.gem_bin.clone()));
         assert_eq!(gem.gem_dir(), Some(gem.gem_home.clone()));
+    }
+
+    #[test]
+    fn test_for_base_dir_uses_full_version() {
+        let base = Path::new("/home/user/.gem");
+        let ver = Version::parse("3.4.5").unwrap();
+        let gem = GemRuntime::for_base_dir(base, &ver);
+        
+        let expected_gem_home = base.join("ruby").join("3.4.5");
+        let expected_gem_bin = expected_gem_home.join("bin");
+        
+        assert_eq!(gem.gem_home, expected_gem_home);
+        assert_eq!(gem.gem_bin, expected_gem_bin);
     }
 }

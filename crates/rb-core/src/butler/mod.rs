@@ -1,62 +1,176 @@
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    struct DummyProvider;
-    impl crate::butler::runtime_provider::RuntimeProvider for DummyProvider {
-        fn bin_dir(&self) -> Option<PathBuf> {
-            Some(PathBuf::from("/dummy/bin"))
-        }
-        fn gem_dir(&self) -> Option<PathBuf> {
-            None
-        }
-    }
-
-    #[test]
-    fn butler_runtime_composes_envs_and_paths() {
-    let p1 = Box::new(DummyProvider);
-    let p2 = Box::new(DummyProvider);
-    let butler = ButlerRuntime::new(vec![p1, p2]);
-    let path = butler.build_path(Some("/usr/bin".to_string()));
-    assert!(path.contains("/dummy/bin"));
-    assert!(path.contains("/usr/bin"));
-    }
-}
 use std::path::PathBuf;
+use crate::ruby::RubyRuntime;
+use crate::gems::GemRuntime;
 
-// ...existing code...
 pub mod runtime_provider;
-use runtime_provider::RuntimeProvider;
 
-pub fn path_sep() -> &'static str { if cfg!(windows) { ";" } else { ":" } }
-
+#[derive(Debug, Clone)]
 pub struct ButlerRuntime {
-    pub providers: Vec<Box<dyn RuntimeProvider>>,
-    pub extra_path: Vec<PathBuf>,
+    ruby_runtime: RubyRuntime,
+    gem_runtime: Option<GemRuntime>,
 }
 
 impl ButlerRuntime {
-    pub fn new(providers: Vec<Box<dyn RuntimeProvider>>) -> Self {
-        Self { providers, extra_path: Vec::new() }
+    /// Create a new ButlerRuntime with a mandatory RubyRuntime and optional GemRuntime
+    pub fn new(ruby_runtime: RubyRuntime, gem_runtime: Option<GemRuntime>) -> Self {
+        Self {
+            ruby_runtime,
+            gem_runtime,
+        }
     }
 
-    pub fn build_path(&self, current_path: Option<String>) -> String {
-        let mut parts: Vec<String> = Vec::new();
-        for provider in &self.providers {
-            if let Some(bin) = provider.bin_dir() {
-                parts.push(bin.display().to_string());
-            }
+    /// Returns a list of bin directories from both ruby and gem runtimes
+    /// Gem bin directory comes first (higher priority) if present, then Ruby bin directory
+    pub fn bin_dirs(&self) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        
+        // Gem runtime bin dir first (highest priority) - for user-installed tools
+        if let Some(ref gem_runtime) = self.gem_runtime {
+            dirs.push(gem_runtime.gem_bin.clone());
         }
-        for p in &self.extra_path {
-            parts.push(p.display().to_string());
+        
+        // Ruby runtime bin dir second - for core Ruby executables
+        dirs.push(self.ruby_runtime.bin_dir());
+        
+        dirs
+    }
+
+    /// Returns a list of gem directories from both ruby and gem runtimes
+    pub fn gem_dirs(&self) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        
+        // Ruby runtime always has a lib dir for gems
+        dirs.push(self.ruby_runtime.lib_dir());
+        
+        if let Some(ref gem_runtime) = self.gem_runtime {
+            dirs.push(gem_runtime.gem_home.clone());
         }
-        if let Some(cp) = current_path {
-            if !cp.is_empty() {
-                parts.push(cp);
-            }
+        
+        dirs
+    }
+
+    /// Returns the gem_home from GemRuntime if present, otherwise returns None
+    pub fn gem_home(&self) -> Option<PathBuf> {
+        self.gem_runtime.as_ref()
+            .map(|gem_runtime| gem_runtime.gem_home.clone())
+    }
+
+    /// Build PATH string with bin directories prepended to the existing PATH
+    pub fn build_path(&self, existing_path: Option<String>) -> String {
+        let mut path_parts = Vec::new();
+        
+        // Add our bin directories first
+        for bin_dir in self.bin_dirs() {
+            path_parts.push(bin_dir.display().to_string());
         }
-        parts.join(path_sep())
+        
+        // Add existing PATH if provided
+        if let Some(existing) = existing_path {
+            path_parts.push(existing);
+        }
+        
+        // On Windows, use semicolon; on Unix, use colon
+        let separator = if cfg!(windows) { ";" } else { ":" };
+        path_parts.join(separator)
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ruby::{RubyType, RubyRuntime};
+    use crate::gems::GemRuntime;
+    use semver::Version;
+    use std::path::Path;
+
+    fn create_ruby_runtime(version: &str, root: &str) -> RubyRuntime {
+        RubyRuntime::new(
+            RubyType::CRuby,
+            Version::parse(version).unwrap(),
+            root
+        )
+    }
+
+    #[test]
+    fn test_butler_runtime_with_only_ruby() {
+        let ruby = create_ruby_runtime("3.2.1", "/opt/ruby-3.2.1");
+        let butler = ButlerRuntime::new(ruby.clone(), None);
+
+        // Test bin_dirs - should have only ruby bin dir
+        let bin_dirs = butler.bin_dirs();
+        assert_eq!(bin_dirs.len(), 1);
+        assert_eq!(bin_dirs[0], ruby.bin_dir());
+
+        // Test gem_dirs - should have only ruby lib dir
+        let gem_dirs = butler.gem_dirs();
+        assert_eq!(gem_dirs.len(), 1);
+        assert_eq!(gem_dirs[0], ruby.lib_dir());
+
+        // Test gem_home should be None when no GemRuntime
+        assert_eq!(butler.gem_home(), None);
+    }
+
+    #[test]
+    fn test_butler_runtime_with_ruby_and_gem() {
+        let ruby = create_ruby_runtime("3.2.1", "/opt/ruby-3.2.1");
+        let gem_base = Path::new("/home/user/.gem");
+        let gem_runtime = GemRuntime::for_base_dir(gem_base, &ruby.version);
+
+        let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
+
+        // Test bin_dirs - should have gem first, then ruby bin dirs
+        let bin_dirs = butler.bin_dirs();
+        assert_eq!(bin_dirs.len(), 2);
+        assert_eq!(bin_dirs[0], gem_runtime.gem_bin);  // Gem bin dir first (higher priority)
+        assert_eq!(bin_dirs[1], ruby.bin_dir());       // Ruby bin dir second
+
+        // Test gem_dirs - should have both ruby and gem dirs
+        let gem_dirs = butler.gem_dirs();
+        assert_eq!(gem_dirs.len(), 2);
+        assert_eq!(gem_dirs[0], ruby.lib_dir());
+        assert_eq!(gem_dirs[1], gem_runtime.gem_home);
+
+        // Test gem_home should return the gem runtime's gem_home
+        assert_eq!(butler.gem_home(), Some(gem_runtime.gem_home));
+    }
+
+    #[test]
+    fn test_build_path_without_existing() {
+        let ruby = create_ruby_runtime("3.1.0", "/opt/ruby-3.1.0");
+        let butler = ButlerRuntime::new(ruby.clone(), None);
+        
+        let path = butler.build_path(None);
+        assert_eq!(path, ruby.bin_dir().display().to_string());
+    }
+
+    #[test]
+    fn test_build_path_with_existing() {
+        let ruby = create_ruby_runtime("3.1.0", "/opt/ruby-3.1.0");
+        let butler = ButlerRuntime::new(ruby.clone(), None);
+        
+        let path = butler.build_path(Some("/usr/bin:/bin".to_string()));
+        
+        let separator = if cfg!(windows) { ";" } else { ":" };
+        let expected = format!("{}{}/usr/bin:/bin", ruby.bin_dir().display(), separator);
+        assert_eq!(path, expected);
+    }
+
+    #[test]
+    fn test_build_path_with_multiple_bin_dirs() {
+        let ruby = create_ruby_runtime("3.1.0", "/opt/ruby-3.1.0");
+        let gem_base = Path::new("/home/user/.gem");
+        let gem_runtime = GemRuntime::for_base_dir(gem_base, &ruby.version);
+
+        let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
+        let path = butler.build_path(Some("/usr/bin".to_string()));
+        
+        let separator = if cfg!(windows) { ";" } else { ":" };
+        let expected = format!("{}{}{}{}/usr/bin", 
+            gem_runtime.gem_bin.display(),  // Gem bin first (highest priority)
+            separator, 
+            ruby.bin_dir().display(),       // Ruby bin second
+            separator
+        );
+        assert_eq!(path, expected);
+    }
+}

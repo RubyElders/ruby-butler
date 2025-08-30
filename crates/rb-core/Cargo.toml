@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 regex = "1.11.1"
 semver = "1.0.26"
+home = "0.5"
 
 [dev-dependencies]
 tempfile = "3.21.0"

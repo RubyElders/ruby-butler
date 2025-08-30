@@ -3,6 +3,7 @@ use semver::Version;
 use std::env::consts::EXE_SUFFIX;
 use std::path::{Path, PathBuf};
 use crate::butler::runtime_provider::RuntimeProvider;
+use crate::gems::GemRuntime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RubyType {
@@ -59,6 +60,21 @@ impl RubyRuntime {
             .join("ruby")
             .join("gems")
             .join(format!("{}.{}.0", self.version.major, self.version.minor))
+    }
+
+    /// Create a GemRuntime based on ~/.gem/ruby/version pattern
+    /// 
+    /// This creates a GemRuntime pointing to ~/.gem/ruby/<full.version>
+    /// which follows the standard user gem installation pattern.
+    pub fn infer_gem_runtime(&self) -> Result<GemRuntime, std::io::Error> {
+        let home_dir = home::home_dir()
+            .ok_or_else(|| std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Could not determine home directory"
+            ))?;
+        
+        let gem_base = home_dir.join(".gem");
+        Ok(GemRuntime::for_base_dir(&gem_base, &self.version))
     }
 }
 
@@ -123,6 +139,21 @@ mod tests {
     let expected_gem = Some(r.root.join("lib").join("ruby").join("gems").join("3.2.0"));
     assert_eq!(<RubyRuntime as RuntimeProvider>::bin_dir(&r), expected_bin);
     assert_eq!(<RubyRuntime as RuntimeProvider>::gem_dir(&r), expected_gem);
+    }
+
+    #[test]
+    fn infer_gem_runtime_creates_proper_gem_runtime() {
+        // Use a simple test since home crate handles cross-platform concerns
+        let r = rt("3.4.5", "/opt/rubies/ruby-3.4.5");
+        let gem_runtime = r.infer_gem_runtime().expect("Should create GemRuntime");
+        
+        // Check that the gem_home follows /.gem/ruby/3.4.5 pattern (full version)
+        assert!(gem_runtime.gem_home.ends_with(Path::new(".gem").join("ruby").join("3.4.5")));
+        assert!(gem_runtime.gem_bin.ends_with(Path::new(".gem").join("ruby").join("3.4.5").join("bin")));
+        
+        // Verify the version formatting uses full version
+        let version_part = gem_runtime.gem_home.file_name().unwrap();
+        assert_eq!(version_part, "3.4.5");
     }
 }
 
