@@ -1,15 +1,8 @@
-use crate::butler::env_provider::EnvProvider;
-impl EnvProvider for RubyRuntime {
-    fn env_vars(&self, _current_path: Option<String>) -> Vec<(String, String)> {
-        vec![]
-    }
-    fn extra_path(&self) -> Vec<std::path::PathBuf> {
-        vec![self.bin_dir().clone()]
-    }
-}
+
 use semver::Version;
 use std::env::consts::EXE_SUFFIX;
 use std::path::{Path, PathBuf};
+use crate::butler::runtime_provider::RuntimeProvider;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RubyType {
@@ -69,6 +62,15 @@ impl RubyRuntime {
     }
 }
 
+impl RuntimeProvider for RubyRuntime {
+    fn bin_dir(&self) -> Option<PathBuf> {
+        Some(self.bin_dir())
+    }
+    fn gem_dir(&self) -> Option<PathBuf> {
+        Some(self.lib_dir())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,6 +114,15 @@ mod tests {
         let p = r.lib_dir();
         let expected_tail = Path::new("lib").join("ruby").join("gems").join("3.2.0");
         assert!(p.ends_with(&expected_tail));
+    }
+
+    #[test]
+    fn runtime_provider_returns_bin_and_gem_dir_for_ruby_runtime() {
+        let r = rt("3.2.2", "/opt/rubies/ruby-3.2.2");
+    let expected_bin = Some(r.root.join("bin"));
+    let expected_gem = Some(r.root.join("lib").join("ruby").join("gems").join("3.2.0"));
+    assert_eq!(<RubyRuntime as RuntimeProvider>::bin_dir(&r), expected_bin);
+    assert_eq!(<RubyRuntime as RuntimeProvider>::gem_dir(&r), expected_gem);
     }
 }
 

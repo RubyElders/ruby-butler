@@ -1,3 +1,12 @@
+use std::path::PathBuf;
+
+pub trait RuntimeProvider {
+    /// Returns the bin directory, if available.
+    fn bin_dir(&self) -> Option<PathBuf>;
+    /// Returns the gem directory, if available.
+    fn gem_dir(&self) -> Option<PathBuf>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -19,13 +28,4 @@ mod tests {
         assert_eq!(p.bin_dir(), Some(PathBuf::from("/dummy/bin")));
         assert_eq!(p.gem_dir(), None);
     }
-}
-use std::path::PathBuf;
-
-pub trait RuntimeProvider {
-    /// Returns the bin directory, if available.
-    fn bin_dir(&self) -> Option<PathBuf>;
-    /// Returns the gem directory, if available.
-    fn gem_dir(&self) -> Option<PathBuf>;
-}
 }

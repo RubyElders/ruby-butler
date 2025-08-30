@@ -18,16 +18,7 @@ fn test_butler_env_with_detector_and_latest_ruby() -> io::Result<()> {
 
     // Compose ButlerRuntime with only RubyRuntime
     let butler = ButlerRuntime::new(vec![Box::new(latest.clone())]);
-    let envs = butler.env_vars(Some("/usr/bin".to_string()));
-
-    // Assert only PATH is set and correct
-    let mut path_val = None;
-    for (k, v) in envs {
-        if k == "PATH" {
-            path_val = Some(v);
-        }
-    }
-    let path_val = path_val.expect("PATH must be set");
+    let path_val = butler.build_path(Some("/usr/bin".to_string()));
     assert!(path_val.contains(&latest.bin_dir().display().to_string()));
     assert!(path_val.contains("/usr/bin"));
 
