@@ -1,3 +1,5 @@
-pub mod sandbox;
+pub mod ruby_sandbox;
+pub mod bundler_sandbox;
 
-pub use sandbox::RubySandbox;
+pub use ruby_sandbox::RubySandbox;
+pub use bundler_sandbox::BundlerSandbox;

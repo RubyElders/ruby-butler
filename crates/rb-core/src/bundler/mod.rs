@@ -1,0 +1,418 @@
+use std::path::{Path, PathBuf};
+use std::fs;
+use log::{debug, warn};
+use semver::Version;
+use crate::butler::runtime_provider::RuntimeProvider;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BundlerRuntime {
+    /// Root directory containing the Gemfile
+    pub root: PathBuf,
+}
+
+impl BundlerRuntime {
+    pub fn new(root: impl AsRef<Path>) -> Self {
+        let root = root.as_ref().to_path_buf();
+
+        debug!("Creating BundlerRuntime for root: {}", root.display());
+
+        Self { root }
+    }
+
+    /// Returns the full path to the Gemfile
+    pub fn gemfile_path(&self) -> PathBuf {
+        self.root.join("Gemfile")
+    }
+
+    /// Returns the application config directory (.rb)
+    pub fn app_config_dir(&self) -> PathBuf {
+        self.root.join(".rb")
+    }
+
+    /// Returns the vendor bundler directory (.rb/vendor/bundler)
+    pub fn vendor_dir(&self) -> PathBuf {
+        self.app_config_dir().join("vendor").join("bundler")
+    }
+
+    /// Detect Ruby version from .ruby-version file or Gemfile ruby declaration
+    pub fn ruby_version(&self) -> Option<Version> {
+        // First try .ruby-version file
+        if let Some(version) = self.detect_from_ruby_version_file() {
+            return Some(version);
+        }
+
+        // Then try Gemfile ruby declaration
+        if let Some(version) = self.detect_from_gemfile() {
+            return Some(version);
+        }
+
+        None
+    }
+
+    /// Detect Ruby version from .ruby-version file
+    fn detect_from_ruby_version_file(&self) -> Option<Version> {
+        let ruby_version_path = self.root.join(".ruby-version");
+        debug!("Checking for .ruby-version file: {}", ruby_version_path.display());
+
+        match fs::read_to_string(&ruby_version_path) {
+            Ok(content) => {
+                let version_str = content.trim();
+                debug!("Found .ruby-version content: '{}'", version_str);
+                
+                match Version::parse(version_str) {
+                    Ok(version) => {
+                        debug!("Successfully parsed Ruby version from .ruby-version: {}", version);
+                        Some(version)
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse Ruby version '{}' from .ruby-version: {}", version_str, e);
+                        None
+                    }
+                }
+            }
+            Err(_) => {
+                debug!("No .ruby-version file found");
+                None
+            }
+        }
+    }
+
+    /// Detect Ruby version from Gemfile ruby declaration
+    fn detect_from_gemfile(&self) -> Option<Version> {
+        let gemfile_path = self.gemfile_path();
+        debug!("Checking for ruby declaration in Gemfile: {}", gemfile_path.display());
+
+        match fs::read_to_string(&gemfile_path) {
+            Ok(content) => {
+                debug!("Reading Gemfile for ruby declaration");
+                
+                for line in content.lines() {
+                    let line = line.trim();
+                    
+                    // Look for patterns like: ruby '3.2.5' or ruby "3.2.5"
+                    if line.starts_with("ruby ") {
+                        debug!("Found ruby line: '{}'", line);
+                        
+                        // Extract version string between quotes
+                        if let Some(version_str) = Self::extract_quoted_version(line) {
+                            debug!("Extracted version string: '{}'", version_str);
+                            
+                            match Version::parse(&version_str) {
+                                Ok(version) => {
+                                    debug!("Successfully parsed Ruby version from Gemfile: {}", version);
+                                    return Some(version);
+                                }
+                                Err(e) => {
+                                    warn!("Failed to parse Ruby version '{}' from Gemfile: {}", version_str, e);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                debug!("No valid ruby declaration found in Gemfile");
+                None
+            }
+            Err(_) => {
+                debug!("Could not read Gemfile");
+                None
+            }
+        }
+    }
+
+    /// Extract version string from ruby declaration line
+    fn extract_quoted_version(line: &str) -> Option<String> {
+        // Handle both single and double quotes: ruby '3.2.5' or ruby "3.2.5"
+        let after_ruby = line.strip_prefix("ruby ")?;
+        let trimmed = after_ruby.trim();
+        
+        // Single quotes
+        if let Some(single_quoted) = trimmed.strip_prefix('\'') {
+            if let Some(end_quote) = single_quoted.find('\'') {
+                return Some(single_quoted[..end_quote].to_string());
+            }
+        }
+        
+        // Double quotes
+        if let Some(double_quoted) = trimmed.strip_prefix('"') {
+            if let Some(end_quote) = double_quoted.find('"') {
+                return Some(double_quoted[..end_quote].to_string());
+            }
+        }
+        
+        None
+    }
+
+    /// Returns the bin directory where bundler-installed executables live
+    pub fn bin_dir(&self) -> PathBuf {
+        let bin_dir = self.vendor_dir().join("bin");
+        debug!("Bundler bin directory: {}", bin_dir.display());
+        bin_dir
+    }
+
+    /// Returns whether this bundler runtime appears to be configured
+    /// (i.e., has vendor directory structure)
+    pub fn is_configured(&self) -> bool {
+        let vendor_dir = self.vendor_dir();
+        let configured = vendor_dir.exists();
+        debug!("Bundler runtime configured: {} (vendor dir exists: {})", 
+               configured, vendor_dir.display());
+        configured
+    }
+}
+
+impl RuntimeProvider for BundlerRuntime {
+    fn bin_dir(&self) -> Option<PathBuf> {
+        if self.is_configured() {
+            Some(self.bin_dir())
+        } else {
+            debug!("BundlerRuntime not configured, no bin directory available");
+            None
+        }
+    }
+
+    fn gem_dir(&self) -> Option<PathBuf> {
+        if self.is_configured() {
+            Some(self.vendor_dir())
+        } else {
+            debug!("BundlerRuntime not configured, no gem directory available");
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use rb_tests::BundlerSandbox;
+    use std::io;
+
+    fn bundler_rt(root: &str) -> BundlerRuntime {
+        BundlerRuntime::new(root)
+    }
+
+    #[test]
+    fn new_creates_proper_paths() {
+        let root = Path::new("/home/user/my-app");
+        let br = BundlerRuntime::new(root);
+
+        assert_eq!(br.root, root);
+        assert_eq!(br.gemfile_path(), root.join("Gemfile"));
+        assert_eq!(br.app_config_dir(), root.join(".rb"));
+        assert_eq!(br.vendor_dir(), root.join(".rb").join("vendor").join("bundler"));
+        assert_eq!(br.ruby_version(), None); // No filesystem access in this test
+    }
+
+    #[test]
+    fn bin_dir_is_vendor_bin() {
+        let br = bundler_rt("/home/user/project");
+        let expected = Path::new("/home/user/project/.rb/vendor/bundler/bin");
+        assert_eq!(br.bin_dir(), expected);
+    }
+
+    #[test]
+    fn runtime_provider_returns_paths_when_configured() -> io::Result<()> {
+        let sandbox = BundlerSandbox::new()?;
+        let project_dir = sandbox.add_bundler_project("configured-app", true)?;
+        let br = BundlerRuntime::new(&project_dir);
+        
+        // Should be configured since we created vendor structure
+        assert!(br.is_configured());
+        
+        let expected_bin = br.vendor_dir().join("bin");
+        let expected_gem = br.vendor_dir();
+        
+        assert_eq!(<BundlerRuntime as RuntimeProvider>::bin_dir(&br), Some(expected_bin));
+        assert_eq!(<BundlerRuntime as RuntimeProvider>::gem_dir(&br), Some(expected_gem));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_provider_returns_none_when_not_configured() -> io::Result<()> {
+        let sandbox = BundlerSandbox::new()?;
+        let project_dir = sandbox.add_bundler_project("basic-app", false)?;
+        let br = BundlerRuntime::new(&project_dir);
+        
+        // Should not be configured since no vendor structure exists
+        assert!(!br.is_configured());
+        assert_eq!(<BundlerRuntime as RuntimeProvider>::bin_dir(&br), None);
+        assert_eq!(<BundlerRuntime as RuntimeProvider>::gem_dir(&br), None);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn detects_ruby_version_from_ruby_version_file() -> io::Result<()> {
+        let sandbox = BundlerSandbox::new()?;
+        let project_dir = sandbox.add_bundler_project("version-app", false)?;
+        
+        // Add .ruby-version file
+        sandbox.add_file(
+            format!("{}/{}", project_dir.file_name().unwrap().to_str().unwrap(), ".ruby-version"),
+            "3.2.5"
+        )?;
+        
+        let br = BundlerRuntime::new(&project_dir);
+        assert_eq!(br.ruby_version(), Some(Version::parse("3.2.5").unwrap()));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn detects_ruby_version_from_gemfile_single_quotes() -> io::Result<()> {
+        let sandbox = BundlerSandbox::new()?;
+        let project_dir = sandbox.add_dir("gemfile-app")?;
+        
+        let gemfile_content = r#"source 'https://rubygems.org'
+
+ruby '3.1.4'
+
+gem 'rails', '~> 7.0'
+gem 'pg', '~> 1.4'
+"#;
+        sandbox.add_file(
+            format!("{}/Gemfile", project_dir.file_name().unwrap().to_str().unwrap()),
+            gemfile_content
+        )?;
+        
+        let br = BundlerRuntime::new(&project_dir);
+        assert_eq!(br.ruby_version(), Some(Version::parse("3.1.4").unwrap()));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn detects_ruby_version_from_gemfile_double_quotes() -> io::Result<()> {
+        let sandbox = BundlerSandbox::new()?;
+        let project_dir = sandbox.add_dir("gemfile-app")?;
+        
+        let gemfile_content = r#"source "https://rubygems.org"
+
+ruby "3.3.0"
+
+gem "rails", "~> 7.1"
+"#;
+        sandbox.add_file(
+            format!("{}/Gemfile", project_dir.file_name().unwrap().to_str().unwrap()),
+            gemfile_content
+        )?;
+        
+        let br = BundlerRuntime::new(&project_dir);
+        assert_eq!(br.ruby_version(), Some(Version::parse("3.3.0").unwrap()));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn ruby_version_file_takes_precedence_over_gemfile() -> io::Result<()> {
+        let sandbox = BundlerSandbox::new()?;
+        let project_dir = sandbox.add_dir("precedence-app")?;
+        
+        // Add Gemfile with one version
+        let gemfile_content = r#"source 'https://rubygems.org'
+ruby '3.1.0'
+gem 'rails'
+"#;
+        sandbox.add_file(
+            format!("{}/Gemfile", project_dir.file_name().unwrap().to_str().unwrap()),
+            gemfile_content
+        )?;
+        
+        // Add .ruby-version with different version
+        sandbox.add_file(
+            format!("{}/{}", project_dir.file_name().unwrap().to_str().unwrap(), ".ruby-version"),
+            "3.2.5"
+        )?;
+        
+        let br = BundlerRuntime::new(&project_dir);
+        // Should prefer .ruby-version
+        assert_eq!(br.ruby_version(), Some(Version::parse("3.2.5").unwrap()));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn returns_none_for_invalid_ruby_version() -> io::Result<()> {
+        let sandbox = BundlerSandbox::new()?;
+        let project_dir = sandbox.add_dir("invalid-app")?;
+        
+        // Add invalid .ruby-version file
+        sandbox.add_file(
+            format!("{}/{}", project_dir.file_name().unwrap().to_str().unwrap(), ".ruby-version"),
+            "not-a-version"
+        )?;
+        
+        let br = BundlerRuntime::new(&project_dir);
+        assert_eq!(br.ruby_version(), None);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn returns_none_when_no_ruby_version_specified() -> io::Result<()> {
+        let sandbox = BundlerSandbox::new()?;
+        let project_dir = sandbox.add_dir("no-version-app")?;
+        
+        // Add Gemfile without ruby declaration
+        let gemfile_content = r#"source 'https://rubygems.org'
+
+gem 'rails'
+gem 'pg'
+"#;
+        sandbox.add_file(
+            format!("{}/Gemfile", project_dir.file_name().unwrap().to_str().unwrap()),
+            gemfile_content
+        )?;
+        
+        let br = BundlerRuntime::new(&project_dir);
+        assert_eq!(br.ruby_version(), None);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn handles_whitespace_in_ruby_version_file() -> io::Result<()> {
+        let sandbox = BundlerSandbox::new()?;
+        let project_dir = sandbox.add_bundler_project("whitespace-app", false)?;
+        
+        // Add .ruby-version file with whitespace
+        sandbox.add_file(
+            format!("{}/{}", project_dir.file_name().unwrap().to_str().unwrap(), ".ruby-version"),
+            "  3.2.1  \n"
+        )?;
+        
+        let br = BundlerRuntime::new(&project_dir);
+        assert_eq!(br.ruby_version(), Some(Version::parse("3.2.1").unwrap()));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn extract_quoted_version_handles_various_formats() {
+        assert_eq!(
+            BundlerRuntime::extract_quoted_version("ruby '3.2.5'"),
+            Some("3.2.5".to_string())
+        );
+        assert_eq!(
+            BundlerRuntime::extract_quoted_version("ruby \"3.1.4\""),
+            Some("3.1.4".to_string())
+        );
+        assert_eq!(
+            BundlerRuntime::extract_quoted_version("ruby  '3.0.0'  "),
+            Some("3.0.0".to_string())
+        );
+        assert_eq!(
+            BundlerRuntime::extract_quoted_version("ruby 3.2.5"),
+            None
+        );
+        assert_eq!(
+            BundlerRuntime::extract_quoted_version("gem 'rails'"),
+            None
+        );
+    }
+}
+
+pub mod detector;
+pub use detector::BundlerRuntimeDetector;
