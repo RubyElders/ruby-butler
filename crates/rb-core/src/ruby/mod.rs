@@ -69,6 +69,19 @@ impl RubyRuntime {
         lib_dir
     }
 
+    /// Create a GemRuntime for this Ruby using a custom gem base directory.
+    /// This is useful for testing or when you want to isolate gem installations.
+    pub fn gem_runtime_for_base(&self, gem_base: &std::path::Path) -> GemRuntime {
+        debug!("Creating gem runtime for {} {} with custom base: {}", 
+               self.kind.as_str(), self.version, gem_base.display());
+        
+        let gem_runtime = GemRuntime::for_base_dir(gem_base, &self.version);
+        debug!("Created gem runtime - home: {}, bin: {}", 
+               gem_runtime.gem_home.display(), gem_runtime.gem_bin.display());
+        
+        gem_runtime
+    }
+
     /// Create a GemRuntime based on ~/.gem/ruby/version pattern
     /// 
     /// This creates a GemRuntime pointing to ~/.gem/ruby/<full.version>

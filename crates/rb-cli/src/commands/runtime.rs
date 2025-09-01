@@ -34,10 +34,17 @@ fn present_ruby_installations(butler_runtime: &ButlerRuntime) {
         };
         let ruby_header = format!("{} ({})", ruby_type, ruby.version);
         
-        // Try to infer gem runtime and compose full ButlerRuntime
-        match ruby.infer_gem_runtime() {
+        // Use custom gem base if specified, otherwise infer gem runtime
+        let gem_runtime_result = if let Some(gem_base) = butler_runtime.gem_base_dir() {
+            debug!("Using custom gem base directory for Ruby {}: {}", ruby.version, gem_base.display());
+            Ok(ruby.gem_runtime_for_base(gem_base))
+        } else {
+            ruby.infer_gem_runtime()
+        };
+        
+        match gem_runtime_result {
             Ok(gem_runtime) => {
-                debug!("Inferred gem runtime for Ruby {}: {}", ruby.version, gem_runtime.gem_home.display());
+                debug!("Created gem runtime for Ruby {}: {}", ruby.version, gem_runtime.gem_home.display());
                 
                 // Create ButlerRuntime with Ruby and Gem runtimes
                 let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
@@ -57,7 +64,7 @@ fn present_ruby_installations(butler_runtime: &ButlerRuntime) {
                        ruby.version, bin_dirs.len(), gem_dirs.len());
             }
             Err(e) => {
-                debug!("Failed to infer gem runtime for Ruby {}: {}", ruby.version, e);
+                debug!("Failed to create gem runtime for Ruby {}: {}", ruby.version, e);
                 
                 // Create ButlerRuntime with Ruby only
                 let butler = ButlerRuntime::new(ruby.clone(), None);

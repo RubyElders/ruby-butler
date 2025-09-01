@@ -5,14 +5,19 @@ use rb_core::bundler::SyncResult;
 pub fn sync_command(
     rubies_dir: Option<std::path::PathBuf>,
     requested_ruby_version: Option<String>,
+    gem_home: Option<std::path::PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     debug!("Starting sync command");
     
     // Resolve search directory
     let search_dir = crate::resolve_search_dir(rubies_dir);
     
-    // Discover and compose the butler runtime
-    let runtime = ButlerRuntime::discover_and_compose(search_dir, requested_ruby_version)?;
+    // Discover and compose the butler runtime with optional custom gem base
+    let runtime = ButlerRuntime::discover_and_compose_with_gem_base(
+        search_dir, 
+        requested_ruby_version, 
+        gem_home
+    )?;
     
     // Check if bundler runtime is available
     let bundler_runtime = match runtime.bundler_runtime() {
@@ -139,7 +144,7 @@ mod tests {
         std::env::set_current_dir(&project_dir)?;
         
         // Should complete without error and show appropriate message
-        let result = sync_command(None, None);
+        let result = sync_command(None, None, None);
         
         // Restore directory (ignore errors in case directory was deleted)
         let _ = std::env::set_current_dir(original_dir);
@@ -171,7 +176,7 @@ mod tests {
         std::env::set_current_dir(&project_dir)?;
         
         // Should find bundler environment and attempt sync
-        let result = sync_command(None, None);
+        let result = sync_command(None, None, None);
         
         // Restore directory (ignore errors in case directory was deleted)
         let _ = std::env::set_current_dir(original_dir);

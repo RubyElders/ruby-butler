@@ -10,7 +10,7 @@ fn main() {
 
     // Handle sync command differently since it doesn't use ButlerRuntime in the same way
     if let Commands::Sync = cli.command {
-        if let Err(e) = sync_command(cli.rubies_dir.clone(), cli.ruby_version.clone()) {
+        if let Err(e) = sync_command(cli.rubies_dir.clone(), cli.ruby_version.clone(), cli.gem_home.clone()) {
             eprintln!("Sync failed: {}", e);
             std::process::exit(1);
         }
@@ -21,7 +21,11 @@ fn main() {
     let rubies_dir = resolve_search_dir(cli.rubies_dir);
 
     // Perform comprehensive environment discovery once
-    let butler_runtime = match ButlerRuntime::discover_and_compose(rubies_dir, cli.ruby_version) {
+    let butler_runtime = match ButlerRuntime::discover_and_compose_with_gem_base(
+        rubies_dir, 
+        cli.ruby_version, 
+        cli.gem_home
+    ) {
         Ok(runtime) => runtime,
         Err(e) => {
             eprintln!("Error: {}", e);

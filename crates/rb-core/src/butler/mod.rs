@@ -31,6 +31,7 @@ pub struct ButlerRuntime {
     ruby_installations: Vec<RubyRuntime>,
     requested_ruby_version: Option<String>,
     required_ruby_version: Option<Version>,
+    gem_base_dir: Option<PathBuf>,
 }
 
 impl ButlerRuntime {
@@ -56,11 +57,24 @@ impl ButlerRuntime {
             ruby_installations: vec![],
             requested_ruby_version: None,
             required_ruby_version: None,
+            gem_base_dir: None,
         }
     }
 
     /// Perform comprehensive environment discovery and create a fully composed ButlerRuntime
-    pub fn discover_and_compose(rubies_dir: PathBuf, requested_ruby_version: Option<String>) -> Result<Self, String> {
+    pub fn discover_and_compose(
+        rubies_dir: PathBuf, 
+        requested_ruby_version: Option<String>
+    ) -> Result<Self, String> {
+        Self::discover_and_compose_with_gem_base(rubies_dir, requested_ruby_version, None)
+    }
+
+    /// Perform comprehensive environment discovery with optional custom gem base directory
+    pub fn discover_and_compose_with_gem_base(
+        rubies_dir: PathBuf, 
+        requested_ruby_version: Option<String>,
+        gem_base_dir: Option<PathBuf>
+    ) -> Result<Self, String> {
         let current_dir = env::current_dir()
             .map_err(|e| format!("Unable to determine current directory: {}", e))?;
 
@@ -104,15 +118,20 @@ impl ButlerRuntime {
             &required_ruby_version,
         ).ok_or_else(|| "No suitable Ruby installation found".to_string())?;
 
-        // Step 5: Infer gem runtime from selected Ruby
-        let gem_runtime = match selected_ruby.infer_gem_runtime() {
-            Ok(gem_runtime) => {
-                debug!("Successfully inferred gem runtime: {}", gem_runtime.gem_home.display());
-                Some(gem_runtime)
-            }
-            Err(e) => {
-                debug!("Failed to infer gem runtime: {}", e);
-                None
+        // Step 5: Create gem runtime (using custom base directory if provided)
+        let gem_runtime = if let Some(ref custom_gem_base) = gem_base_dir {
+            debug!("Using custom gem base directory: {}", custom_gem_base.display());
+            Some(selected_ruby.gem_runtime_for_base(custom_gem_base))
+        } else {
+            match selected_ruby.infer_gem_runtime() {
+                Ok(gem_runtime) => {
+                    debug!("Successfully inferred gem runtime: {}", gem_runtime.gem_home.display());
+                    Some(gem_runtime)
+                }
+                Err(e) => {
+                    debug!("Failed to infer gem runtime: {}", e);
+                    None
+                }
             }
         };
 
@@ -130,6 +149,7 @@ impl ButlerRuntime {
             ruby_installations,
             requested_ruby_version,
             required_ruby_version,
+            gem_base_dir,
         })
     }
 
@@ -207,6 +227,10 @@ impl ButlerRuntime {
 
     pub fn gem_runtime(&self) -> Option<&GemRuntime> {
         self.gem_runtime.as_ref()
+    }
+
+    pub fn gem_base_dir(&self) -> Option<&PathBuf> {
+        self.gem_base_dir.as_ref()
     }
 
     pub fn bundler_environment(&self) -> Option<&BundlerRuntime> {

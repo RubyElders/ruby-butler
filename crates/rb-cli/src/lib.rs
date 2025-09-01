@@ -56,6 +56,10 @@ pub struct Cli {
     #[arg(short = 'r', long = "ruby", global = true, help = "Request a particular Ruby version for your environment (defaults to latest available)")]
     pub ruby_version: Option<String>,
 
+    /// Specify custom gem base directory (default: ~/.gem)
+    #[arg(short = 'G', long = "gem-home", global = true, help = "Specify custom gem base directory for gem installations (default: ~/.gem)")]
+    pub gem_home: Option<std::path::PathBuf>,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -183,6 +187,7 @@ mod tests {
             verbose: 0,
             rubies_dir: None,
             ruby_version: None,
+            gem_home: None,
             command: Commands::Runtime,
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
@@ -193,6 +198,7 @@ mod tests {
             verbose: 1,
             rubies_dir: None,
             ruby_version: None,
+            gem_home: None,
             command: Commands::Runtime,
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
@@ -203,6 +209,7 @@ mod tests {
             verbose: 2,
             rubies_dir: None,
             ruby_version: None,
+            gem_home: None,
             command: Commands::Runtime,
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Debug));
