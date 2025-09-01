@@ -211,6 +211,7 @@ mod tests {
     #[test]
     fn present_environment_details_handles_no_bundler() -> std::io::Result<()> {
         use rb_tests::RubySandbox;
+        use rb_core::gems::GemRuntime;
         
         let ruby_sandbox = RubySandbox::new()?;
         let ruby_dir = ruby_sandbox.add_ruby_dir("3.2.5")?;
@@ -220,11 +221,12 @@ mod tests {
             &ruby_dir
         );
         
-        let gem_runtime = ruby.infer_gem_runtime().ok();
-        let butler = ButlerRuntime::new(ruby.clone(), gem_runtime.clone());
+        // Use sandboxed gem directory instead of real home directory
+        let gem_runtime = GemRuntime::for_base_dir(&ruby_sandbox.gem_base_dir(), &ruby.version);
+        let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
         
         // Test with no bundler environment
-        present_environment_details(&ruby, gem_runtime.as_ref(), None, &butler);
+        present_environment_details(&ruby, Some(&gem_runtime), None, &butler);
         
         Ok(())
     }
@@ -232,6 +234,7 @@ mod tests {
     #[test]
     fn present_environment_details_with_bundler() -> std::io::Result<()> {
         use rb_tests::{RubySandbox, BundlerSandbox};
+        use rb_core::gems::GemRuntime;
         
         let ruby_sandbox = RubySandbox::new()?;
         let ruby_dir = ruby_sandbox.add_ruby_dir("3.2.5")?;
@@ -245,11 +248,12 @@ mod tests {
         let project_dir = bundler_sandbox.add_bundler_project("test-app", true)?;
         let bundler_runtime = BundlerRuntime::new(&project_dir);
         
-        let gem_runtime = ruby.infer_gem_runtime().ok();
-        let butler = ButlerRuntime::new(ruby.clone(), gem_runtime.clone());
+        // Use sandboxed gem directory instead of real home directory
+        let gem_runtime = GemRuntime::for_base_dir(&ruby_sandbox.gem_base_dir(), &ruby.version);
+        let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
         
         // Test with bundler environment
-        present_environment_details(&ruby, gem_runtime.as_ref(), Some(&bundler_runtime), &butler);
+        present_environment_details(&ruby, Some(&gem_runtime), Some(&bundler_runtime), &butler);
         
         Ok(())
     }

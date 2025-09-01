@@ -79,7 +79,7 @@ fn test_environment_command_with_no_bundler() {
     assert!(stdout.contains("Your Current Ruby Environment"));
     assert!(stdout.contains("CRuby"));
     assert!(stdout.contains("(3.2.5)"));
-    assert!(stdout.contains("No bundler environment detected in current directory hierarchy"));
+    assert!(stdout.contains("Bundler environment not detected"));
     assert!(stdout.contains("Environment ready for distinguished Ruby development"));
 }
 

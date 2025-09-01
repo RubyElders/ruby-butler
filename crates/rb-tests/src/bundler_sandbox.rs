@@ -62,7 +62,7 @@ impl BundlerSandbox {
         
         // Create Gemfile
         let gemfile_contents = format!(
-            "source 'https://rubygems.org'\n\ngem 'rails'\ngem 'bundler'\n# Project: {}\n", 
+            "source 'https://rubygems.org'\n\ngem 'json'\ngem 'rake'\n# Project: {}\n", 
             project_name.as_ref()
         );
         let gemfile_path = project_dir.join("Gemfile");

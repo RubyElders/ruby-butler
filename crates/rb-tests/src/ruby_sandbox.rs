@@ -37,4 +37,9 @@ impl RubySandbox {
     pub fn add_ruby_dir<S: AsRef<str>>(&self, version: S) -> io::Result<PathBuf> {
         self.add_dir(format!("ruby-{}", version.as_ref()))
     }
+
+    /// Create a sandboxed gem base directory for testing
+    pub fn gem_base_dir(&self) -> PathBuf {
+        self.root().join(".gem")
+    }
 }

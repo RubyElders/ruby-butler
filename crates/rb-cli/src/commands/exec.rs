@@ -145,14 +145,23 @@ mod tests {
 
     #[test]
     fn test_butler_runtime_env_composition_with_bundler() {
-        use rb_tests::BundlerSandbox;
+        use rb_tests::RubySandbox;
+        use std::fs;
         
         let ruby_sandbox = RubySandbox::new().expect("Failed to create ruby sandbox");
         ruby_sandbox.add_ruby_dir("3.2.5").expect("Failed to create ruby-3.2.5");
         
-        let bundler_sandbox = BundlerSandbox::new().expect("Failed to create bundler sandbox");
-        let project_dir = bundler_sandbox.add_bundler_project("test-app", true)
-            .expect("Failed to create bundler project");
+        // Create a bundler project directly in the Ruby sandbox
+        let project_dir = ruby_sandbox.root().join("test-project");
+        fs::create_dir_all(&project_dir).expect("Failed to create project directory");
+        
+        let gemfile_path = project_dir.join("Gemfile");
+        fs::write(&gemfile_path, "source 'https://rubygems.org'\ngem 'json'\n")
+            .expect("Failed to write Gemfile");
+        
+        // Create .rb directory for bundler configuration
+        let rb_dir = project_dir.join(".rb");
+        fs::create_dir_all(&rb_dir).expect("Failed to create .rb directory");
         
         // Change to the bundler project directory to trigger bundler detection
         let original_dir = std::env::current_dir().expect("Failed to get current directory");

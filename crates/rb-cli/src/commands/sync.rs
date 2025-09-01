@@ -161,6 +161,7 @@ mod tests {
     }
     
     #[test]
+    #[ignore = "integration test - does real bundler operations, run with --ignored"]
     fn test_sync_command_with_gemfile() -> Result<(), Box<dyn std::error::Error>> {
         let sandbox = BundlerSandbox::new()?;
         let project_dir = sandbox.add_bundler_project("sync_test_project", false)?;
