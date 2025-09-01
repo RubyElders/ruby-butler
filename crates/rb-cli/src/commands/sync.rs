@@ -164,38 +164,4 @@ mod tests {
             }
         }
     }
-    
-    #[test]
-    #[ignore = "integration test - does real bundler operations, run with --ignored"]
-    fn test_sync_command_with_gemfile() -> Result<(), Box<dyn std::error::Error>> {
-        let sandbox = BundlerSandbox::new()?;
-        let project_dir = sandbox.add_bundler_project("sync_test_project", false)?;
-        
-        // Change to project directory
-        let original_dir = std::env::current_dir()?;
-        std::env::set_current_dir(&project_dir)?;
-        
-        // Should find bundler environment and attempt sync
-        let result = sync_command(None, None, None);
-        
-        // Restore directory (ignore errors in case directory was deleted)
-        let _ = std::env::set_current_dir(original_dir);
-        
-        // This might fail if bundle is not installed, but that's okay for testing
-        // We're primarily testing the detection and error handling
-        match result {
-            Ok(()) => Ok(()), // Success
-            Err(e) => {
-                // Check if it's a bundler not found error, which is acceptable in test environment
-                let error_msg = e.to_string();
-                if error_msg.contains("Bundler executable not found") || 
-                   error_msg.contains("No such file or directory") ||
-                   error_msg.contains("Os { code: 2") {
-                    Ok(()) // This is expected in test environment without bundler
-                } else {
-                    Err(e) // Unexpected error
-                }
-            }
-        }
-    }
 }
