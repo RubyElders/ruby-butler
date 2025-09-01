@@ -15,6 +15,7 @@ regex = "1.11.1"
 semver = "1.0.26"
 home = "0.5"
 log = "0.4"
+colored = "2.1.0"
 
 [dev-dependencies]
 tempfile = "3.21.0"

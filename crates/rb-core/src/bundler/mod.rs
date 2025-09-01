@@ -3,6 +3,7 @@ use std::fs;
 use log::{debug, warn};
 use semver::Version;
 use crate::butler::runtime_provider::RuntimeProvider;
+use crate::butler::Command;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BundlerRuntime {
@@ -159,6 +160,184 @@ impl BundlerRuntime {
                configured, vendor_dir.display());
         configured
     }
+
+    /// Check if bundler environment is synchronized (dependencies satisfied)
+    pub fn check_sync(&self, butler_runtime: &crate::butler::ButlerRuntime) -> std::io::Result<bool> {
+        debug!("Checking bundle synchronization status");
+        
+        // Check if dependencies are satisfied
+        let output = Command::new("bundle")
+            .arg("check")
+            .current_dir(&self.root)
+            .output_with_context(butler_runtime);
+
+        match output {
+            Ok(output) => {
+                let is_synced = output.status.success();
+                debug!("Bundle check result: {} (exit code: {})", 
+                       is_synced, output.status.code().unwrap_or(-1));
+                Ok(is_synced)
+            }
+            Err(e) => {
+                // Check if bundler is not installed
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "Bundler executable not found. Please install bundler with: gem install bundler"
+                    ))
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    /// Configure bundler to use local vendor directory
+    pub fn configure_local_path(&self, butler_runtime: &crate::butler::ButlerRuntime) -> std::io::Result<()> {
+        debug!("Configuring bundle path to vendor directory: {}", self.vendor_dir().display());
+        
+        let status = Command::new("bundle")
+            .args(["config", "path", "--local"])
+            .arg(self.vendor_dir().to_string_lossy().as_ref())
+            .current_dir(&self.root)
+            .status_with_context(butler_runtime);
+
+        match status {
+            Ok(status) => {
+                if status.success() {
+                    debug!("Successfully configured bundle path");
+                    Ok(())
+                } else {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to configure bundle path (exit code: {})", 
+                                status.code().unwrap_or(-1))
+                    ))
+                }
+            }
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "Bundler executable not found. Please install bundler with: gem install bundler"
+                    ))
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    /// Install bundler dependencies with streaming output
+    pub fn install_dependencies<F>(&self, butler_runtime: &crate::butler::ButlerRuntime, mut output_handler: F) -> std::io::Result<()>
+    where
+        F: FnMut(&str),
+    {
+        use std::process::Stdio;
+        use std::io::{BufReader, BufRead};
+        
+        debug!("Installing bundle dependencies");
+        
+        let child_result = Command::new("bundle")
+            .arg("install")
+            .current_dir(&self.root)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()) // Capture stderr to analyze errors
+            .execute_with_context(butler_runtime);
+
+        let mut child = match child_result {
+            Ok(child) => child,
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "Bundler executable not found. Please install bundler with: gem install bundler"
+                    ));
+                } else {
+                    return Err(e);
+                }
+            }
+        };
+
+        // Stream stdout to the output handler
+        if let Some(stdout) = child.stdout.take() {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines() {
+                let line = line?;
+                output_handler(&line);
+            }
+        }
+
+        // Capture stderr for error analysis
+        let mut stderr_content = String::new();
+        if let Some(stderr) = child.stderr.take() {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines() {
+                let line = line?;
+                eprintln!("{}", line); // Still show stderr to user
+                stderr_content.push_str(&line);
+                stderr_content.push('\n');
+            }
+        }
+
+        let status = child.wait()?;
+        
+        if status.success() {
+            debug!("Bundle install completed successfully");
+            Ok(())
+        } else {
+            // Enhance error message with stderr content for better error classification
+            let base_error = format!("Bundle install failed (exit code: {})", 
+                                    status.code().unwrap_or(-1));
+            
+            let enhanced_error = if !stderr_content.trim().is_empty() {
+                format!("{}. Error details: {}", base_error, stderr_content.trim())
+            } else {
+                base_error
+            };
+            
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                enhanced_error
+            ))
+        }
+    }
+
+    /// Synchronize the bundler environment (configure path, check, and install if needed)
+    pub fn synchronize<F>(&self, butler_runtime: &crate::butler::ButlerRuntime, output_handler: F) -> std::io::Result<SyncResult>
+    where
+        F: FnMut(&str),
+    {
+        debug!("Starting bundler synchronization");
+        
+        // Step 1: Configure local path
+        self.configure_local_path(butler_runtime)?;
+        
+        // Step 2: Check if already synchronized
+        match self.check_sync(butler_runtime)? {
+            true => {
+                debug!("Bundler environment already synchronized");
+                Ok(SyncResult::AlreadySynced)
+            }
+            false => {
+                debug!("Bundler environment requires synchronization");
+                
+                // Step 3: Install dependencies
+                self.install_dependencies(butler_runtime, output_handler)?;
+                
+                Ok(SyncResult::Synchronized)
+            }
+        }
+    }
+}
+
+/// Result of a bundler synchronization operation
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SyncResult {
+    /// Environment was already synchronized
+    AlreadySynced,
+    /// Environment was successfully synchronized
+    Synchronized,
 }
 
 impl RuntimeProvider for BundlerRuntime {

@@ -1,23 +1,42 @@
 use std::path::PathBuf;
 use std::collections::HashMap;
-use log::debug;
-use semver;
+use std::env;
+use log::{debug, info};
+use semver::Version;
+use colored::*;
 use crate::ruby::{RubyRuntime, RubyRuntimeDetector};
 use crate::gems::GemRuntime;
+use crate::bundler::{BundlerRuntime, BundlerRuntimeDetector};
 use home;
 
 pub mod runtime_provider;
+pub mod command;
 
+pub use runtime_provider::RuntimeProvider;
+pub use command::Command;
+
+/// Enhanced ButlerRuntime that serves as the main orchestrator for Ruby environments.
+/// Handles discovery, selection, and composition of Ruby installations, gem environments,
+/// and bundler projects with distinguished precision.
 #[derive(Debug, Clone)]
 pub struct ButlerRuntime {
+    // Core runtime components
     ruby_runtime: RubyRuntime,
     gem_runtime: Option<GemRuntime>,
+    bundler_runtime: Option<BundlerRuntime>,
+    
+    // Discovery context
+    rubies_dir: PathBuf,
+    current_dir: PathBuf,
+    ruby_installations: Vec<RubyRuntime>,
+    requested_ruby_version: Option<String>,
+    required_ruby_version: Option<Version>,
 }
 
 impl ButlerRuntime {
-    /// Create a new ButlerRuntime with a mandatory RubyRuntime and optional GemRuntime
+    /// Create a simple ButlerRuntime with just Ruby and Gem runtimes (for backward compatibility)
     pub fn new(ruby_runtime: RubyRuntime, gem_runtime: Option<GemRuntime>) -> Self {
-        debug!("Creating ButlerRuntime with Ruby: {} {}", ruby_runtime.kind.as_str(), ruby_runtime.version);
+        debug!("Creating basic ButlerRuntime with Ruby: {} {}", ruby_runtime.kind.as_str(), ruby_runtime.version);
         
         if let Some(ref gem_runtime) = gem_runtime {
             debug!("Including GemRuntime with gem_home: {}", gem_runtime.gem_home.display());
@@ -25,9 +44,199 @@ impl ButlerRuntime {
             debug!("No GemRuntime provided");
         }
         
+        let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let rubies_dir = PathBuf::from(".");
+        
         Self {
             ruby_runtime,
             gem_runtime,
+            bundler_runtime: None,
+            rubies_dir,
+            current_dir,
+            ruby_installations: vec![],
+            requested_ruby_version: None,
+            required_ruby_version: None,
+        }
+    }
+
+    /// Perform comprehensive environment discovery and create a fully composed ButlerRuntime
+    pub fn discover_and_compose(rubies_dir: PathBuf, requested_ruby_version: Option<String>) -> Result<Self, String> {
+        let current_dir = env::current_dir()
+            .map_err(|e| format!("Unable to determine current directory: {}", e))?;
+
+        debug!("Starting comprehensive environment discovery");
+        debug!("Rubies directory: {}", rubies_dir.display());
+        debug!("Current directory: {}", current_dir.display());
+        debug!("Requested Ruby version: {:?}", requested_ruby_version);
+
+        // Step 1: Discover Ruby installations
+        debug!("Discovering Ruby installations");
+        let ruby_installations = RubyRuntimeDetector::discover(&rubies_dir)
+            .map_err(|e| format!("Failed to discover Ruby installations: {}", e))?;
+        
+        info!("Found {} Ruby installations", ruby_installations.len());
+
+        // Step 2: Detect bundler environment
+        debug!("Detecting bundler environment");
+        let bundler_runtime = match BundlerRuntimeDetector::discover(&current_dir) {
+            Ok(Some(bundler)) => {
+                debug!("Bundler environment detected at: {}", bundler.root.display());
+                Some(bundler)
+            }
+            Ok(None) => {
+                debug!("No bundler environment detected");
+                None
+            }
+            Err(e) => {
+                debug!("Error detecting bundler environment: {}", e);
+                None
+            }
+        };
+
+        // Step 3: Extract version requirements from bundler
+        let required_ruby_version = bundler_runtime.as_ref()
+            .and_then(|bundler| bundler.ruby_version());
+
+        // Step 4: Select the most appropriate Ruby installation
+        let selected_ruby = Self::select_ruby_runtime(
+            &ruby_installations,
+            &requested_ruby_version,
+            &required_ruby_version,
+        ).ok_or_else(|| "No suitable Ruby installation found".to_string())?;
+
+        // Step 5: Infer gem runtime from selected Ruby
+        let gem_runtime = match selected_ruby.infer_gem_runtime() {
+            Ok(gem_runtime) => {
+                debug!("Successfully inferred gem runtime: {}", gem_runtime.gem_home.display());
+                Some(gem_runtime)
+            }
+            Err(e) => {
+                debug!("Failed to infer gem runtime: {}", e);
+                None
+            }
+        };
+
+        info!("Environment composition complete: Ruby {}, Gem runtime: {}, Bundler: {}", 
+              selected_ruby.version,
+              if gem_runtime.is_some() { "available" } else { "unavailable" },
+              if bundler_runtime.is_some() { "detected" } else { "not detected" });
+
+        Ok(Self {
+            ruby_runtime: selected_ruby,
+            gem_runtime,
+            bundler_runtime,
+            rubies_dir,
+            current_dir,
+            ruby_installations,
+            requested_ruby_version,
+            required_ruby_version,
+        })
+    }
+
+    /// Select the most appropriate Ruby runtime based on requirements
+    fn select_ruby_runtime(
+        rubies: &[RubyRuntime],
+        requested_version: &Option<String>,
+        required_version: &Option<Version>,
+    ) -> Option<RubyRuntime> {
+        if rubies.is_empty() {
+            return None;
+        }
+
+        if let Some(requested) = requested_version {
+            // Use explicitly requested version
+            match Version::parse(requested) {
+                Ok(req_version) => {
+                    let found = rubies.iter()
+                        .find(|r| r.version == req_version)
+                        .cloned();
+                    
+                    if found.is_none() {
+                        println!("{}", format!("Requested Ruby version {} not found in available installations", requested).yellow());
+                    }
+                    return found;
+                }
+                Err(e) => {
+                    println!("{}", format!("Invalid Ruby version format '{}': {}", requested, e).red());
+                    return None;
+                }
+            }
+        } else if let Some(required_version) = required_version {
+            // Use version from bundler environment
+            let found = rubies.iter()
+                .find(|r| r.version == *required_version)
+                .cloned();
+            
+            if let Some(ruby) = found {
+                return Some(ruby);
+            } else {
+                println!("{}", format!("Required Ruby version {} (from bundler environment) not found in available installations", required_version).yellow());
+                println!("{}", "   Falling back to latest available Ruby installation".bright_black());
+                // Fall through to latest selection
+            }
+        }
+
+        // Use latest available Ruby
+        rubies.iter().max_by_key(|r| &r.version).cloned()
+    }
+
+    /// Accessor methods for the discovery context
+    pub fn rubies_dir(&self) -> &PathBuf {
+        &self.rubies_dir
+    }
+
+    pub fn current_dir(&self) -> &PathBuf {
+        &self.current_dir
+    }
+
+    pub fn ruby_installations(&self) -> &[RubyRuntime] {
+        &self.ruby_installations
+    }
+
+    pub fn requested_ruby_version(&self) -> Option<&str> {
+        self.requested_ruby_version.as_deref()
+    }
+
+    pub fn selected_ruby(&self) -> &RubyRuntime {
+        &self.ruby_runtime
+    }
+
+    pub fn bundler_runtime(&self) -> Option<&BundlerRuntime> {
+        self.bundler_runtime.as_ref()
+    }
+
+    pub fn gem_runtime(&self) -> Option<&GemRuntime> {
+        self.gem_runtime.as_ref()
+    }
+
+    pub fn bundler_environment(&self) -> Option<&BundlerRuntime> {
+        self.bundler_runtime.as_ref()
+    }
+
+    /// Check if we have a usable Ruby environment
+    pub fn has_ruby_environment(&self) -> bool {
+        true // We always have a selected ruby in ButlerRuntime
+    }
+
+    /// Display appropriate error messages for missing Ruby installations
+    pub fn display_no_ruby_error(&self) {
+        println!("{}", "⚠️  No Ruby installations were found in your environment.".yellow());
+        println!();
+        println!("{}", "Please ensure you have Ruby installed and available in the search directory.".dimmed());
+    }
+
+    pub fn display_no_suitable_ruby_error(&self) {
+        println!("{}", "⚠️  No suitable Ruby version found for the requested criteria.".yellow());
+        println!();
+        if let Some(requested) = &self.requested_ruby_version {
+            println!("{}", format!("Requested version: {}", requested).bright_blue());
+        }
+        if let Some(required) = &self.required_ruby_version {
+            println!("{}", format!("Required version (from bundler): {}", required).bright_blue());
+        }
+        println!("{}", "Available versions:".bright_blue());
+        for ruby in &self.ruby_installations {
+            println!("  - {}", ruby.version.to_string().cyan());
         }
     }
 
@@ -113,7 +322,7 @@ impl ButlerRuntime {
     }
 
     /// Compose environment variables like chruby does
-    /// Returns a HashMap with PATH, GEM_HOME, and GEM_PATH set appropriately
+    /// Returns a HashMap with PATH, GEM_HOME, GEM_PATH, and bundler variables set appropriately
     pub fn env_vars(&self, existing_path: Option<String>) -> HashMap<String, String> {
         debug!("Composing environment variables");
         
@@ -148,81 +357,36 @@ impl ButlerRuntime {
             debug!("No GEM_HOME available - skipping GEM_HOME and GEM_PATH");
         }
         
+        // Set bundler-specific environment variables if bundler runtime is detected
+        if let Some(bundler_runtime) = &self.bundler_runtime {
+            let gemfile_path = bundler_runtime.gemfile_path();
+            let app_config_dir = bundler_runtime.app_config_dir();
+            
+            debug!("Setting BUNDLE_GEMFILE: {}", gemfile_path.display());
+            env.insert("BUNDLE_GEMFILE".to_string(), gemfile_path.display().to_string());
+            
+            debug!("Setting BUNDLE_APP_CONFIG: {}", app_config_dir.display());
+            env.insert("BUNDLE_APP_CONFIG".to_string(), app_config_dir.display().to_string());
+        } else {
+            debug!("No bundler runtime detected - skipping bundler environment variables");
+        }
+        
         debug!("Environment composition complete: {} variables", env.len());
         env
     }
 
     /// Convenience function to create a ButlerRuntime by discovering and selecting Ruby
     /// from a directory. Uses latest Ruby if no version is specified.
+    /// 
+    /// This is a backward compatibility method - prefer discover_and_compose for full context.
     pub fn discover_and_create(
         search_dir: &PathBuf, 
         requested_version: Option<&str>
     ) -> Result<Self, String> {
         debug!("Starting Ruby discovery process in: {}", search_dir.display());
         
-        let rubies = RubyRuntimeDetector::discover(search_dir)
-            .map_err(|e| format!("Failed to discover Ruby installations: {}", e))?;
-
-        if rubies.is_empty() {
-            return Err(format!("No Ruby installations found in {}", search_dir.display()));
-        }
-
-        debug!("Ruby discovery completed successfully, found {} installations", rubies.len());
-
-        // Select Ruby based on requested version or use latest
-        let selected_ruby = if let Some(version_str) = requested_version {
-            debug!("Looking for requested Ruby version: {}", version_str);
-            
-            // Try to parse the version and find exact match
-            let found = if let Ok(requested_version) = semver::Version::parse(version_str) {
-                rubies.iter().find(|ruby| ruby.version == requested_version)
-            } else {
-                // If parsing fails, try string matching
-                rubies.iter().find(|ruby| ruby.version.to_string() == version_str)
-            };
-            
-            match found {
-                Some(ruby) => {
-                    debug!("Selected Ruby installation: {} {}", ruby.kind.as_str(), ruby.version);
-                    ruby.clone()
-                }
-                None => {
-                    return Err(format!(
-                        "Ruby version {} not found. Available versions: {}", 
-                        version_str,
-                        rubies.iter()
-                            .map(|r| r.version.to_string())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ));
-                }
-            }
-        } else {
-            // Use latest Ruby
-            match RubyRuntimeDetector::latest(&rubies) {
-                Some(latest) => {
-                    debug!("Using latest Ruby installation: {} {}", latest.kind.as_str(), latest.version);
-                    latest.clone()
-                }
-                None => {
-                    return Err("No Ruby installations found".to_string());
-                }
-            }
-        };
-
-        // Try to infer gem runtime and compose ButlerRuntime
-        let butler = match selected_ruby.infer_gem_runtime() {
-            Ok(gem_runtime) => {
-                debug!("Inferred gem runtime for Ruby {}: {}", selected_ruby.version, gem_runtime.gem_home.display());
-                ButlerRuntime::new(selected_ruby, Some(gem_runtime))
-            }
-            Err(e) => {
-                debug!("Failed to infer gem runtime for Ruby {}: {}", selected_ruby.version, e);
-                ButlerRuntime::new(selected_ruby, None)
-            }
-        };
-
-        Ok(butler)
+        let requested = requested_version.map(|s| s.to_string());
+        Self::discover_and_compose(search_dir.clone(), requested)
     }
 
     /// Get the default rubies directory (~/.rubies)

@@ -111,11 +111,18 @@ mod tests {
         let sandbox = RubySandbox::new().expect("Failed to create sandbox");
         sandbox.add_ruby_dir("3.2.5").expect("Failed to create ruby-3.2.5");
         
+        // Change to the sandbox directory to avoid detecting project Gemfile
+        let original_dir = std::env::current_dir().expect("Failed to get current dir");
+        std::env::set_current_dir(sandbox.root()).expect("Failed to change to sandbox dir");
+        
         let butler_runtime = ButlerRuntime::discover_and_create(&sandbox.root().to_path_buf(), None)
             .expect("Failed to create ButlerRuntime");
         
         let current_path = std::env::var("PATH").ok();
         let env_vars = butler_runtime.env_vars(current_path);
+        
+        // Restore directory
+        std::env::set_current_dir(original_dir).expect("Failed to restore directory");
         
         // Test that all required environment variables are present
         assert!(env_vars.contains_key("PATH"));
@@ -130,5 +137,50 @@ mod tests {
         let gem_home = env_vars.get("GEM_HOME").unwrap();
         let gem_path = env_vars.get("GEM_PATH").unwrap();
         assert!(gem_path.contains(gem_home));
+        
+        // Test that bundler variables are NOT set when no bundler project is detected
+        assert!(!env_vars.contains_key("BUNDLE_GEMFILE"));
+        assert!(!env_vars.contains_key("BUNDLE_APP_CONFIG"));
+    }
+
+    #[test]
+    fn test_butler_runtime_env_composition_with_bundler() {
+        use rb_tests::BundlerSandbox;
+        
+        let ruby_sandbox = RubySandbox::new().expect("Failed to create ruby sandbox");
+        ruby_sandbox.add_ruby_dir("3.2.5").expect("Failed to create ruby-3.2.5");
+        
+        let bundler_sandbox = BundlerSandbox::new().expect("Failed to create bundler sandbox");
+        let project_dir = bundler_sandbox.add_bundler_project("test-app", true)
+            .expect("Failed to create bundler project");
+        
+        // Change to the bundler project directory to trigger bundler detection
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        std::env::set_current_dir(&project_dir).expect("Failed to change directory");
+        
+        let butler_runtime = ButlerRuntime::discover_and_compose(ruby_sandbox.root().to_path_buf(), None)
+            .expect("Failed to create ButlerRuntime");
+        
+        // Restore original directory
+        let _ = std::env::set_current_dir(&original_dir);
+        
+        let current_path = std::env::var("PATH").ok();
+        let env_vars = butler_runtime.env_vars(current_path);
+        
+        // Test that standard variables are present
+        assert!(env_vars.contains_key("PATH"));
+        assert!(env_vars.contains_key("GEM_HOME"));
+        assert!(env_vars.contains_key("GEM_PATH"));
+        
+        // Test that bundler variables are set when bundler project is detected
+        assert!(env_vars.contains_key("BUNDLE_GEMFILE"));
+        assert!(env_vars.contains_key("BUNDLE_APP_CONFIG"));
+        
+        // Test that bundler variables point to correct locations
+        let bundle_gemfile = env_vars.get("BUNDLE_GEMFILE").unwrap();
+        assert!(bundle_gemfile.contains("Gemfile"));
+        
+        let bundle_app_config = env_vars.get("BUNDLE_APP_CONFIG").unwrap();
+        assert!(bundle_app_config.contains(".rb"));
     }
 }

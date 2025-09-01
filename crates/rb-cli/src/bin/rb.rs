@@ -1,5 +1,6 @@
 use clap::Parser;
-use rb_cli::{Cli, Commands, runtime_command, exec_command, init_logger, create_ruby_context, resolve_search_dir};
+use rb_cli::{Cli, Commands, runtime_command, environment_command, exec_command, sync_command, init_logger, resolve_search_dir};
+use rb_core::butler::ButlerRuntime;
 
 fn main() {
     let cli = Cli::parse();
@@ -7,25 +8,40 @@ fn main() {
     // Initialize logger with the effective log level (considering -v/-vv flags)
     init_logger(cli.effective_log_level());
 
-    // Determine if this command needs Ruby context (skip for help/version)
-    let needs_ruby_context = matches!(cli.command, Commands::Exec { .. });
-    
-    // Create Ruby context only for commands that need it
-    let butler_runtime = if needs_ruby_context {
-        Some(create_ruby_context(cli.rubies_dir.clone(), cli.ruby_version.clone()))
-    } else {
-        None
-    };
+    // Handle sync command differently since it doesn't use ButlerRuntime in the same way
+    if let Commands::Sync = cli.command {
+        if let Err(e) = sync_command(cli.rubies_dir.clone(), cli.ruby_version.clone()) {
+            eprintln!("Sync failed: {}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
 
-    // Resolve search directory for commands that need it
-    let search_dir = resolve_search_dir(cli.rubies_dir);
+    // Resolve search directory for Ruby installations
+    let rubies_dir = resolve_search_dir(cli.rubies_dir);
+
+    // Perform comprehensive environment discovery once
+    let butler_runtime = match ButlerRuntime::discover_and_compose(rubies_dir, cli.ruby_version) {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     match cli.command {
         Commands::Runtime => {
-            runtime_command(search_dir, cli.ruby_version);
+            runtime_command(&butler_runtime);
+        }
+        Commands::Environment => {
+            environment_command(&butler_runtime);
         }
         Commands::Exec { args } => {
-            exec_command(butler_runtime.expect("Exec command should have Ruby context"), args);
+            exec_command(butler_runtime, args);
+        }
+        Commands::Sync => {
+            // Already handled above
+            unreachable!()
         }
     }
 }

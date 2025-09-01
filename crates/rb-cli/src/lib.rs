@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod discovery;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use clap::builder::styling::{AnsiColor, Effects, Styles};
@@ -77,6 +78,10 @@ pub enum Commands {
     #[command(visible_alias = "rt")]
     Runtime,
     
+    /// 🌍 Present your current Ruby environment with comprehensive details
+    #[command(visible_alias = "env")]
+    Environment,
+    
     /// ⚡ Execute commands within your meticulously prepared Ruby environment
     #[command(visible_alias = "x")]
     Exec {
@@ -84,10 +89,14 @@ pub enum Commands {
         #[arg(trailing_var_arg = true, required = true)]
         args: Vec<String>,
     },
+    
+    /// 🔄 Synchronize your bundler environment with distinguished precision
+    #[command(visible_alias = "s")]
+    Sync,
 }
 
 // Re-export for convenience
-pub use commands::{runtime_command, exec_command};
+pub use commands::{runtime_command, environment_command, exec_command, sync_command};
 
 use std::path::PathBuf;
 use rb_core::butler::ButlerRuntime;
