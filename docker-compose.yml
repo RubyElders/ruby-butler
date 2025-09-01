@@ -1,0 +1,46 @@
+services:
+  integration-tests:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount the built binary
+      - ./target/release/rb:/app/rb:ro
+      # Mount test files
+      - ./tests:/app/tests:ro
+      # Mount source for debugging if needed
+      - ./crates:/app/crates:ro
+    environment:
+      - RUBIES_DIR=/opt/rubies
+      - RUST_LOG=debug
+    working_dir: /app
+    command: bats --jobs 4 tests/integration
+    
+  # Service for running individual test files
+  test-single:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./target/release/rb:/app/rb:ro
+      - ./tests:/app/tests:ro
+    environment:
+      - RUBIES_DIR=/opt/rubies
+    working_dir: /app
+    # Override with: docker-compose run test-single bats tests/integration/specific_test.bats
+    
+  # Service for debugging - drops into bash shell
+  debug:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./target/release/rb:/app/rb:ro
+      - ./tests:/app/tests:ro
+      - ./crates:/app/crates:ro
+    environment:
+      - RUBIES_DIR=/opt/rubies
+    working_dir: /app
+    command: bash
+    stdin_open: true
+    tty: true
