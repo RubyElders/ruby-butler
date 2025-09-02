@@ -7,10 +7,12 @@ setup_test_environment() {
     export TEST_ROOT_DIR="$(mktemp -d)"
     export TEST_GEM_HOME="$TEST_ROOT_DIR/gems"
     export TEST_WORK_DIR="$TEST_ROOT_DIR/work"
-    export RUBIES_DIR="$TEST_ROOT_DIR/rubies"
+    
+    # Use the real Ruby installations from Docker container
+    export RUBIES_DIR="/opt/rubies"
     
     # Create directories
-    mkdir -p "$TEST_GEM_HOME" "$TEST_WORK_DIR" "$RUBIES_DIR"
+    mkdir -p "$TEST_GEM_HOME" "$TEST_WORK_DIR"
     
     # Change to test working directory
     cd "$TEST_WORK_DIR"
@@ -32,24 +34,6 @@ cleanup_test_environment() {
     if [ -n "$TEST_ROOT_DIR" ] && [ -d "$TEST_ROOT_DIR" ]; then
         rm -rf "$TEST_ROOT_DIR"
     fi
-}
-
-# Create a Ruby installation directory structure
-create_ruby_installation() {
-    local version="$1"
-    local ruby_dir="$RUBIES_DIR/ruby-$version"
-    
-    mkdir -p "$ruby_dir/bin"
-    mkdir -p "$ruby_dir/lib/ruby/$version"
-    
-    # Create a mock ruby executable
-    cat > "$ruby_dir/bin/ruby" << EOF
-#!/bin/bash
-echo "ruby $version"
-EOF
-    chmod +x "$ruby_dir/bin/ruby"
-    
-    echo "$ruby_dir"
 }
 
 # Create a bundler project with Gemfile
@@ -137,6 +121,8 @@ debug_test_state() {
     echo "TEST_GEM_HOME: $TEST_GEM_HOME"
     echo "TEST_WORK_DIR: $TEST_WORK_DIR"
     echo "RUBIES_DIR: $RUBIES_DIR"
+    echo "Available Rubies:"
+    ls -la "$RUBIES_DIR/" 2>/dev/null || echo "  No rubies directory found"
     echo "Current directory: $(pwd)"
     echo "Command status: $status"
     echo "Command output:"

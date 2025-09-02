@@ -31,7 +31,7 @@ pub fn sync_command(
             println!("To create a new bundler project:");
             println!("  • Create a Gemfile with: echo 'source \"https://rubygems.org\"' > Gemfile");
             println!("  • Then run: rb sync");
-            return Ok(());
+            return Err("No bundler environment detected".into());
         }
     };
     
@@ -143,21 +143,23 @@ mod tests {
         let original_dir = std::env::current_dir()?;
         std::env::set_current_dir(&project_dir)?;
         
-        // Should complete without error and show appropriate message
+        // Should return error when no bundler environment detected
         let result = sync_command(None, None, None);
         
         // Restore directory (ignore errors in case directory was deleted)
         let _ = std::env::set_current_dir(original_dir);
         
-        // Should succeed but indicate no bundler environment detected
+        // Should return error when no bundler environment detected
         match result {
-            Ok(()) => Ok(()), // This is what we expect - graceful handling of no bundler
+            Ok(()) => panic!("Expected error when no Gemfile found, but command succeeded"),
             Err(e) => {
                 let error_msg = e.to_string();
-                if error_msg.contains("Os { code: 2") || 
-                   error_msg.contains("No such file or directory") ||
-                   error_msg.contains("Bundler executable not found") {
-                    Ok(()) // Expected in test environment without bundler
+                if error_msg.contains("No bundler environment detected") {
+                    Ok(()) // This is what we expect - proper error for no bundler
+                } else if error_msg.contains("Os { code: 2") || 
+                         error_msg.contains("No such file or directory") ||
+                         error_msg.contains("Bundler executable not found") {
+                    Ok(()) // Also acceptable in test environment without bundler
                 } else {
                     Err(e) // Unexpected error
                 }

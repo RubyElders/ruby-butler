@@ -14,10 +14,10 @@ teardown() {
 }
 
 @test "sync command detects bundler project correctly" {
-    create_ruby_installation "3.2.5"
+    # Use real Ruby installations
     
     # Create bundler project and cd into it
-    project_dir=$(create_bundler_project "sync-test" "3.2.5")
+    project_dir=$(create_bundler_project "sync-test" "3.4.5")
     cd "$project_dir"
     
     # sync command should detect bundler project
@@ -35,10 +35,10 @@ teardown() {
 }
 
 @test "complex bundler project with nested structure" {
-    create_ruby_installation "3.2.5"
+    # Use real Ruby installations
     
     # Create complex project structure
-    project_dir=$(create_bundler_project "complex-rails-app" "3.2.5")
+    project_dir=$(create_bundler_project "complex-rails-app" "3.4.5")
     cd "$project_dir"
     
     # Add additional bundler-related files
@@ -72,25 +72,25 @@ EOF
     
     # Should handle complex bundler project
     output_contains "Ruby Environment"
-    output_contains "3.2.5"
+    output_contains "3.4.5"
 }
 
 @test "bundler project with ruby version mismatch" {
-    create_ruby_installation "3.1.0"
-    create_ruby_installation "3.2.5"
+    # Use real Ruby installations
+    # Use real Ruby installations
     
     # Create project requiring 3.2.5 but ensure 3.1.0 is also available
-    project_dir=$(create_bundler_project "version-specific" "3.2.5")
+    project_dir=$(create_bundler_project "version-specific" "3.4.5")
     cd "$project_dir"
     
     run_rb_command environment
     
     # Should detect and use the version specified in project
-    output_contains "3.2.5"
+    output_contains "3.4.5"
 }
 
 @test "bundler project without .ruby-version file" {
-    create_ruby_installation "3.2.5"
+    # Use real Ruby installations
     
     # Create project with only Gemfile (no .ruby-version)
     project_dir="$TEST_WORK_DIR/gemfile-only"
@@ -109,13 +109,13 @@ EOF
     run_rb_command environment
     
     # Should extract Ruby version from Gemfile
-    output_contains "3.2.5"
+    output_contains "3.4.5"
 }
 
 @test "sync command with missing bundler executable" {
-    create_ruby_installation "3.2.5"
+    # Use real Ruby installations
     
-    project_dir=$(create_bundler_project "missing-bundler" "3.2.5")
+    project_dir=$(create_bundler_project "missing-bundler" "3.4.5")
     cd "$project_dir"
     
     # sync command should handle missing bundler gracefully
@@ -128,9 +128,9 @@ EOF
 }
 
 @test "exec command in bundler context" {
-    create_ruby_installation "3.2.5"
+    # Use real Ruby installations
     
-    project_dir=$(create_bundler_project "exec-test" "3.2.5")
+    project_dir=$(create_bundler_project "exec-test" "3.4.5")
     cd "$project_dir"
     
     # Test exec command (with simple command that should work)
@@ -141,28 +141,28 @@ EOF
 }
 
 @test "multiple bundler projects in different directories" {
-    create_ruby_installation "3.1.0" 
-    create_ruby_installation "3.2.5"
+    # Use real Ruby installations 
+    # Use real Ruby installations
     
     # Create first project with 3.1.0
-    project1=$(create_bundler_project "app1" "3.1.0")
+    project1=$(create_bundler_project "app1" "3.2.4")
     
     # Create second project with 3.2.5  
-    project2=$(create_bundler_project "app2" "3.2.5")
+    project2=$(create_bundler_project "app2" "3.4.5")
     
     # Test first project
     cd "$project1"
     run_rb_command environment
-    output_contains "3.1.0"
+    output_contains "3.2.4"
     
     # Test second project
     cd "$project2" 
     run_rb_command environment
-    output_contains "3.2.5"
+    output_contains "3.4.5"
 }
 
 @test "bundler project with complex gem dependencies" {
-    create_ruby_installation "3.2.5"
+    # Use real Ruby installations
     
     project_dir="$TEST_WORK_DIR/complex-deps"
     mkdir -p "$project_dir"
@@ -226,7 +226,7 @@ group :test do
 end
 EOF
     
-    echo "3.2.5" > "$project_dir/.ruby-version"
+    echo "3.4.5" > "$project_dir/.ruby-version"
     
     cd "$project_dir"
     
@@ -234,5 +234,5 @@ EOF
     
     # Should handle complex Gemfile
     output_contains "Ruby Environment"
-    output_contains "3.2.5"
+    output_contains "3.4.5"
 }
