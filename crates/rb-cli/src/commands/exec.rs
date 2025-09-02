@@ -1,9 +1,6 @@
-use std::process::Command;
-use std::env;
 use log::{debug, info};
 use colored::*;
-use rb_core::butler::ButlerRuntime;
-use which::which_in;
+use rb_core::butler::{ButlerRuntime, Command};
 
 pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
     if program_args.is_empty() {
@@ -14,12 +11,6 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
         std::process::exit(1);
     }
 
-    // Obtain the current PATH for environment composition
-    let current_path = env::var("PATH").ok();
-    
-    // Compose the distinguished Ruby environment
-    let env_vars = butler.env_vars(current_path);
-    
     // Extract the program and its accompanying arguments
     let program = &program_args[0];
     let args = if program_args.len() > 1 {
@@ -28,47 +19,19 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
         &[]
     };
 
-    // Locate the program within our meticulously prepared PATH
-    let resolved_program = match which_in(program, env_vars.get("PATH"), ".") {
-        Ok(path) => path,
-        Err(_) => {
-            eprintln!("{}: The program '{}' could not be located within the prepared environment", 
-                     "Program Not Found".red().bold(), program.cyan());
-            eprintln!("Available directories in your prepared PATH:");
-            if let Some(path_var) = env_vars.get("PATH") {
-                let separator = if cfg!(windows) { ";" } else { ":" };
-                for dir in path_var.split(separator) {
-                    eprintln!("  {}", dir.bright_black());
-                }
-            }
-            std::process::exit(1);
-        }
-    };
-
-    info!("Preparing to execute {} within the carefully composed Ruby environment", 
-          resolved_program.display());
+    info!("Preparing to execute {} within the carefully composed Ruby environment", program);
     
-    debug!("Program resolved to: {}", resolved_program.display());
+    debug!("Program: {}", program);
     debug!("Arguments prepared: {:?}", args);
-    
-    // Document the environmental preparations being applied
-    for (key, value) in &env_vars {
-        debug!("Establishing {}={}", key, value);
-    }
 
-    // Execute the program within our distinguished environment
-    let mut cmd = Command::new(&resolved_program);
+    // Create and configure the butler command
+    let mut cmd = Command::new(program);
     cmd.args(args);
-    
-    // Apply the meticulously prepared environment variables
-    for (key, value) in env_vars {
-        cmd.env(key, value);
-    }
 
     debug!("Commencing program execution...");
     
-    // Execute and honor the program's exit status
-    match cmd.status() {
+    // Execute and honor the program's exit status using butler context
+    match cmd.status_with_context(&butler) {
         Ok(status) => {
             if let Some(code) = status.code() {
                 debug!("Program concluded with exit code: {}", code);
