@@ -12,4 +12,3 @@ repository = "https://github.com/user/ruby-butler2"
 license = "MIT OR Apache-2.0"
 keywords = ["ruby", "environment-manager", "cli", "development-tools", "butler"]
 categories = ["command-line-utilities", "development-tools"]
-

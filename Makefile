@@ -1,18 +1,19 @@
 # Ruby Butler Testing
+# Distinguished testing orchestration
 
-.PHONY: test docker
+.PHONY: spec cargo docker
 
-# Run all tests in parallel (Docker-based)
-test:
+# Build release binary
+cargo:
 	@echo "🔨 Building release binary..."
 	cargo build --release
-	@echo "🐳 Building Docker test image..."
-	docker build -t rb-test .
-	@echo "🚀 Running all tests in parallel..."
-	docker run --rm -v ./target/release/rb:/app/rb:ro -v ./tests:/app/tests:ro rb-test bats --jobs 20 tests/integration/commands
-
 
 # Build Docker image for testing
 docker:
 	@echo "🐳 Building Docker test image..."
 	docker build -t rb-test .
+
+# Run ShellSpec tests using Docker Compose
+spec: cargo docker
+	@echo "🚀 Running ShellSpec tests with distinguished parallel execution..."
+	./shellspec

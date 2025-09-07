@@ -66,11 +66,11 @@ RUN mkdir -p /opt/rubies && \
 # Final stage - copy compiled Rubies
 FROM base AS final
 
-# Install BATS (Bash Automated Testing System)
-RUN git clone https://github.com/bats-core/bats-core.git /tmp/bats-core \
-    && cd /tmp/bats-core \
-    && ./install.sh /usr/local \
-    && rm -rf /tmp/bats-core
+# Install ShellSpec (modern shell testing framework)
+RUN git clone https://github.com/shellspec/shellspec.git /tmp/shellspec \
+    && cd /tmp/shellspec \
+    && make install PREFIX=/usr/local \
+    && rm -rf /tmp/shellspec
 
 # Copy compiled Ruby installations from parallel stages
 COPY --from=ruby-3-2-4 /opt/rubies/ruby-3.2.4 /opt/rubies/ruby-3.2.4
@@ -79,18 +79,14 @@ COPY --from=ruby-3-4-5 /opt/rubies/ruby-3.4.5 /opt/rubies/ruby-3.4.5
 # Create test user (non-root for realistic testing)
 RUN useradd -m -s /bin/bash testuser \
     && mkdir -p /home/testuser/.gem \
-    && chown -R testuser:testuser /home/testuser
+    && chown -R testuser:testuser /home/testuser \
+    && mkdir -p /app \
+    && chown -R testuser:testuser /app \
+    && mkdir -p /app/report \
+    && chown -R testuser:testuser /app/report
 
 # Set up working directory
 WORKDIR /app
 
 # Switch to test user
 USER testuser
-
-# Set up environment
-ENV RUBIES_DIR=/opt/rubies
-ENV GEM_HOME=/home/testuser/.gem
-ENV PATH="/app:$PATH"
-
-# Default command runs BATS tests
-CMD ["bats", "tests/integration"]

@@ -1,0 +1,16 @@
+# Docker Compose for Ruby Butler Testing
+# Distinguished testing environment with proper volume mounts
+
+services:
+  rb-test:
+    build: .
+    image: rb-test
+    volumes:
+      # Ruby Butler binary (read-only)
+      - ./target/release/rb:/app/rb:ro
+      # Test specifications
+      - ./spec:/app/spec:ro
+      # ShellSpec configuration
+      - ./.shellspec:/app/.shellspec:ro
+    working_dir: /app
+    user: testuser
