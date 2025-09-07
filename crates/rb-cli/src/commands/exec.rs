@@ -21,8 +21,44 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
 
     info!("Preparing to execute {} within the carefully composed Ruby environment", program);
     
+    // Butler's refined approach: Ensure bundler environment is properly prepared
+    if let Some(bundler_runtime) = butler.bundler_runtime() {
+        match bundler_runtime.check_sync(&butler) {
+            Ok(false) => {
+                println!("{} {}", 
+                    "🎩 Butler Notice:".bright_blue().bold(),
+                    "Bundler environment requires synchronization. Preparing now...".dimmed()
+                );
+                
+                // Use bundler runtime's synchronize method directly
+                match bundler_runtime.synchronize(&butler, |line| {
+                    println!("{}", line.dimmed());
+                }) {
+                    Ok(_) => {
+                        println!("{} {}", 
+                            "✨".bright_green(),
+                            "Environment meticulously prepared. Proceeding with execution...".green()
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("{}: Failed to prepare bundler environment: {}", 
+                                 "Synchronization Failed".red().bold(), e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            Ok(true) => {
+                debug!("Bundler environment already synchronized");
+            }
+            Err(e) => {
+                debug!("Unable to verify bundler synchronization status: {}", e);
+                // Continue anyway - might be a bundler install issue that user needs to handle
+            }
+        }
+    }
+
     debug!("Program: {}", program);
-    debug!("Arguments prepared: {:?}", args);
+    debug!("Arguments: {:?}", args);
 
     // Create and configure the butler command
     let mut cmd = Command::new(program);
@@ -71,21 +107,27 @@ mod tests {
 
     #[test]
     fn test_butler_runtime_env_composition() {
+        use rb_core::ruby::RubyRuntimeDetector;
+        use rb_core::gems::GemRuntime;
+        
         let sandbox = RubySandbox::new().expect("Failed to create sandbox");
         sandbox.add_ruby_dir("3.2.5").expect("Failed to create ruby-3.2.5");
         
-        // Change to the sandbox directory to avoid detecting project Gemfile
-        let original_dir = std::env::current_dir().expect("Failed to get current dir");
-        std::env::set_current_dir(sandbox.root()).expect("Failed to change to sandbox dir");
+        // Directly discover ruby installations without relying on current directory
+        let ruby_installations = RubyRuntimeDetector::discover(&sandbox.root())
+            .expect("Failed to detect ruby installations");
         
-        let butler_runtime = ButlerRuntime::discover_and_create(&sandbox.root().to_path_buf(), None)
-            .expect("Failed to create ButlerRuntime");
+        assert!(!ruby_installations.is_empty(), "Should find at least one Ruby installation");
+        
+        let ruby_runtime = ruby_installations.into_iter().next().unwrap();
+        let gem_base = sandbox.gem_base_dir();
+        let gem_runtime = GemRuntime::for_base_dir(&gem_base, &ruby_runtime.version);
+        
+        // Create butler without bundler runtime (simulating no Gemfile environment)
+        let butler_runtime = ButlerRuntime::new(ruby_runtime, Some(gem_runtime));
         
         let current_path = std::env::var("PATH").ok();
         let env_vars = butler_runtime.env_vars(current_path);
-        
-        // Restore directory
-        std::env::set_current_dir(original_dir).expect("Failed to restore directory");
         
         // Test that all required environment variables are present
         assert!(env_vars.contains_key("PATH"));

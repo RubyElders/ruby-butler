@@ -164,6 +164,8 @@ impl BundlerRuntime {
     /// Check if bundler environment is synchronized (dependencies satisfied)
     pub fn check_sync(&self, butler_runtime: &crate::butler::ButlerRuntime) -> std::io::Result<bool> {
         debug!("Checking bundle synchronization status");
+
+        self.configure_local_path(butler_runtime)?;
         
         // Check if dependencies are satisfied
         let output = Command::new("bundle")
@@ -310,10 +312,7 @@ impl BundlerRuntime {
     {
         debug!("Starting bundler synchronization");
         
-        // Step 1: Configure local path
-        self.configure_local_path(butler_runtime)?;
-        
-        // Step 2: Check if already synchronized
+        // Step 1: Check if already synchronized
         match self.check_sync(butler_runtime)? {
             true => {
                 debug!("Bundler environment already synchronized");
