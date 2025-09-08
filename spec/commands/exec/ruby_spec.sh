@@ -8,26 +8,26 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
   Describe "exec command with Ruby environment"
     Context "basic execution"
       It "gracefully presents usage guidance when no program specified"
-        When run rb exec
+        When run rb -R $RUBIES_DIR exec
         The status should not equal 0
         The stderr should include "required arguments were not provided"
         The stderr should include "<ARGS>..."
       End
 
       It "responds elegantly to 'x' alias"
-        When run rb x
+        When run rb -R $RUBIES_DIR x
         The status should not equal 0
         The stderr should include "required arguments were not provided"
         The stderr should include "<ARGS>..."
       End
 
       It "preserves program exit codes with dignity"
-        When run rb exec ruby -e "exit 42"
+        When run rb -R $RUBIES_DIR exec ruby -e "exit 42"
         The status should equal 42
       End
 
       It "gracefully handles non-existent programs"
-        When run rb exec nonexistent-program
+        When run rb -R $RUBIES_DIR exec nonexistent-program
         The status should not equal 0
         The stderr should include "Execution Failed"
         The stderr should include "No such file or directory"
@@ -36,37 +36,37 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
 
     Context "ruby version selection (-r, --ruby)"
       It "runs ruby -v with default version"
-        When run rb exec ruby -v
+        When run rb -R $RUBIES_DIR exec ruby -v
         The status should equal 0
         The output should include "ruby $LATEST_RUBY"
       End
 
       It "respects specific Ruby version with -r flag"
-        When run rb -r "$OLDER_RUBY" exec ruby -v
+        When run rb -R $RUBIES_DIR -r "$OLDER_RUBY" exec ruby -v
         The status should equal 0
         The output should include "ruby $OLDER_RUBY"
       End
 
       It "respects specific Ruby version with --ruby flag"
-        When run rb --ruby "$LATEST_RUBY" exec ruby -v
+        When run rb --rubies-dir $RUBIES_DIR --ruby "$LATEST_RUBY" exec ruby -v
         The status should equal 0
         The output should include "ruby $LATEST_RUBY"
       End
 
       It "works with latest Ruby version variable"
-        When run rb -r "$LATEST_RUBY" exec ruby -v
+        When run rb -R $RUBIES_DIR -r "$LATEST_RUBY" exec ruby -v
         The status should equal 0
         The output should include "$LATEST_RUBY"
       End
 
       It "works with older Ruby version variable"
-        When run rb -r "$OLDER_RUBY" exec ruby -v
+        When run rb -R $RUBIES_DIR -r "$OLDER_RUBY" exec ruby -v
         The status should equal 0
         The output should include "$OLDER_RUBY"
       End
 
       It "handles non-existent Ruby version gracefully"
-        When run rb -r "9.9.9" exec ruby -v
+        When run rb -R $RUBIES_DIR -r "9.9.9" exec ruby -v
         The status should not equal 0
         The stderr should include "No suitable Ruby installation found"
         The stdout should include "Requested Ruby version 9.9.9 not found"
@@ -81,8 +81,7 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       End
 
       It "respects custom rubies directory with --rubies-dir flag"
-        # Use /app/rb directly to avoid double -R from rb() function
-        When run /app/rb --rubies-dir "$RUBIES_DIR" exec ruby -v
+        When run rb --rubies-dir "$RUBIES_DIR" exec ruby -v
         The status should equal 0
         The output should include "ruby"
       End
@@ -102,7 +101,7 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
 
     Context "gem environment testing with gem env"
       It "executes gem env with appropriate ceremony"
-        When run rb exec gem env
+        When run rb -R "$RUBIES_DIR" exec gem env
         The status should equal 0
         The output should include "RUBYGEMS VERSION"
         The output should include "RUBY VERSION"
@@ -112,14 +111,14 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       End
 
       It "shows correct Ruby version in gem env"
-        When run rb -r "$OLDER_RUBY" exec gem env
+        When run rb -R "$RUBIES_DIR" -r "$OLDER_RUBY" exec gem env
         The status should equal 0
         The output should include "RUBY VERSION: $OLDER_RUBY"
         The output should include "ruby-$OLDER_RUBY/bin/ruby"
       End
 
       It "shows correct Ruby executable path"
-        When run rb -r "$LATEST_RUBY" exec gem env
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" exec gem env
         The status should equal 0
         The output should include "RUBY EXECUTABLE"
         The output should include "/opt/rubies/ruby-$LATEST_RUBY/bin/ruby"
@@ -128,7 +127,7 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
 
     Context "gem home specification (-G, --gem-home)"
       It "respects custom gem home with -G flag"
-        When run rb -G "/tmp/test-gems" exec gem env
+        When run rb -R "$RUBIES_DIR" -G "/tmp/test-gems" exec gem env
         The status should equal 0
         The output should include "INSTALLATION DIRECTORY"
         The output should include "/tmp/test-gems"
@@ -136,21 +135,21 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
 
       It "respects custom gem home with --gem-home flag"
         # Use /app/rb directly to avoid conflicts
-        When run /app/rb -R "$RUBIES_DIR" --gem-home "/tmp/custom-gems" exec gem env
+        When run rb -R "$RUBIES_DIR" --gem-home "/tmp/custom-gems" exec gem env
         The status should equal 0
         The output should include "INSTALLATION DIRECTORY"
         The output should include "/tmp/custom-gems"
       End
 
       It "combines gem home with specific Ruby version"
-        When run rb -r "$LATEST_RUBY" -G "/tmp/version-gems" exec gem env
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" -G "/tmp/version-gems" exec gem env
         The status should equal 0
         The output should include "RUBY VERSION: $LATEST_RUBY"
         The output should include "/tmp/version-gems"
       End
 
       It "shows correct executable directory with custom gem home"
-        When run rb -G "/tmp/exec-gems" exec gem env
+        When run rb -R "$RUBIES_DIR" -G "/tmp/exec-gems" exec gem env
         The status should equal 0
         The output should include "EXECUTABLE DIRECTORY"
         The output should include "/tmp/exec-gems"
@@ -166,16 +165,14 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       End
 
       It "handles long-form parameters together"
-        # Use /app/rb directly to avoid double -R
-        When run /app/rb --rubies-dir "$RUBIES_DIR" --ruby "$LATEST_RUBY" --gem-home "/tmp/long-gems" exec gem env
+        When run rb --rubies-dir "$RUBIES_DIR" --ruby "$LATEST_RUBY" --gem-home "/tmp/long-gems" exec gem env
         The status should equal 0
         The output should include "RUBY VERSION: $LATEST_RUBY"
         The output should include "/tmp/long-gems"
       End
 
       It "handles mixed short and long parameters"
-        # Use /app/rb directly to avoid double -R
-        When run /app/rb --rubies-dir "$RUBIES_DIR" --ruby "$LATEST_RUBY" -G "/tmp/mixed-gems" exec gem env
+        When run rb --rubies-dir "$RUBIES_DIR" --ruby "$LATEST_RUBY" -G "/tmp/mixed-gems" exec gem env
         The status should equal 0
         The output should include "RUBY VERSION: $LATEST_RUBY"
         The output should include "/tmp/mixed-gems"
@@ -184,21 +181,20 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
 
     Context "gem management commands"
       It "displays installed gems elegantly"
-        When run rb exec gem list
+        When run rb -R "$RUBIES_DIR" exec gem list
         The status should equal 0
         The output should include "bundler"
       End
 
       It "shows gem list with specific Ruby version"
-        When run rb -r "$OLDER_RUBY" exec gem list
+        When run rb -R "$RUBIES_DIR" -r "$OLDER_RUBY" exec gem list
         The status should equal 0
         The output should include "bundler"
       End
 
       It "executes gem commands in custom gem home"
-        When run rb -G "/tmp/gem-list" exec gem list
+        When run rb -R "$RUBIES_DIR" -G "/tmp/gem-list" exec gem list
         The status should equal 0
-        # Should work even if no gems installed in custom location - gem list always shows some basic gems
         The output should include "default:"
       End
     End

@@ -8,13 +8,13 @@ Describe "Ruby Butler Environment System"
   Describe "environment command"
     Context "basic environment inspection"
       It "presents distinguished current Ruby environment"
-        When run rb environment
+        When run rb -R $RUBIES_DIR environment
         The status should equal 0
         The output should include "Your Current Ruby Environment"
       End
 
       It "responds gracefully to 'env' alias"
-        When run rb env
+        When run rb -R $RUBIES_DIR env
         The status should equal 0
         The output should include "Your Current Ruby Environment"
       End
@@ -22,31 +22,31 @@ Describe "Ruby Butler Environment System"
 
     Context "ruby version selection (-r, --ruby)"
       It "displays selected Ruby version with -r flag"
-        When run rb -r "$LATEST_RUBY" environment
+        When run rb -R $RUBIES_DIR -r "$LATEST_RUBY" environment
         The status should equal 0
         The output should include "$LATEST_RUBY"
       End
 
       It "displays selected Ruby version with --ruby flag"
-        When run rb --ruby "$OLDER_RUBY" environment
+        When run rb -R $RUBIES_DIR --ruby "$OLDER_RUBY" environment
         The status should equal 0
         The output should include "$OLDER_RUBY"
       End
 
       It "works with latest Ruby version"
-        When run rb -r "$LATEST_RUBY" environment
+        When run rb -R $RUBIES_DIR -r "$LATEST_RUBY" environment
         The status should equal 0
         The output should include "$LATEST_RUBY"
       End
 
       It "works with older Ruby version"
-        When run rb -r "$OLDER_RUBY" environment
+        When run rb -R $RUBIES_DIR -r "$OLDER_RUBY" environment
         The status should equal 0
         The output should include "$OLDER_RUBY"
       End
 
       It "handles non-existent Ruby version gracefully"
-        When run rb -r "9.9.9" environment
+        When run rb -R $RUBIES_DIR -r "9.9.9" environment
         The status should not equal 0
         The stderr should include "No suitable Ruby installation found"
         The stdout should include "Requested Ruby version 9.9.9 not found"
@@ -61,8 +61,7 @@ Describe "Ruby Butler Environment System"
       End
 
       It "respects custom rubies directory with --rubies-dir flag"
-        # Use /app/rb directly to avoid double -R from rb() function
-        When run /app/rb --rubies-dir "$RUBIES_DIR" environment
+        When run rb --rubies-dir "$RUBIES_DIR" environment
         The status should equal 0
         The output should include "Your Current Ruby Environment"
       End
@@ -82,26 +81,26 @@ Describe "Ruby Butler Environment System"
 
     Context "gem home specification (-G, --gem-home)"
       It "respects custom gem home with -G flag"
-        When run rb -G "/tmp/test-gems" environment
+        When run rb -R "$RUBIES_DIR" -G "/tmp/test-gems" environment
         The status should equal 0
         The output should include "/tmp/test-gems"
       End
 
       It "respects custom gem home with --gem-home flag"
-        When run rb --gem-home "/tmp/custom-gems" environment
+        When run rb -R "$RUBIES_DIR" --gem-home "/tmp/custom-gems" environment
         The status should equal 0
         The output should include "/tmp/custom-gems"
       End
 
       It "combines gem home with specific Ruby version"
-        When run rb -r "$LATEST_RUBY" -G "/tmp/version-gems" environment
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" -G "/tmp/version-gems" environment
         The status should equal 0
         The output should include "$LATEST_RUBY"
         The output should include "/tmp/version-gems"
       End
 
       It "shows gem home directory structure"
-        When run rb -G "/tmp/structured-gems" environment
+        When run rb -R "$RUBIES_DIR" -G "/tmp/structured-gems" environment
         The status should equal 0
         The output should include "Gem home"
         The output should include "/tmp/structured-gems"
@@ -117,16 +116,14 @@ Describe "Ruby Butler Environment System"
       End
 
       It "handles long-form parameters together"
-        # Use /app/rb directly to avoid double -R from rb() function
-        When run /app/rb --rubies-dir "$RUBIES_DIR" --ruby "$LATEST_RUBY" --gem-home "/tmp/long-gems" environment
+        When run rb --rubies-dir "$RUBIES_DIR" --ruby "$LATEST_RUBY" --gem-home "/tmp/long-gems" environment
         The status should equal 0
         The output should include "$LATEST_RUBY"
         The output should include "/tmp/long-gems"
       End
 
       It "handles mixed short and long parameters"
-        # Use /app/rb directly to avoid double -R from rb() function
-        When run /app/rb --rubies-dir "$RUBIES_DIR" --ruby "$LATEST_RUBY" -G "/tmp/mixed-gems" environment
+        When run rb --rubies-dir "$RUBIES_DIR" --ruby "$LATEST_RUBY" -G "/tmp/mixed-gems" environment
         The status should equal 0
         The output should include "$LATEST_RUBY"
         The output should include "/tmp/mixed-gems"
@@ -139,20 +136,20 @@ Describe "Ruby Butler Environment System"
       AfterEach 'cleanup_test_project'
       
       It "detects bundler environment in project"
-        When run rb environment
+        When run rb -R "$RUBIES_DIR" environment
         The status should equal 0
         The output should include "Bundler Environment"
       End
 
       It "shows bundler details with specific Ruby version"
-        When run rb -r "$LATEST_RUBY" environment
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" environment
         The status should equal 0
         The output should include "$LATEST_RUBY"
         The output should include "Bundler Environment"
       End
 
       It "respects custom gem home in bundler project"
-        When run rb -G "/tmp/bundler-gems" environment
+        When run rb -R "$RUBIES_DIR" -G "/tmp/bundler-gems" environment
         The status should equal 0
         The output should include "/tmp/bundler-gems"
         The output should include "Bundler Environment"
@@ -166,7 +163,7 @@ Describe "Ruby Butler Environment System"
       It "detects Ruby version from .ruby-version file"
         create_bundler_project "." "$OLDER_RUBY"
         
-        When run rb environment
+        When run rb -R "$RUBIES_DIR" environment
         The status should equal 0
         The output should include "$OLDER_RUBY"
       End
@@ -174,7 +171,7 @@ Describe "Ruby Butler Environment System"
       It "detects Ruby version from Gemfile ruby directive"
         create_bundler_project "." "" "$LATEST_RUBY"
         
-        When run rb environment
+        When run rb -R "$RUBIES_DIR" environment
         The status should equal 0
         The output should include "$LATEST_RUBY"
       End
@@ -182,7 +179,7 @@ Describe "Ruby Butler Environment System"
       It "prefers .ruby-version over Gemfile ruby directive"
         create_bundler_project "." "$OLDER_RUBY" "$LATEST_RUBY"
         
-        When run rb environment
+        When run rb -R "$RUBIES_DIR" environment
         The status should equal 0
         The output should include "$OLDER_RUBY"
       End
@@ -190,7 +187,7 @@ Describe "Ruby Butler Environment System"
       It "overrides project version with -r flag"
         create_bundler_project "." "$OLDER_RUBY"
         
-        When run rb -r "$LATEST_RUBY" environment
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" environment
         The status should equal 0
         The output should include "$LATEST_RUBY"
       End
@@ -198,21 +195,21 @@ Describe "Ruby Butler Environment System"
 
     Context "environment variable display"
       It "shows gem home configuration"
-        When run rb -G "/tmp/gem-display" environment
+        When run rb -R "$RUBIES_DIR" -G "/tmp/gem-display" environment
         The status should equal 0
         The output should include "Gem home"
         The output should include "/tmp/gem-display"
       End
 
       It "shows gem libraries configuration" 
-        When run rb -G "/tmp/gem-path" environment
+        When run rb -R "$RUBIES_DIR" -G "/tmp/gem-path" environment
         The status should equal 0
         The output should include "Gem libraries"
         The output should include "/tmp/gem-path"
       End
 
       It "displays executable paths"
-        When run rb -r "$LATEST_RUBY" environment
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" environment
         The status should equal 0
         The output should include "Executable paths"
         The output should include "ruby-$LATEST_RUBY/bin"

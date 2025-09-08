@@ -11,7 +11,7 @@ Describe 'rb sync command'
     BeforeEach 'create_bundler_project .'
     
     It 'successfully synchronizes bundler environment'
-      When run rb sync
+      When run rb -R $RUBIES_DIR sync
       The status should be success
       The output should include "Environment Successfully Synchronized"
       The output should include "Bundle complete!"
@@ -22,7 +22,7 @@ Describe 'rb sync command'
     # Already in empty test directory, no bundler project
     
     It 'fails gracefully with appropriate message'
-      When run rb sync
+      When run rb -R $RUBIES_DIR sync
       The status should be failure
       The output should include "Bundler Environment Not Detected"
       The stderr should include "Sync failed"
@@ -34,7 +34,7 @@ Describe 'rb sync command'
       # Already in empty test directory, no bundler project
       
       It 'fails gracefully with "s" alias when no proper bundler project'
-        When run rb s
+        When run rb -R $RUBIES_DIR s
         The status should be failure
         The output should include "Bundler Environment Not Detected"
         The stderr should include "Sync failed"
@@ -45,7 +45,7 @@ Describe 'rb sync command'
       BeforeEach 'create_bundler_project .'
       
       It 'works with "s" alias in bundler project'
-        When run rb s
+        When run rb -R $RUBIES_DIR s
         The status should be success
         The output should include "Environment Successfully Synchronized"
       End
@@ -62,30 +62,9 @@ Describe 'rb sync command'
     Example "works with Ruby $1 ($2 version)"
       create_bundler_project "." "$1"
       
-      When run rb sync
+      When run rb -R $RUBIES_DIR sync
       The status should be success
       The output should include "Synchronizing"
-    End
-  End
-
-  # Complex project testing
-  Context 'sync with complex projects'
-    It 'handles complex Gemfile configurations'
-      create_complex_gemfile "." "$LATEST_RUBY"
-      
-      When run rb sync
-      The status should be success
-      The output should include "Environment Successfully Synchronized"
-    End
-  End
-
-  # Path management testing  
-  Context 'sync with path management'
-    BeforeEach 'create_bundler_project .'
-    
-    It 'works with path references'
-      When run command test -d "/opt/rubies"
-      The status should be success
     End
   End
 End

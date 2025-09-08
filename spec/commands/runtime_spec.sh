@@ -8,14 +8,14 @@ Describe "Ruby Butler Runtime System"
   Describe "runtime command"
     Context "when surveying available Ruby installations"
       It "elegantly lists distinguished Ruby installations"
-        When run rb runtime
+        When run rb -R $RUBIES_DIR runtime
         The status should equal 0
         The output should include "$LATEST_RUBY"
         The output should include "$OLDER_RUBY"
       End
 
       It "presents the distinguished survey header"
-        When run rb runtime
+        When run rb -R $RUBIES_DIR runtime
         The status should equal 0
         The output should include "Ruby Environment Survey"
       End
@@ -27,7 +27,7 @@ Describe "Ruby Butler Runtime System"
       End
 
       It "presents latest Ruby with appropriate precedence"
-        When run rb runtime
+        When run rb -R $RUBIES_DIR runtime
         The status should equal 0
         # Latest version should appear before older version in output
         The output should include "$LATEST_RUBY"
@@ -37,13 +37,13 @@ Describe "Ruby Butler Runtime System"
 
     Context "with distinguished customizations"
       It "elegantly displays custom gem environment"
-        When run rb -r "$LATEST_RUBY" -G "/tmp/custom-gems" runtime
+        When run rb -R $RUBIES_DIR -r "$LATEST_RUBY" -G "/tmp/custom-gems" runtime
         The status should equal 0
         The output should include "/tmp/custom-gems"
       End
 
       It "respects specific Ruby version selection"
-        When run rb -r "$OLDER_RUBY" runtime
+        When run rb -R $RUBIES_DIR -r "$OLDER_RUBY" runtime
         The status should equal 0
         The output should include "$OLDER_RUBY"
       End
@@ -51,7 +51,7 @@ Describe "Ruby Butler Runtime System"
 
     Context "command aliases"
       It "responds gracefully to 'rt' alias"
-        When run rb rt
+        When run rb -R $RUBIES_DIR rt
         The status should equal 0
         The output should include "Ruby Environment Survey"
         The output should include "$LATEST_RUBY"
