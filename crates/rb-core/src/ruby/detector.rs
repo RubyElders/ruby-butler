@@ -3,19 +3,31 @@ use semver::Version;
 use std::{fs, path::{Path, PathBuf}};
 use log::{debug, info};
 
-use super::{RubyRuntime, RubyType};
+use super::{RubyRuntime, RubyType, RubyDiscoveryError};
 
 pub struct RubyRuntimeDetector;
 
 impl RubyRuntimeDetector {
-    pub fn discover(root_dir: &Path) -> std::io::Result<Vec<RubyRuntime>> {
+    pub fn discover(root_dir: &Path) -> Result<Vec<RubyRuntime>, RubyDiscoveryError> {
         debug!("Starting Ruby discovery in directory: {}", root_dir.display());
+        
+        // Check if the directory exists first
+        if !root_dir.exists() {
+            debug!("Ruby discovery directory does not exist: {}", root_dir.display());
+            return Err(RubyDiscoveryError::DirectoryNotFound(root_dir.to_path_buf()));
+        }
+        
         let mut out = Vec::new();
         let re = Regex::new(r"^ruby-(\d+)\.(\d+)\.(\d+)$").expect("static regex");
 
-        for entry in fs::read_dir(root_dir)? {
-            let entry = entry?;
-            if !entry.file_type()?.is_dir() { 
+        let entries = fs::read_dir(root_dir)
+            .map_err(|e| RubyDiscoveryError::IoError(format!("Failed to read directory {}: {}", root_dir.display(), e)))?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| RubyDiscoveryError::IoError(e.to_string()))?;
+            let file_type = entry.file_type().map_err(|e| RubyDiscoveryError::IoError(e.to_string()))?;
+            
+            if !file_type.is_dir() { 
                 debug!("Skipping non-directory entry: {}", entry.path().display());
                 continue; 
             }

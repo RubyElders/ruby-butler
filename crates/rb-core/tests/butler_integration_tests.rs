@@ -1,9 +1,10 @@
 use rb_tests::RubySandbox;
 use std::io;
-use rb_core::butler::ButlerRuntime;
+use rb_core::butler::{ButlerRuntime, ButlerError};
 use rb_core::ruby::{RubyRuntime, RubyType, RubyRuntimeDetector};
 use rb_core::gems::GemRuntime;
 use semver::Version;
+use std::path::PathBuf;
 
 #[test]
 fn test_butler_runtime_with_only_ruby() -> io::Result<()> {
@@ -165,4 +166,39 @@ fn test_butler_runtime_empty_gem_runtime() -> io::Result<()> {
     assert_eq!(butler.gem_home(), None);
 
     Ok(())
+}
+
+#[test]
+fn test_butler_runtime_discover_nonexistent_directory() {
+    let nonexistent_path = PathBuf::from("completely_nonexistent_directory_butler_test");
+    
+    let result = ButlerRuntime::discover_and_compose(nonexistent_path.clone(), None);
+    
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        ButlerError::RubiesDirectoryNotFound(path) => {
+            assert_eq!(path, nonexistent_path);
+        }
+        _ => panic!("Expected RubiesDirectoryNotFound error"),
+    }
+}
+
+#[test]
+fn test_butler_runtime_discover_with_gem_base_nonexistent_directory() {
+    let nonexistent_path = PathBuf::from("completely_nonexistent_directory_butler_gem_test");
+    let gem_base = Some(PathBuf::from("/tmp/gems"));
+    
+    let result = ButlerRuntime::discover_and_compose_with_gem_base(
+        nonexistent_path.clone(), 
+        None, 
+        gem_base
+    );
+    
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        ButlerError::RubiesDirectoryNotFound(path) => {
+            assert_eq!(path, nonexistent_path);
+        }
+        _ => panic!("Expected RubiesDirectoryNotFound error"),
+    }
 }

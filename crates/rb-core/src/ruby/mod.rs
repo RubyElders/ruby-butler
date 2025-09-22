@@ -6,6 +6,46 @@ use log::debug;
 use crate::butler::runtime_provider::RuntimeProvider;
 use crate::gems::GemRuntime;
 
+/// Errors that can occur during Ruby discovery
+#[derive(Debug, Clone)]
+pub enum RubyDiscoveryError {
+    /// The specified rubies directory does not exist
+    DirectoryNotFound(PathBuf),
+    /// An I/O error occurred while scanning the directory
+    IoError(String),
+}
+
+impl std::fmt::Display for RubyDiscoveryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RubyDiscoveryError::DirectoryNotFound(path) => {
+                write!(f, "Directory not found: {}", path.display())
+            }
+            RubyDiscoveryError::IoError(msg) => {
+                write!(f, "I/O error: {}", msg)
+            }
+        }
+    }
+}
+
+impl std::error::Error for RubyDiscoveryError {}
+
+impl From<RubyDiscoveryError> for std::io::Error {
+    fn from(error: RubyDiscoveryError) -> Self {
+        match error {
+            RubyDiscoveryError::DirectoryNotFound(path) => {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("Directory not found: {}", path.display())
+                )
+            }
+            RubyDiscoveryError::IoError(msg) => {
+                std::io::Error::new(std::io::ErrorKind::Other, msg)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RubyType {
     /// MRI / CRuby

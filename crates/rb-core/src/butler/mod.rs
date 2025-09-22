@@ -4,7 +4,7 @@ use std::env;
 use log::{debug, info};
 use semver::Version;
 use colored::*;
-use crate::ruby::{RubyRuntime, RubyRuntimeDetector};
+use crate::ruby::{RubyRuntime, RubyRuntimeDetector, RubyDiscoveryError};
 use crate::gems::GemRuntime;
 use crate::bundler::{BundlerRuntime, BundlerRuntimeDetector};
 use home;
@@ -14,6 +14,35 @@ pub mod command;
 
 pub use runtime_provider::RuntimeProvider;
 pub use command::Command;
+
+/// Errors that can occur during ButlerRuntime operations
+#[derive(Debug, Clone)]
+pub enum ButlerError {
+    /// The specified rubies directory does not exist
+    RubiesDirectoryNotFound(PathBuf),
+    /// No suitable Ruby installation found
+    NoSuitableRuby(String),
+    /// General error with message
+    General(String),
+}
+
+impl std::fmt::Display for ButlerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ButlerError::RubiesDirectoryNotFound(path) => {
+                write!(f, "Directory not found: {}. No Rubies were detected and there's nothing Butler can help with. Please install Ruby using ruby-install or similar tool to the expected path.", path.display())
+            }
+            ButlerError::NoSuitableRuby(msg) => {
+                write!(f, "No suitable Ruby installation found: {}", msg)
+            }
+            ButlerError::General(msg) => {
+                write!(f, "{}", msg)
+            }
+        }
+    }
+}
+
+impl std::error::Error for ButlerError {}
 
 /// Enhanced ButlerRuntime that serves as the main orchestrator for Ruby environments.
 /// Handles discovery, selection, and composition of Ruby installations, gem environments,
@@ -65,7 +94,7 @@ impl ButlerRuntime {
     pub fn discover_and_compose(
         rubies_dir: PathBuf, 
         requested_ruby_version: Option<String>
-    ) -> Result<Self, String> {
+    ) -> Result<Self, ButlerError> {
         Self::discover_and_compose_with_gem_base(rubies_dir, requested_ruby_version, None)
     }
 
@@ -74,9 +103,9 @@ impl ButlerRuntime {
         rubies_dir: PathBuf, 
         requested_ruby_version: Option<String>,
         gem_base_dir: Option<PathBuf>
-    ) -> Result<Self, String> {
+    ) -> Result<Self, ButlerError> {
         let current_dir = env::current_dir()
-            .map_err(|e| format!("Unable to determine current directory: {}", e))?;
+            .map_err(|e| ButlerError::General(format!("Unable to determine current directory: {}", e)))?;
 
         debug!("Starting comprehensive environment discovery");
         debug!("Rubies directory: {}", rubies_dir.display());
@@ -86,7 +115,14 @@ impl ButlerRuntime {
         // Step 1: Discover Ruby installations
         debug!("Discovering Ruby installations");
         let ruby_installations = RubyRuntimeDetector::discover(&rubies_dir)
-            .map_err(|e| format!("Failed to discover Ruby installations: {}", e))?;
+            .map_err(|e| match e {
+                RubyDiscoveryError::DirectoryNotFound(path) => {
+                    ButlerError::RubiesDirectoryNotFound(path)
+                }
+                RubyDiscoveryError::IoError(msg) => {
+                    ButlerError::General(format!("Failed to discover Ruby installations: {}", msg))
+                }
+            })?;
         
         info!("Found {} Ruby installations", ruby_installations.len());
 
@@ -116,7 +152,7 @@ impl ButlerRuntime {
             &ruby_installations,
             &requested_ruby_version,
             &required_ruby_version,
-        ).ok_or_else(|| "No suitable Ruby installation found".to_string())?;
+        ).ok_or_else(|| ButlerError::NoSuitableRuby("No suitable Ruby installation found".to_string()))?;
 
         // Step 5: Create gem runtime (using custom base directory if provided)
         let gem_runtime = if let Some(ref custom_gem_base) = gem_base_dir {
@@ -406,7 +442,7 @@ impl ButlerRuntime {
     pub fn discover_and_create(
         search_dir: &PathBuf, 
         requested_version: Option<&str>
-    ) -> Result<Self, String> {
+    ) -> Result<Self, ButlerError> {
         debug!("Starting Ruby discovery process in: {}", search_dir.display());
         
         let requested = requested_version.map(|s| s.to_string());
@@ -414,9 +450,9 @@ impl ButlerRuntime {
     }
 
     /// Get the default rubies directory (~/.rubies)
-    pub fn default_rubies_dir() -> Result<PathBuf, String> {
+    pub fn default_rubies_dir() -> Result<PathBuf, ButlerError> {
         let home_dir = home::home_dir()
-            .ok_or_else(|| "Could not determine home directory".to_string())?;
+            .ok_or_else(|| ButlerError::General("Could not determine home directory".to_string()))?;
         Ok(home_dir.join(".rubies"))
     }
 }

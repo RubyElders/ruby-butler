@@ -1,6 +1,6 @@
 use clap::Parser;
 use rb_cli::{Cli, Commands, runtime_command, environment_command, exec_command, sync_command, init_logger, resolve_search_dir};
-use rb_core::butler::ButlerRuntime;
+use rb_core::butler::{ButlerRuntime, ButlerError};
 
 fn main() {
     let cli = Cli::parse();
@@ -28,8 +28,24 @@ fn main() {
     ) {
         Ok(runtime) => runtime,
         Err(e) => {
-            eprintln!("Error: {}", e);
-            std::process::exit(1);
+            match e {
+                ButlerError::RubiesDirectoryNotFound(path) => {
+                    eprintln!("🎩 My sincerest apologies, but the designated Ruby estate directory");
+                    eprintln!("   '{}' appears to be absent from your system.", path.display());
+                    eprintln!();
+                    eprintln!("Without access to a properly established Ruby estate, I'm afraid");
+                    eprintln!("there's precious little this humble Butler can accomplish on your behalf.");
+                    eprintln!();
+                    eprintln!("May I suggest installing Ruby using ruby-install or a similar");
+                    eprintln!("distinguished tool to establish your Ruby installations at the");
+                    eprintln!("expected location, then we shall proceed with appropriate ceremony.");
+                    std::process::exit(1);
+                }
+                _ => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
     };
 
