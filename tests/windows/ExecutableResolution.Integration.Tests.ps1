@@ -57,10 +57,10 @@ Describe "Ruby Butler - Windows Executable Resolution Integration" {
     
     Context "Ruby Ecosystem Command Validation" {
         It "Handles non-existent Ruby commands gracefully" {
-            # Test that non-existent Ruby ecosystem commands fail appropriately
+            # Test that non-existent Ruby ecosystem commands fail with command not found error
             $Output = & $Script:RbPath x nonexistent-ruby-command-12345 2>&1
-            $LASTEXITCODE | Should -Be 1
-            ($Output -join " ") | Should -Match "Execution Failed|program not found"
+            $LASTEXITCODE | Should -Be 127
+            ($Output -join " ") | Should -Match "sincerest apologies.*command.*appears to be.*entirely absent"
         }
     }
 }

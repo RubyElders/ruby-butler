@@ -1,6 +1,6 @@
 use log::{debug, info};
 use colored::*;
-use rb_core::butler::{ButlerRuntime, Command};
+use rb_core::butler::{ButlerRuntime, Command, ButlerError};
 
 pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
     if program_args.is_empty() {
@@ -66,8 +66,8 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
 
     debug!("Commencing program execution...");
     
-    // Execute and honor the program's exit status using butler context
-    match cmd.status_with_context(&butler) {
+    // Execute with validation and handle command not found errors
+    match cmd.status_with_validation(&butler) {
         Ok(status) => {
             if let Some(code) = status.code() {
                 debug!("Program concluded with exit code: {}", code);
@@ -76,6 +76,22 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
                 debug!("Program was terminated by system signal");
                 std::process::exit(1);
             }
+        }
+        Err(ButlerError::CommandNotFound(command)) => {
+            eprintln!("🎩 My sincerest apologies, but the command '{}' appears to be", command.bright_yellow());
+            eprintln!("   entirely absent from your distinguished Ruby environment.");
+            eprintln!();
+            eprintln!("This humble Butler has meticulously searched through all");
+            eprintln!("available paths and gem installations, yet the requested");
+            eprintln!("command remains elusive.");
+            eprintln!();
+            eprintln!("Might I suggest:");
+            eprintln!("  • Verifying the command name is spelled correctly");
+            eprintln!("  • Installing the appropriate gem: {}", format!("gem install {}", command).cyan());
+            eprintln!("  • Checking if bundler management is required: {}", "bundle install".cyan());
+            eprintln!();
+            eprintln!("For additional diagnostic information, please use the {} or {} flags.", "-v".cyan(), "-vv".cyan());
+            std::process::exit(127);
         }
         Err(e) => {
             eprintln!("{}: Execution encountered difficulties: {}", 

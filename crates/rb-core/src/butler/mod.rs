@@ -22,6 +22,8 @@ pub enum ButlerError {
     RubiesDirectoryNotFound(PathBuf),
     /// No suitable Ruby installation found
     NoSuitableRuby(String),
+    /// Specified command was not found in the environment
+    CommandNotFound(String),
     /// General error with message
     General(String),
 }
@@ -34,6 +36,9 @@ impl std::fmt::Display for ButlerError {
             }
             ButlerError::NoSuitableRuby(msg) => {
                 write!(f, "No suitable Ruby installation found: {}", msg)
+            }
+            ButlerError::CommandNotFound(command) => {
+                write!(f, "Command not found: {}. The specified command is not available in the current environment.", command)
             }
             ButlerError::General(msg) => {
                 write!(f, "{}", msg)

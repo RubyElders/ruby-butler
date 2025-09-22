@@ -1,7 +1,7 @@
 use std::process::{Stdio, Child, Output};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use super::ButlerRuntime;
+use super::{ButlerRuntime, ButlerError};
 use log::debug;
 
 /// A sophisticated command execution abstraction that understands Ruby environments
@@ -104,6 +104,91 @@ impl Command {
     pub fn status_with_context(&mut self, butler_runtime: &ButlerRuntime) -> std::io::Result<std::process::ExitStatus> {
         let mut cmd = self.build_command_with_context(butler_runtime);
         cmd.status()
+    }
+
+    /// Check if the command exists in the current environment.
+    /// 
+    /// This method uses the same resolution logic as command execution to determine
+    /// if a command is available. It considers both direct command execution and
+    /// bundle exec scenarios.
+    pub fn command_exists(&self, butler_runtime: &ButlerRuntime) -> bool {
+        if self.should_use_bundle_exec(butler_runtime) {
+            // For bundle exec commands, check if both bundle and the target command exist
+            let bundle_cmd = Command::new("bundle");
+            if !bundle_cmd.command_exists_direct(butler_runtime) {
+                debug!("Bundle command not found, cannot use bundle exec");
+                return false;
+            }
+            
+            // For bundle exec, we assume the command exists if bundle exists
+            // The actual gem availability will be checked at runtime
+            debug!("Bundle exec scenario - assuming command exists if bundle exists");
+            true
+        } else {
+            // Check direct command existence
+            self.command_exists_direct(butler_runtime)
+        }
+    }
+
+    /// Check if a command exists directly (without bundle exec)
+    fn command_exists_direct(&self, butler_runtime: &ButlerRuntime) -> bool {
+        let existing_path = std::env::var("PATH").ok();
+        let env_vars = butler_runtime.env_vars(existing_path);
+        
+        if let Some(butler_path) = env_vars.get("PATH") {
+            debug!("Checking command existence for '{}' with butler PATH", self.program);
+            
+            match which::which_in(&self.program, Some(butler_path), std::env::current_dir().unwrap_or_default()) {
+                Ok(path) => {
+                    debug!("Command '{}' found at: {}", self.program, path.display());
+                    true
+                }
+                Err(e) => {
+                    debug!("Command '{}' not found: {}", self.program, e);
+                    false
+                }
+            }
+        } else {
+            debug!("No butler PATH available for command existence check");
+            false
+        }
+    }
+
+    /// Execute the command with command existence checking, returning ButlerError for missing commands.
+    /// 
+    /// This method checks if the command exists before attempting execution and returns
+    /// appropriate ButlerError::CommandNotFound if the command is not available.
+    pub fn execute_with_validation(&mut self, butler_runtime: &ButlerRuntime) -> Result<Child, ButlerError> {
+        if !self.command_exists(butler_runtime) {
+            return Err(ButlerError::CommandNotFound(self.program.clone()));
+        }
+        
+        self.execute_with_context(butler_runtime)
+            .map_err(|e| ButlerError::General(format!("Failed to execute command '{}': {}", self.program, e)))
+    }
+
+    /// Execute the command and wait for completion with command existence checking.
+    /// 
+    /// Returns ButlerError::CommandNotFound if the command is not available.
+    pub fn output_with_validation(&mut self, butler_runtime: &ButlerRuntime) -> Result<Output, ButlerError> {
+        if !self.command_exists(butler_runtime) {
+            return Err(ButlerError::CommandNotFound(self.program.clone()));
+        }
+        
+        self.output_with_context(butler_runtime)
+            .map_err(|e| ButlerError::General(format!("Failed to execute command '{}': {}", self.program, e)))
+    }
+
+    /// Execute the command and wait for completion with command existence checking.
+    /// 
+    /// Returns ButlerError::CommandNotFound if the command is not available.
+    pub fn status_with_validation(&mut self, butler_runtime: &ButlerRuntime) -> Result<std::process::ExitStatus, ButlerError> {
+        if !self.command_exists(butler_runtime) {
+            return Err(ButlerError::CommandNotFound(self.program.clone()));
+        }
+        
+        self.status_with_context(butler_runtime)
+            .map_err(|e| ButlerError::General(format!("Failed to execute command '{}': {}", self.program, e)))
     }
 
     /// Check if this command should be executed with bundle exec
@@ -309,5 +394,132 @@ mod tests {
         let _resolved = gem_cmd.resolve_executable_path(&butler_runtime);
         // Note: We can't assert the exact resolved path since it depends on the system
         // but we can verify the method runs without panicking
+    }
+
+    #[test]
+    fn test_command_exists_for_nonexistent_command() {
+        use crate::ruby::{RubyRuntime, RubyType};
+        use semver::Version;
+        use std::path::PathBuf;
+
+        let ruby_runtime = RubyRuntime {
+            kind: RubyType::CRuby,
+            version: Version::new(3, 0, 0),
+            root: PathBuf::from("/nonexistent"),
+        };
+        
+        let butler_runtime = ButlerRuntime::new(ruby_runtime, None);
+        
+        // Test that clearly non-existent command returns false
+        let nonexistent_cmd = Command::new("definitely-does-not-exist-12345");
+        assert!(!nonexistent_cmd.command_exists(&butler_runtime));
+        
+        // Test the direct checking method as well
+        assert!(!nonexistent_cmd.command_exists_direct(&butler_runtime));
+    }
+
+    #[test]
+    fn test_command_exists_for_bundle_commands() {
+        use crate::ruby::{RubyRuntime, RubyType};
+        use semver::Version;
+        use std::path::PathBuf;
+
+        let ruby_runtime = RubyRuntime {
+            kind: RubyType::CRuby,
+            version: Version::new(3, 0, 0),
+            root: PathBuf::from("/test"),
+        };
+        
+        let butler_runtime = ButlerRuntime::new(ruby_runtime, None);
+        
+        // Bundle commands should always check directly, never through bundle exec
+        let bundle_cmd = Command::new("bundle");
+        assert!(!bundle_cmd.should_use_bundle_exec(&butler_runtime));
+        
+        // The existence check should go through the direct path
+        // We can't test the actual result since it depends on system state,
+        // but we can verify the logic flow
+        let _exists = bundle_cmd.command_exists(&butler_runtime);
+    }
+
+    #[test]
+    fn test_status_with_validation_for_nonexistent_command() {
+        use crate::ruby::{RubyRuntime, RubyType};
+        use semver::Version;
+        use std::path::PathBuf;
+
+        let ruby_runtime = RubyRuntime {
+            kind: RubyType::CRuby,
+            version: Version::new(3, 0, 0),
+            root: PathBuf::from("/nonexistent"),
+        };
+        
+        let butler_runtime = ButlerRuntime::new(ruby_runtime, None);
+        
+        // Test that validation method returns CommandNotFound error
+        let mut nonexistent_cmd = Command::new("definitely-does-not-exist-12345");
+        let result = nonexistent_cmd.status_with_validation(&butler_runtime);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ButlerError::CommandNotFound(command) => {
+                assert_eq!(command, "definitely-does-not-exist-12345");
+            }
+            _ => panic!("Expected CommandNotFound error"),
+        }
+    }
+
+    #[test]
+    fn test_output_with_validation_for_nonexistent_command() {
+        use crate::ruby::{RubyRuntime, RubyType};
+        use semver::Version;
+        use std::path::PathBuf;
+
+        let ruby_runtime = RubyRuntime {
+            kind: RubyType::CRuby,
+            version: Version::new(3, 0, 0),
+            root: PathBuf::from("/nonexistent"),
+        };
+        
+        let butler_runtime = ButlerRuntime::new(ruby_runtime, None);
+        
+        // Test that validation method returns CommandNotFound error
+        let mut nonexistent_cmd = Command::new("definitely-does-not-exist-12345");
+        let result = nonexistent_cmd.output_with_validation(&butler_runtime);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ButlerError::CommandNotFound(command) => {
+                assert_eq!(command, "definitely-does-not-exist-12345");
+            }
+            _ => panic!("Expected CommandNotFound error"),
+        }
+    }
+
+    #[test]
+    fn test_execute_with_validation_for_nonexistent_command() {
+        use crate::ruby::{RubyRuntime, RubyType};
+        use semver::Version;
+        use std::path::PathBuf;
+
+        let ruby_runtime = RubyRuntime {
+            kind: RubyType::CRuby,
+            version: Version::new(3, 0, 0),
+            root: PathBuf::from("/nonexistent"),
+        };
+        
+        let butler_runtime = ButlerRuntime::new(ruby_runtime, None);
+        
+        // Test that validation method returns CommandNotFound error
+        let mut nonexistent_cmd = Command::new("definitely-does-not-exist-12345");
+        let result = nonexistent_cmd.execute_with_validation(&butler_runtime);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ButlerError::CommandNotFound(command) => {
+                assert_eq!(command, "definitely-does-not-exist-12345");
+            }
+            _ => panic!("Expected CommandNotFound error"),
+        }
     }
 }

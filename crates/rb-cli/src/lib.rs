@@ -90,7 +90,7 @@ pub enum Commands {
     #[command(visible_alias = "x")]
     Exec {
         /// The program and its arguments to execute with proper environmental preparation
-        #[arg(trailing_var_arg = true, required = true)]
+        #[arg(trailing_var_arg = true)]
         args: Vec<String>,
     },
     
