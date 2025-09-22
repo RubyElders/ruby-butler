@@ -2,6 +2,7 @@ use std::process::{Stdio, Child, Output};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use super::ButlerRuntime;
+use log::debug;
 
 /// A sophisticated command execution abstraction that understands Ruby environments
 /// and executes commands with appropriate context and preparation.
@@ -122,18 +123,51 @@ impl Command {
         self.program == "bundle" || self.program == "bundler"
     }
 
+    /// Resolve the executable path for cross-platform command execution.
+    /// 
+    /// On Windows, this will find executables with common extensions (.exe, .cmd, .bat).
+    /// On Unix systems, this preserves the original behavior.
+    fn resolve_executable_path(&self, butler_runtime: &ButlerRuntime) -> String {
+        // Try to resolve the executable using the which crate with the composed environment
+        let existing_path = std::env::var("PATH").ok();
+        let env_vars = butler_runtime.env_vars(existing_path);
+        
+        // Create a temporary environment with the butler runtime PATH
+        if let Some(butler_path) = env_vars.get("PATH") {
+            debug!("Resolving executable '{}' with butler PATH", self.program);
+            
+            // Use which to find the executable in the butler environment
+            match which::which_in(&self.program, Some(butler_path), std::env::current_dir().unwrap_or_default()) {
+                Ok(path) => {
+                    let resolved = path.to_string_lossy().to_string();
+                    debug!("Resolved executable '{}' to: {}", self.program, resolved);
+                    resolved
+                }
+                Err(_) => {
+                    debug!("Could not resolve executable '{}', using original name", self.program);
+                    self.program.clone()
+                }
+            }
+        } else {
+            debug!("No butler PATH available, using original program name: {}", self.program);
+            self.program.clone()
+        }
+    }
+
     /// Build the actual Command with proper context resolution
     fn build_command_with_context(&mut self, butler_runtime: &ButlerRuntime) -> std::process::Command {
         let mut cmd = if self.should_use_bundle_exec(butler_runtime) {
             // Use bundle exec for gem executables
-            let mut bundle_cmd = std::process::Command::new("bundle");
+            let resolved_bundle = self.resolve_bundle_executable(butler_runtime);
+            let mut bundle_cmd = std::process::Command::new(resolved_bundle);
             bundle_cmd.arg("exec");
             bundle_cmd.arg(&self.program);
             bundle_cmd.args(&self.args);
             bundle_cmd
         } else {
-            // Use the program directly
-            let mut direct_cmd = std::process::Command::new(&self.program);
+            // Use the program directly, resolving the executable path
+            let resolved_program = self.resolve_executable_path(butler_runtime);
+            let mut direct_cmd = std::process::Command::new(resolved_program);
             direct_cmd.args(&self.args);
             direct_cmd
         };
@@ -166,6 +200,22 @@ impl Command {
         }
 
         cmd
+    }
+
+    /// Resolve the bundle executable path for cross-platform execution
+    fn resolve_bundle_executable(&self, butler_runtime: &ButlerRuntime) -> String {
+        // Create a temporary command to resolve bundle executable
+        let bundle_program = "bundle".to_string();
+        let temp_cmd = Command {
+            program: bundle_program,
+            args: Vec::new(),
+            current_dir: None,
+            env_vars: HashMap::new(),
+            stdout: None,
+            stderr: None,
+            stdin: None,
+        };
+        temp_cmd.resolve_executable_path(butler_runtime)
     }
 }
 
@@ -232,5 +282,32 @@ mod tests {
         
         // Note: Testing with bundler runtime requires filesystem setup
         // and is better covered in integration tests
+    }
+
+    #[test]
+    fn test_executable_resolution_fallback() {
+        // Create a minimal butler runtime for testing
+        use crate::ruby::{RubyRuntime, RubyType};
+        use semver::Version;
+        use std::path::PathBuf;
+
+        let ruby_runtime = RubyRuntime {
+            kind: RubyType::CRuby,
+            version: Version::new(3, 0, 0),
+            root: PathBuf::from("/nonexistent"),
+        };
+        
+        let butler_runtime = ButlerRuntime::new(ruby_runtime, None);
+        
+        // Test that non-existent commands fall back to original program name
+        let nonexistent_cmd = Command::new("nonexistent-command-12345");
+        let resolved = nonexistent_cmd.resolve_executable_path(&butler_runtime);
+        assert_eq!(resolved, "nonexistent-command-12345");
+        
+        // Test that the resolution method exists and is callable
+        let gem_cmd = Command::new("gem");
+        let _resolved = gem_cmd.resolve_executable_path(&butler_runtime);
+        // Note: We can't assert the exact resolved path since it depends on the system
+        // but we can verify the method runs without panicking
     }
 }

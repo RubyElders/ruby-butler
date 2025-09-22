@@ -344,6 +344,7 @@ dependencies = [
  "regex",
  "semver",
  "tempfile",
+ "which",
 ]
 
 [[package]]
