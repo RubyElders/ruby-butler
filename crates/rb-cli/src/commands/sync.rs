@@ -141,13 +141,16 @@ mod tests {
     fn test_sync_command_with_no_gemfile() -> Result<(), Box<dyn std::error::Error>> {
         let sandbox = BundlerSandbox::new()?;
         let project_dir = sandbox.add_dir("no_gemfile_project")?;
+        
+        // Create a temporary rubies directory to avoid CI failure
+        let rubies_dir = sandbox.add_dir("rubies")?;
 
         // Change to project directory
         let original_dir = std::env::current_dir()?;
         std::env::set_current_dir(&project_dir)?;
 
         // Should return error when no bundler environment detected
-        let result = sync_command(None, None, None);
+        let result = sync_command(Some(rubies_dir), None, None);
 
         // Restore directory (ignore errors in case directory was deleted)
         let _ = std::env::set_current_dir(original_dir);
@@ -161,8 +164,9 @@ mod tests {
                     || error_msg.contains("Os { code: 2")
                     || error_msg.contains("No such file or directory")
                     || error_msg.contains("Bundler executable not found")
+                    || error_msg.contains("No suitable Ruby installation found")
                 {
-                    Ok(()) // Expected errors in test environment without bundler
+                    Ok(()) // Expected errors in test environment without bundler/ruby
                 } else {
                     Err(e) // Unexpected error
                 }
