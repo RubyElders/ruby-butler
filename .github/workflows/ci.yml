@@ -1,0 +1,234 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+    
+    - name: Run clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+    
+    - name: Check documentation
+      run: cargo doc --no-deps --document-private-items --all-features
+
+  test-rust:
+    name: Rust Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable, beta]
+        exclude:
+          # Reduce matrix size for faster CI
+          - os: macos-latest
+            rust: beta
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.rust }}-cargo-
+          ${{ runner.os }}-cargo-
+    
+    - name: Build
+      run: cargo build --verbose
+    
+    - name: Run unit tests
+      run: cargo test --verbose
+    
+    - name: Run integration tests
+      run: cargo test --verbose --test '*'
+    
+    - name: Build release
+      run: cargo build --release
+
+  test-shellspec-linux:
+    name: ShellSpec Tests (Linux)
+    runs-on: ubuntu-latest
+    needs: test-rust
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ubuntu-latest-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Build Ruby Butler
+      run: cargo build --release
+    
+    - name: Install Ruby (for testing Ruby environment detection)
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.1'
+        bundler-cache: false
+    
+    - name: Install ShellSpec
+      run: |
+        curl -fsSL https://github.com/shellspec/shellspec/releases/latest/download/shellspec-dist.tar.gz | tar -xz
+        sudo make -C shellspec-dist install
+    
+    - name: Run ShellSpec tests
+      run: shellspec --format documentation
+      env:
+        RB_PATH: ${{ github.workspace }}/target/release/rb
+
+  test-pester-windows:
+    name: Pester Tests (Windows)
+    runs-on: windows-latest
+    needs: test-rust
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: windows-latest-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Build Ruby Butler
+      run: cargo build --release
+    
+    - name: Install Ruby (for testing Ruby environment detection)
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.4.5'
+        bundler-cache: false
+    
+    - name: Setup Ruby Butler test installation directory
+      run: |
+        # Create the Ruby Butler expected directory structure
+        $RubyInstallDir = "$env:USERPROFILE\.rubies\ruby-3.4.5"
+        New-Item -ItemType Directory -Path "$RubyInstallDir\bin" -Force
+        New-Item -ItemType Directory -Path "$RubyInstallDir\lib\ruby\gems\3.4.0" -Force
+        
+        # Find Ruby installation paths
+        $RubyPath = (Get-Command ruby).Source
+        $GemPath = (Get-Command gem).Source
+        $BundlerPath = (Get-Command bundle).Source
+        
+        # Copy Ruby executables to the test structure
+        Copy-Item $RubyPath "$RubyInstallDir\bin\"
+        Copy-Item $GemPath "$RubyInstallDir\bin\"
+        Copy-Item $BundlerPath "$RubyInstallDir\bin\"
+        
+        # Also copy any .bat or .cmd files that might exist
+        $RubyDir = Split-Path $RubyPath -Parent
+        Get-ChildItem "$RubyDir\*.bat", "$RubyDir\*.cmd" -ErrorAction SilentlyContinue | ForEach-Object {
+            Copy-Item $_.FullName "$RubyInstallDir\bin\"
+        }
+        
+        # Verify the setup
+        Write-Host "Ruby Butler test installation created:"
+        Get-ChildItem "$RubyInstallDir\bin" | Format-Table Name, Length
+      shell: pwsh
+    
+    - name: Run Pester tests
+      run: |
+        $env:RB_TEST_PATH = "${{ github.workspace }}\target\release\rb.exe"
+        Invoke-Pester tests/ -Output Detailed
+      shell: pwsh
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install cargo-audit
+      run: cargo install --force cargo-audit
+    
+    - name: Run security audit
+      run: cargo audit
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: llvm-tools-preview
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: coverage-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Install cargo-llvm-cov
+      run: cargo install --force cargo-llvm-cov
+    
+    - name: Generate coverage report
+      run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: lcov.info
+        fail_ci_if_error: false
