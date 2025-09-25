@@ -4,7 +4,7 @@
 services:
   rb-test:
     build: .
-    image: rb-test
+    image: ghcr.io/rubyelders/ruby-butler-test:latest
     volumes:
       # Ruby Butler binary (read-only)
       - ./target/release/rb:/app/rb:ro

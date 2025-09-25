@@ -82,10 +82,44 @@ jobs:
     - name: Build release
       run: cargo build --release
 
+  docker-build:
+    name: Build and Push Docker Test Image
+    runs-on: ubuntu-latest
+    # Only run on pushes to main when Docker files change
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Check for Docker file changes
+      uses: dorny/paths-filter@v3
+      id: changes
+      with:
+        filters: |
+          docker:
+            - 'Dockerfile'
+            - 'docker-compose.yml'
+    
+    - name: Log in to GitHub Container Registry
+      if: steps.changes.outputs.docker == 'true'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Build and push Docker image
+      if: steps.changes.outputs.docker == 'true'
+      run: |
+        docker compose build
+        docker compose push
+
   test-shellspec-linux:
     name: ShellSpec Tests (Linux)
     runs-on: ubuntu-latest
-    needs: test-rust
+    needs: [test-rust, docker-build]
     steps:
     - uses: actions/checkout@v4
     
@@ -103,11 +137,19 @@ jobs:
           target
         key: ubuntu-latest-cargo-${{ hashFiles('**/Cargo.lock') }}
     
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
     - name: Build Ruby Butler
       run: cargo build --release
     
-    - name: Build Docker test image
-      run: make docker
+    - name: Try to pull Docker test image
+      run: |
+        docker compose pull
     
     - name: Make shellspec executable
       run: chmod +x ./shellspec

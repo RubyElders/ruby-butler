@@ -1,2 +1,2 @@
 #!/bin/bash
-exec docker compose run --rm rb-test shellspec "$@"
+exec docker compose run --rm ghcr.io/rubyelders/ruby-butler-test shellspec "$@"
