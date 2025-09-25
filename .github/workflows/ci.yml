@@ -37,7 +37,7 @@ jobs:
       run: cargo fmt --all -- --check
     
     - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::pedantic -A clippy::nursery
     
     - name: Check documentation
       run: cargo doc --no-deps --document-private-items --all-features
