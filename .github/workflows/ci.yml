@@ -107,21 +107,11 @@ jobs:
     - name: Build Ruby Butler
       run: cargo build --release
     
-    - name: Install Ruby (for testing Ruby environment detection)
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: '3.1'
-        bundler-cache: false
+    - name: Build Docker test image
+      run: make docker
     
-    - name: Install ShellSpec
-      run: |
-        curl -fsSL https://github.com/shellspec/shellspec/releases/latest/download/shellspec-dist.tar.gz | tar -xz
-        sudo make -C shellspec-dist install
-    
-    - name: Run ShellSpec tests
-      run: shellspec --format documentation
-      env:
-        RB_PATH: ${{ github.workspace }}/target/release/rb
+    - name: Run ShellSpec tests in Docker
+      run: make spec
 
   test-pester-windows:
     name: Pester Tests (Windows)
