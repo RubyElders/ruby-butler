@@ -141,7 +141,7 @@ mod tests {
     fn test_sync_command_with_no_gemfile() -> Result<(), Box<dyn std::error::Error>> {
         let sandbox = BundlerSandbox::new()?;
         let project_dir = sandbox.add_dir("no_gemfile_project")?;
-        
+
         // Create a temporary rubies directory to avoid CI failure
         let rubies_dir = sandbox.add_dir("rubies")?;
 
