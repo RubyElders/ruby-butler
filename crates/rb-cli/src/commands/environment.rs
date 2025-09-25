@@ -1,8 +1,8 @@
 use colored::*;
-use rb_core::ruby::RubyType;
+use log::{debug, info};
 use rb_core::bundler::BundlerRuntime;
 use rb_core::butler::ButlerRuntime;
-use log::{debug, info};
+use rb_core::ruby::RubyType;
 
 pub fn environment_command(butler_runtime: &ButlerRuntime) {
     info!("Presenting current Ruby environment from the working directory");
@@ -10,7 +10,7 @@ pub fn environment_command(butler_runtime: &ButlerRuntime) {
 }
 
 fn present_current_environment(butler_runtime: &ButlerRuntime) {
-    println!("{}", format!("🌍 Your Current Ruby Environment").bold());
+    println!("{}", "🌍 Your Current Ruby Environment".to_string().bold());
     println!();
 
     let current_dir = butler_runtime.current_dir();
@@ -36,29 +36,46 @@ fn present_environment_details(
     bundler_runtime: Option<&BundlerRuntime>,
     butler: &ButlerRuntime,
 ) {
-    let label_width = ["Installation", "Gem home", "Gem libraries", "Executable paths", "Bundler root", "Gemfile", "Vendor directory", "App config", "Synchronized"].iter().map(|s| s.len()).max().unwrap_or(15);
+    let label_width = [
+        "Installation",
+        "Gem home",
+        "Gem libraries",
+        "Executable paths",
+        "Bundler root",
+        "Gemfile",
+        "Vendor directory",
+        "App config",
+        "Synchronized",
+    ]
+    .iter()
+    .map(|s| s.len())
+    .max()
+    .unwrap_or(15);
 
     // Present Ruby Environment
     let ruby_type = match ruby.kind {
         RubyType::CRuby => "💎 CRuby".green(),
     };
     println!("{} {}", ruby_type, format!("({})", ruby.version).cyan());
-    
-    println!("    {:<width$}: {}", 
-        "Installation".bright_blue().bold(), 
+
+    println!(
+        "    {:<width$}: {}",
+        "Installation".bright_blue().bold(),
         ruby.root.display().to_string().bright_black(),
         width = label_width
     );
 
     if let Some(gem_rt) = gem_runtime {
-        println!("    {:<width$}: {}", 
-            "Gem home".bright_blue().bold(), 
+        println!(
+            "    {:<width$}: {}",
+            "Gem home".bright_blue().bold(),
             gem_rt.gem_home.display().to_string().bright_black(),
             width = label_width
         );
     } else {
-        println!("    {:<width$}: {}", 
-            "Gem home".bright_blue().bold(), 
+        println!(
+            "    {:<width$}: {}",
+            "Gem home".bright_blue().bold(),
             "Not available".yellow(),
             width = label_width
         );
@@ -66,9 +83,13 @@ fn present_environment_details(
 
     let gem_dirs = butler.gem_dirs();
     if !gem_dirs.is_empty() {
-        let gem_paths = gem_dirs.iter().map(|d| d.display().to_string()).collect::<Vec<_>>();
-        println!("    {:<width$}: {}", 
-            "Gem libraries".bright_blue().bold(), 
+        let gem_paths = gem_dirs
+            .iter()
+            .map(|d| d.display().to_string())
+            .collect::<Vec<_>>();
+        println!(
+            "    {:<width$}: {}",
+            "Gem libraries".bright_blue().bold(),
             gem_paths.join(", ").bright_black(),
             width = label_width
         );
@@ -76,9 +97,13 @@ fn present_environment_details(
 
     let bin_dirs = butler.bin_dirs();
     if !bin_dirs.is_empty() {
-        let bin_paths = bin_dirs.iter().map(|d| d.display().to_string()).collect::<Vec<_>>();
-        println!("    {:<width$}: {}", 
-            "Executable paths".bright_blue().bold(), 
+        let bin_paths = bin_dirs
+            .iter()
+            .map(|d| d.display().to_string())
+            .collect::<Vec<_>>();
+        println!(
+            "    {:<width$}: {}",
+            "Executable paths".bright_blue().bold(),
             bin_paths.join(", ").bright_black(),
             width = label_width
         );
@@ -88,42 +113,56 @@ fn present_environment_details(
     if let Some(bundler) = bundler_runtime {
         println!();
         println!("{}", "📦 Bundler Environment".green().bold());
-        
-        println!("    {:<width$}: {}", 
-            "Bundler root".bright_blue().bold(), 
+
+        println!(
+            "    {:<width$}: {}",
+            "Bundler root".bright_blue().bold(),
             bundler.root.display().to_string().bright_black(),
             width = label_width
         );
-        
-        println!("    {:<width$}: {}", 
-            "Gemfile".bright_blue().bold(), 
+
+        println!(
+            "    {:<width$}: {}",
+            "Gemfile".bright_blue().bold(),
             bundler.gemfile_path().display().to_string().bright_black(),
             width = label_width
         );
-        
-        println!("    {:<width$}: {}", 
-            "App config".bright_blue().bold(), 
-            bundler.app_config_dir().display().to_string().bright_black(),
+
+        println!(
+            "    {:<width$}: {}",
+            "App config".bright_blue().bold(),
+            bundler
+                .app_config_dir()
+                .display()
+                .to_string()
+                .bright_black(),
             width = label_width
         );
-        
-        println!("    {:<width$}: {}", 
-            "Vendor directory".bright_blue().bold(), 
+
+        println!(
+            "    {:<width$}: {}",
+            "Vendor directory".bright_blue().bold(),
             bundler.vendor_dir().display().to_string().bright_black(),
             width = label_width
         );
 
         if let Some(version) = bundler.ruby_version() {
-            println!("    {:<width$}: {}", 
-                "Required Ruby".bright_blue().bold(), 
+            println!(
+                "    {:<width$}: {}",
+                "Required Ruby".bright_blue().bold(),
                 format!("{}", version).bright_black(),
                 width = label_width
             );
         }
 
-        let configured = if bundler.is_configured() { "Yes".green() } else { "No".yellow() };
-        println!("    {:<width$}: {}", 
-            "Configured".bright_blue().bold(), 
+        let configured = if bundler.is_configured() {
+            "Yes".green()
+        } else {
+            "No".yellow()
+        };
+        println!(
+            "    {:<width$}: {}",
+            "Configured".bright_blue().bold(),
             configured,
             width = label_width
         );
@@ -138,8 +177,9 @@ fn present_environment_details(
                 Err(_) => "❓ Unknown".bright_black(),
             }
         };
-        println!("    {:<width$}: {}", 
-            "Synchronized".bright_blue().bold(), 
+        println!(
+            "    {:<width$}: {}",
+            "Synchronized".bright_blue().bold(),
             sync_status,
             width = label_width
         );
@@ -152,26 +192,37 @@ fn present_environment_details(
     // Present environment summary
     println!();
     println!("{}", "🎯 Environment Summary".green().bold());
-    
+
     let ruby_version_text = format!("{} {}", ruby_type_as_str(&ruby.kind), ruby.version);
-    println!("    {:<width$}: {}", 
-        "Active Ruby".bright_blue().bold(), 
+    println!(
+        "    {:<width$}: {}",
+        "Active Ruby".bright_blue().bold(),
         ruby_version_text.bright_black(),
         width = label_width
     );
-    
+
     if let Some(bundler) = bundler_runtime {
-        let project_name = bundler.root.file_name().unwrap_or_default().to_string_lossy();
-        println!("    {:<width$}: {}", 
-            "Bundler project".bright_blue().bold(), 
+        let project_name = bundler
+            .root
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy();
+        println!(
+            "    {:<width$}: {}",
+            "Bundler project".bright_blue().bold(),
             project_name.bright_black(),
             width = label_width
         );
-        
+
         if let Some(req_version) = bundler.ruby_version() {
-            let matches = if ruby.version == req_version { "✅ Matches".green() } else { "⚠️  Mismatch".yellow() };
-            println!("    {:<width$}: {}", 
-                "Version match".bright_blue().bold(), 
+            let matches = if ruby.version == req_version {
+                "✅ Matches".green()
+            } else {
+                "⚠️  Mismatch".yellow()
+            };
+            println!(
+                "    {:<width$}: {}",
+                "Version match".bright_blue().bold(),
                 matches,
                 width = label_width
             );
@@ -179,7 +230,10 @@ fn present_environment_details(
     }
 
     println!();
-    println!("{}", "Environment ready for distinguished Ruby development.".bright_black());
+    println!(
+        "{}",
+        "Environment ready for distinguished Ruby development.".bright_black()
+    );
 }
 
 fn ruby_type_as_str(ruby_type: &RubyType) -> &'static str {
@@ -198,63 +252,66 @@ mod tests {
     fn environment_command_exists() {
         // Test that the function exists and can be called with a Ruby installation
         let sandbox = RubySandbox::new().expect("Failed to create sandbox");
-        sandbox.add_ruby_dir("3.2.5").expect("Failed to create ruby-3.2.5");
-        
+        sandbox
+            .add_ruby_dir("3.2.5")
+            .expect("Failed to create ruby-3.2.5");
+
         // Create a basic ButlerRuntime for testing
-        let butler_runtime = ButlerRuntime::discover_and_compose(sandbox.root().to_path_buf(), None)
-            .expect("Failed to create butler runtime with test Ruby");
-        
+        let butler_runtime =
+            ButlerRuntime::discover_and_compose(sandbox.root().to_path_buf(), None)
+                .expect("Failed to create butler runtime with test Ruby");
+
         // This will handle the environment presentation gracefully
         environment_command(&butler_runtime);
     }
 
     #[test]
     fn present_environment_details_handles_no_bundler() -> std::io::Result<()> {
-        use rb_tests::RubySandbox;
         use rb_core::gems::GemRuntime;
-        
+        use rb_tests::RubySandbox;
+
         let ruby_sandbox = RubySandbox::new()?;
         let ruby_dir = ruby_sandbox.add_ruby_dir("3.2.5")?;
         let ruby = rb_core::ruby::RubyRuntime::new(
-            rb_core::ruby::RubyType::CRuby, 
-            semver::Version::parse("3.2.5").unwrap(), 
-            &ruby_dir
+            rb_core::ruby::RubyType::CRuby,
+            semver::Version::parse("3.2.5").unwrap(),
+            &ruby_dir,
         );
-        
+
         // Use sandboxed gem directory instead of real home directory
         let gem_runtime = GemRuntime::for_base_dir(&ruby_sandbox.gem_base_dir(), &ruby.version);
         let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
-        
+
         // Test with no bundler environment
         present_environment_details(&ruby, Some(&gem_runtime), None, &butler);
-        
+
         Ok(())
     }
 
     #[test]
     fn present_environment_details_with_bundler() -> std::io::Result<()> {
-        use rb_tests::{RubySandbox, BundlerSandbox};
         use rb_core::gems::GemRuntime;
-        
+        use rb_tests::{BundlerSandbox, RubySandbox};
+
         let ruby_sandbox = RubySandbox::new()?;
         let ruby_dir = ruby_sandbox.add_ruby_dir("3.2.5")?;
         let ruby = rb_core::ruby::RubyRuntime::new(
-            rb_core::ruby::RubyType::CRuby, 
-            semver::Version::parse("3.2.5").unwrap(), 
-            &ruby_dir
+            rb_core::ruby::RubyType::CRuby,
+            semver::Version::parse("3.2.5").unwrap(),
+            &ruby_dir,
         );
-        
+
         let bundler_sandbox = BundlerSandbox::new()?;
         let project_dir = bundler_sandbox.add_bundler_project("test-app", true)?;
         let bundler_runtime = BundlerRuntime::new(&project_dir);
-        
+
         // Use sandboxed gem directory instead of real home directory
         let gem_runtime = GemRuntime::for_base_dir(&ruby_sandbox.gem_base_dir(), &ruby.version);
         let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
-        
+
         // Test with bundler environment
         present_environment_details(&ruby, Some(&gem_runtime), Some(&bundler_runtime), &butler);
-        
+
         Ok(())
     }
 }

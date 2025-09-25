@@ -19,7 +19,10 @@ fn discovers_only_ruby_xyz_directories() -> std::io::Result<()> {
     assert_eq!(names, vec!["CRuby-3.3.0", "CRuby-3.1.2"]); // sorted DESC
 
     // sanity on fields
-    let r = rubies.iter().find(|r| r.version_name() == "CRuby-3.3.0").unwrap();
+    let r = rubies
+        .iter()
+        .find(|r| r.version_name() == "CRuby-3.3.0")
+        .unwrap();
     assert!(r.bin_dir().ends_with("ruby-3.3.0/bin"));
     Ok(())
 }
@@ -42,7 +45,10 @@ fn ruby_executable_path_is_platform_correct() -> std::io::Result<()> {
     let sb = RubySandbox::new()?;
     sb.add_ruby_dir("3.2.1")?;
     let rubies = RubyRuntimeDetector::discover(sb.root())?;
-    let r = rubies.into_iter().find(|r| r.version_name() == "CRuby-3.2.1").unwrap();
+    let r = rubies
+        .into_iter()
+        .find(|r| r.version_name() == "CRuby-3.2.1")
+        .unwrap();
 
     let exe = r.ruby_executable_path();
     if cfg!(windows) {
@@ -57,9 +63,9 @@ fn ruby_executable_path_is_platform_correct() -> std::io::Result<()> {
 #[test]
 fn returns_directory_not_found_error_for_nonexistent_path() {
     let nonexistent_path = PathBuf::from("completely_nonexistent_directory_12345");
-    
+
     let result = RubyRuntimeDetector::discover(&nonexistent_path);
-    
+
     assert!(result.is_err());
     match result.unwrap_err() {
         RubyDiscoveryError::DirectoryNotFound(path) => {
@@ -69,13 +75,13 @@ fn returns_directory_not_found_error_for_nonexistent_path() {
     }
 }
 
-#[test] 
+#[test]
 fn converts_to_io_error_for_backwards_compatibility() {
     let nonexistent_path = PathBuf::from("completely_nonexistent_directory_12345");
-    
+
     let result = RubyRuntimeDetector::discover(&nonexistent_path);
     assert!(result.is_err());
-    
+
     // Test that it can be converted to io::Error for backwards compatibility
     let io_error: std::io::Error = result.unwrap_err().into();
     assert_eq!(io_error.kind(), std::io::ErrorKind::NotFound);

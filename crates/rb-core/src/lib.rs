@@ -1,9 +1,9 @@
-pub mod ruby;
-pub mod gems;
 pub mod bundler;
 pub mod butler;
+pub mod gems;
+pub mod ruby;
 
-pub use ruby::{RubyRuntime, RubyRuntimeDetector};
-pub use gems::GemRuntime;
 pub use bundler::{BundlerRuntime, BundlerRuntimeDetector};
 pub use butler::{ButlerRuntime, Command as ButlerCommand};
+pub use gems::GemRuntime;
+pub use ruby::{RubyRuntime, RubyRuntimeDetector};

@@ -1,9 +1,9 @@
-use rb_tests::RubySandbox;
-use std::io;
-use rb_core::butler::{ButlerRuntime, ButlerError};
-use rb_core::ruby::{RubyRuntime, RubyType, RubyRuntimeDetector};
+use rb_core::butler::{ButlerError, ButlerRuntime};
 use rb_core::gems::GemRuntime;
+use rb_core::ruby::{RubyRuntime, RubyRuntimeDetector, RubyType};
+use rb_tests::RubySandbox;
 use semver::Version;
+use std::io;
 use std::path::PathBuf;
 
 #[test]
@@ -59,11 +59,11 @@ fn test_butler_runtime_with_ruby_and_gem() -> io::Result<()> {
     // Test bin_dirs - should have both ruby and gem bin dirs
     let bin_dirs = butler.bin_dirs();
     assert_eq!(bin_dirs.len(), 2);
-    
+
     // First should be gem bin dir (higher priority)
     assert!(bin_dirs[0].to_string_lossy().contains(".gem"));
     assert!(bin_dirs[0].ends_with("bin"));
-    
+
     // Second should be ruby bin dir
     assert!(bin_dirs[1].to_string_lossy().contains("ruby-3.2.1"));
     assert!(bin_dirs[1].ends_with("bin"));
@@ -88,7 +88,7 @@ fn test_butler_runtime_with_ruby_and_gem() -> io::Result<()> {
 #[test]
 fn test_butler_runtime_with_multiple_rubies() -> io::Result<()> {
     let sandbox = RubySandbox::new()?;
-    
+
     // Add multiple Ruby versions
     let ruby_dir_1 = sandbox.add_ruby_dir("3.1.0")?;
     let ruby_dir_2 = sandbox.add_ruby_dir("3.2.1")?;
@@ -128,7 +128,7 @@ fn test_butler_runtime_path_building_platform_specific() -> io::Result<()> {
 
     // Test path building uses correct separator
     let path = butler.build_path(Some("/existing/path".to_string()));
-    
+
     if cfg!(windows) {
         assert!(path.contains(";"));
     } else {
@@ -150,7 +150,7 @@ fn test_butler_runtime_empty_gem_runtime() -> io::Result<()> {
     let ruby = RubyRuntime::new(
         RubyType::CRuby,
         Version::parse("3.0.0").unwrap(),
-        "/nonexistent/ruby"
+        "/nonexistent/ruby",
     );
 
     let butler = ButlerRuntime::new(ruby, None);
@@ -171,9 +171,9 @@ fn test_butler_runtime_empty_gem_runtime() -> io::Result<()> {
 #[test]
 fn test_butler_runtime_discover_nonexistent_directory() {
     let nonexistent_path = PathBuf::from("completely_nonexistent_directory_butler_test");
-    
+
     let result = ButlerRuntime::discover_and_compose(nonexistent_path.clone(), None);
-    
+
     assert!(result.is_err());
     match result.unwrap_err() {
         ButlerError::RubiesDirectoryNotFound(path) => {
@@ -187,13 +187,10 @@ fn test_butler_runtime_discover_nonexistent_directory() {
 fn test_butler_runtime_discover_with_gem_base_nonexistent_directory() {
     let nonexistent_path = PathBuf::from("completely_nonexistent_directory_butler_gem_test");
     let gem_base = Some(PathBuf::from("/tmp/gems"));
-    
-    let result = ButlerRuntime::discover_and_compose_with_gem_base(
-        nonexistent_path.clone(), 
-        None, 
-        gem_base
-    );
-    
+
+    let result =
+        ButlerRuntime::discover_and_compose_with_gem_base(nonexistent_path.clone(), None, gem_base);
+
     assert!(result.is_err());
     match result.unwrap_err() {
         ButlerError::RubiesDirectoryNotFound(path) => {

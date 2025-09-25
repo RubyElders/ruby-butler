@@ -1,9 +1,9 @@
-use rb_tests::RubySandbox;
-use std::io;
 use rb_core::butler::ButlerRuntime;
-use rb_core::ruby::{RubyRuntime, RubyType, RubyRuntimeDetector};
 use rb_core::gems::GemRuntime;
+use rb_core::ruby::{RubyRuntime, RubyRuntimeDetector, RubyType};
+use rb_tests::RubySandbox;
 use semver::Version;
+use std::io;
 
 #[test]
 fn test_butler_with_detector_and_latest_ruby() -> io::Result<()> {
@@ -76,11 +76,11 @@ fn test_butler_runtime_with_ruby_and_gem() -> io::Result<()> {
     // Test bin_dirs - should have gem first (higher priority), then ruby
     let bin_dirs = butler.bin_dirs();
     assert_eq!(bin_dirs.len(), 2);
-    
+
     // First should be gem bin dir (higher priority)
     assert!(bin_dirs[0].to_string_lossy().contains(".gem"));
     assert!(bin_dirs[0].ends_with("bin"));
-    
+
     // Second should be ruby bin dir
     assert!(bin_dirs[1].to_string_lossy().contains("ruby-3.2.1"));
     assert!(bin_dirs[1].ends_with("bin"));
@@ -105,7 +105,7 @@ fn test_butler_runtime_with_ruby_and_gem() -> io::Result<()> {
 #[test]
 fn test_butler_runtime_with_multiple_rubies() -> io::Result<()> {
     let sandbox = RubySandbox::new()?;
-    
+
     // Add multiple Ruby versions
     let _ruby_dir_1 = sandbox.add_ruby_dir("3.1.0")?;
     let _ruby_dir_2 = sandbox.add_ruby_dir("3.2.1")?;
@@ -142,7 +142,7 @@ fn test_butler_runtime_path_building_platform_specific() -> io::Result<()> {
 
     // Test path building uses correct separator
     let path = butler.build_path(Some("/existing/path".to_string()));
-    
+
     if cfg!(windows) {
         assert!(path.contains(";"));
     } else {
@@ -164,7 +164,7 @@ fn test_butler_runtime_without_filesystem() {
     let ruby = RubyRuntime::new(
         RubyType::CRuby,
         Version::parse("3.0.0").unwrap(),
-        "/nonexistent/ruby"
+        "/nonexistent/ruby",
     );
 
     let butler = ButlerRuntime::new(ruby, None);

@@ -8,7 +8,7 @@ fn main() {
     }
 
     println!("cargo:rerun-if-changed=src/");
-    
+
     // This will run after the binary is built
     println!("cargo:warning=Build script executed for release build");
 }

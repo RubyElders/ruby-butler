@@ -11,7 +11,9 @@ pub struct RubySandbox {
 impl RubySandbox {
     /// Create a fresh sandbox.
     pub fn new() -> io::Result<Self> {
-        Ok(Self { td: TempDir::new()? })
+        Ok(Self {
+            td: TempDir::new()?,
+        })
     }
 
     /// Root path of the sandbox.
@@ -27,7 +29,11 @@ impl RubySandbox {
     }
 
     /// Create a plain file at sandbox root (used to simulate "not a dir").
-    pub fn add_file<S: AsRef<str>>(&self, name: S, contents: impl AsRef<[u8]>) -> io::Result<PathBuf> {
+    pub fn add_file<S: AsRef<str>>(
+        &self,
+        name: S,
+        contents: impl AsRef<[u8]>,
+    ) -> io::Result<PathBuf> {
         let p = self.root().join(name.as_ref());
         fs::write(&p, contents)?;
         Ok(p)

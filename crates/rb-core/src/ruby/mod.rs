@@ -1,10 +1,9 @@
-
+use crate::butler::runtime_provider::RuntimeProvider;
+use crate::gems::GemRuntime;
+use log::debug;
 use semver::Version;
 use std::env::consts::EXE_SUFFIX;
 use std::path::{Path, PathBuf};
-use log::debug;
-use crate::butler::runtime_provider::RuntimeProvider;
-use crate::gems::GemRuntime;
 
 /// Errors that can occur during Ruby discovery
 #[derive(Debug, Clone)]
@@ -33,15 +32,11 @@ impl std::error::Error for RubyDiscoveryError {}
 impl From<RubyDiscoveryError> for std::io::Error {
     fn from(error: RubyDiscoveryError) -> Self {
         match error {
-            RubyDiscoveryError::DirectoryNotFound(path) => {
-                std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    format!("Directory not found: {}", path.display())
-                )
-            }
-            RubyDiscoveryError::IoError(msg) => {
-                std::io::Error::new(std::io::ErrorKind::Other, msg)
-            }
+            RubyDiscoveryError::DirectoryNotFound(path) => std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Directory not found: {}", path.display()),
+            ),
+            RubyDiscoveryError::IoError(msg) => std::io::Error::other(msg),
         }
     }
 }
@@ -84,14 +79,24 @@ impl RubyRuntime {
     /// `<root>/bin`
     pub fn bin_dir(&self) -> PathBuf {
         let bin_dir = self.root.join("bin");
-        debug!("Inferred bin directory for {} {}: {}", self.kind.as_str(), self.version, bin_dir.display());
+        debug!(
+            "Inferred bin directory for {} {}: {}",
+            self.kind.as_str(),
+            self.version,
+            bin_dir.display()
+        );
         bin_dir
     }
 
     /// `<root>/bin/ruby{EXE_SUFFIX}`
     pub fn ruby_executable_path(&self) -> PathBuf {
         let ruby_exe = self.bin_dir().join(format!("ruby{EXE_SUFFIX}"));
-        debug!("Ruby executable path for {} {}: {}", self.kind.as_str(), self.version, ruby_exe.display());
+        debug!(
+            "Ruby executable path for {} {}: {}",
+            self.kind.as_str(),
+            self.version,
+            ruby_exe.display()
+        );
         ruby_exe
     }
 
@@ -100,51 +105,71 @@ impl RubyRuntime {
     /// Note: RubyGems uses the ruby ABI dir (major.minor.0).
     /// If you later discover a platform that differs, branch on `self.kind`.
     pub fn lib_dir(&self) -> PathBuf {
-        let lib_dir = self.root
+        let lib_dir = self
+            .root
             .join("lib")
             .join("ruby")
             .join("gems")
             .join(format!("{}.{}.0", self.version.major, self.version.minor));
-        debug!("Inferred lib directory for {} {}: {}", self.kind.as_str(), self.version, lib_dir.display());
+        debug!(
+            "Inferred lib directory for {} {}: {}",
+            self.kind.as_str(),
+            self.version,
+            lib_dir.display()
+        );
         lib_dir
     }
 
     /// Create a GemRuntime for this Ruby using a custom gem base directory.
     /// This is useful for testing or when you want to isolate gem installations.
     pub fn gem_runtime_for_base(&self, gem_base: &std::path::Path) -> GemRuntime {
-        debug!("Creating gem runtime for {} {} with custom base: {}", 
-               self.kind.as_str(), self.version, gem_base.display());
-        
+        debug!(
+            "Creating gem runtime for {} {} with custom base: {}",
+            self.kind.as_str(),
+            self.version,
+            gem_base.display()
+        );
+
         let gem_runtime = GemRuntime::for_base_dir(gem_base, &self.version);
-        debug!("Created gem runtime - home: {}, bin: {}", 
-               gem_runtime.gem_home.display(), gem_runtime.gem_bin.display());
-        
+        debug!(
+            "Created gem runtime - home: {}, bin: {}",
+            gem_runtime.gem_home.display(),
+            gem_runtime.gem_bin.display()
+        );
+
         gem_runtime
     }
 
     /// Create a GemRuntime based on ~/.gem/ruby/version pattern
-    /// 
+    ///
     /// This creates a GemRuntime pointing to ~/.gem/ruby/<full.version>
     /// which follows the standard user gem installation pattern.
     pub fn infer_gem_runtime(&self) -> Result<GemRuntime, std::io::Error> {
-        debug!("Inferring gem runtime for {} {}", self.kind.as_str(), self.version);
-        
-        let home_dir = home::home_dir()
-            .ok_or_else(|| std::io::Error::new(
+        debug!(
+            "Inferring gem runtime for {} {}",
+            self.kind.as_str(),
+            self.version
+        );
+
+        let home_dir = home::home_dir().ok_or_else(|| {
+            std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                "Could not determine home directory"
-            ))?;
-        
+                "Could not determine home directory",
+            )
+        })?;
+
         debug!("Using home directory: {}", home_dir.display());
-        
+
         let gem_base = home_dir.join(".gem");
         debug!("Using gem base directory: {}", gem_base.display());
-        
+
         let gem_runtime = GemRuntime::for_base_dir(&gem_base, &self.version);
-        debug!("Created gem runtime - home: {}, bin: {}", 
-               gem_runtime.gem_home.display(), 
-               gem_runtime.gem_bin.display());
-        
+        debug!(
+            "Created gem runtime - home: {}, bin: {}",
+            gem_runtime.gem_home.display(),
+            gem_runtime.gem_bin.display()
+        );
+
         Ok(gem_runtime)
     }
 }
@@ -206,10 +231,10 @@ mod tests {
     #[test]
     fn runtime_provider_returns_bin_and_gem_dir_for_ruby_runtime() {
         let r = rt("3.2.2", "/opt/rubies/ruby-3.2.2");
-    let expected_bin = Some(r.root.join("bin"));
-    let expected_gem = Some(r.root.join("lib").join("ruby").join("gems").join("3.2.0"));
-    assert_eq!(<RubyRuntime as RuntimeProvider>::bin_dir(&r), expected_bin);
-    assert_eq!(<RubyRuntime as RuntimeProvider>::gem_dir(&r), expected_gem);
+        let expected_bin = Some(r.root.join("bin"));
+        let expected_gem = Some(r.root.join("lib").join("ruby").join("gems").join("3.2.0"));
+        assert_eq!(<RubyRuntime as RuntimeProvider>::bin_dir(&r), expected_bin);
+        assert_eq!(<RubyRuntime as RuntimeProvider>::gem_dir(&r), expected_gem);
     }
 
     #[test]
@@ -217,11 +242,19 @@ mod tests {
         // Use a simple test since home crate handles cross-platform concerns
         let r = rt("3.4.5", "/opt/rubies/ruby-3.4.5");
         let gem_runtime = r.infer_gem_runtime().expect("Should create GemRuntime");
-        
+
         // Check that the gem_home follows /.gem/ruby/3.4.5 pattern (full version)
-        assert!(gem_runtime.gem_home.ends_with(Path::new(".gem").join("ruby").join("3.4.5")));
-        assert!(gem_runtime.gem_bin.ends_with(Path::new(".gem").join("ruby").join("3.4.5").join("bin")));
-        
+        assert!(
+            gem_runtime
+                .gem_home
+                .ends_with(Path::new(".gem").join("ruby").join("3.4.5"))
+        );
+        assert!(
+            gem_runtime
+                .gem_bin
+                .ends_with(Path::new(".gem").join("ruby").join("3.4.5").join("bin"))
+        );
+
         // Verify the version formatting uses full version
         let version_part = gem_runtime.gem_home.file_name().unwrap();
         assert_eq!(version_part, "3.4.5");
