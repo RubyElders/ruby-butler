@@ -20,6 +20,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
+        toolchain: 1.90.0
         components: rustfmt, clippy
     
     - name: Cache cargo registry
@@ -48,11 +49,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [stable, beta]
-        exclude:
-          # Reduce matrix size for faster CI
-          - os: macos-latest
-            rust: beta
+        rust: [1.90.0]
     steps:
     - uses: actions/checkout@v4
     
@@ -94,6 +91,8 @@ jobs:
     
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.90.0
     
     - name: Cache cargo registry
       uses: actions/cache@v4
@@ -122,6 +121,8 @@ jobs:
     
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.90.0
     
     - name: Cache cargo registry
       uses: actions/cache@v4
@@ -183,6 +184,8 @@ jobs:
     
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.90.0
     
     - name: Install cargo-audit
       run: cargo install --force cargo-audit
@@ -200,6 +203,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
+        toolchain: 1.90.0
         components: llvm-tools-preview
     
     - name: Cache cargo registry
