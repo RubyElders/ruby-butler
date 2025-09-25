@@ -155,7 +155,7 @@ jobs:
       run: chmod +x ./shellspec
     
     - name: Run ShellSpec tests in Docker
-      run: make spec
+      run: ./shellspec
 
   test-pester-windows:
     name: Pester Tests (Windows)
