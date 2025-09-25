@@ -146,26 +146,20 @@ impl BundlerRuntime {
         let trimmed = after_ruby.trim();
 
         // Single quotes
-        if let Some(version) = trimmed
-            .strip_prefix('\'')
-            .and_then(|single_quoted| {
-                single_quoted
-                    .find('\'')
-                    .map(|end_quote| single_quoted[..end_quote].to_string())
-            })
-        {
+        if let Some(version) = trimmed.strip_prefix('\'').and_then(|single_quoted| {
+            single_quoted
+                .find('\'')
+                .map(|end_quote| single_quoted[..end_quote].to_string())
+        }) {
             return Some(version);
         }
 
         // Double quotes
-        if let Some(version) = trimmed
-            .strip_prefix('"')
-            .and_then(|double_quoted| {
-                double_quoted
-                    .find('"')
-                    .map(|end_quote| double_quoted[..end_quote].to_string())
-            })
-        {
+        if let Some(version) = trimmed.strip_prefix('"').and_then(|double_quoted| {
+            double_quoted
+                .find('"')
+                .map(|end_quote| double_quoted[..end_quote].to_string())
+        }) {
             return Some(version);
         }
 
