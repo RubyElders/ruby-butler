@@ -21,7 +21,8 @@ try {
 }
 
 # Set up environment variable for tests
-$RbPath = Resolve-Path "$PSScriptRoot\..\target\release\rb.exe"
+$exe = if ($IsWindows) { ".exe" } else { "" }
+$RbPath = Resolve-Path (Join-Path $PSScriptRoot ".." "target" "release" ("rb$exe"))
 $env:RB_TEST_PATH = $RbPath
 
 Write-Host ""
