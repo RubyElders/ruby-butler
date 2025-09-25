@@ -136,38 +136,49 @@ jobs:
     - name: Build Ruby Butler
       run: cargo build --release
     
-    - name: Install Ruby (for testing Ruby environment detection)
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: '3.4.5'
-        bundler-cache: false
-    
-    - name: Setup Ruby Butler test installation directory
+    - name: Setup Ruby Butler test installation from RubyInstaller
       run: |
-        # Create the Ruby Butler expected directory structure
-        $RubyInstallDir = "$env:USERPROFILE\.rubies\ruby-3.4.5"
-        New-Item -ItemType Directory -Path "$RubyInstallDir\bin" -Force
-        New-Item -ItemType Directory -Path "$RubyInstallDir\lib\ruby\gems\3.4.0" -Force
+        # Download RubyInstaller 3.4.5
+        $DownloadUrl = "https://github.com/oneclick/rubyinstaller2/releases/download/RubyInstaller-3.4.5-1/rubyinstaller-3.4.5-1-x64.7z"
+        $ArchivePath = "$env:TEMP\rubyinstaller-3.4.5-1-x64.7z"
+        $ExtractPath = "$env:TEMP\ruby-extract"
         
-        # Find Ruby installation paths
-        $RubyPath = (Get-Command ruby).Source
-        $GemPath = (Get-Command gem).Source
-        $BundlerPath = (Get-Command bundle).Source
+        Write-Host "Downloading Ruby installer from $DownloadUrl"
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $ArchivePath
         
-        # Copy Ruby executables to the test structure
-        Copy-Item $RubyPath "$RubyInstallDir\bin\"
-        Copy-Item $GemPath "$RubyInstallDir\bin\"
-        Copy-Item $BundlerPath "$RubyInstallDir\bin\"
+        # Extract using 7z (available on GitHub Actions Windows runners)
+        Write-Host "Extracting Ruby installer..."
+        & 7z x $ArchivePath -o"$ExtractPath"
         
-        # Also copy any .bat or .cmd files that might exist
-        $RubyDir = Split-Path $RubyPath -Parent
-        Get-ChildItem "$RubyDir\*.bat", "$RubyDir\*.cmd" -ErrorAction SilentlyContinue | ForEach-Object {
-            Copy-Item $_.FullName "$RubyInstallDir\bin\"
+        # Find the extracted Ruby directory (should be rubyinstaller-3.4.5-1-x64)
+        $ExtractedRubyDir = Get-ChildItem "$ExtractPath" -Directory | Where-Object { $_.Name -like "*rubyinstaller*" } | Select-Object -First 1
+        
+        if (-not $ExtractedRubyDir) {
+            throw "Could not find extracted Ruby directory in $ExtractPath"
         }
+        
+        # Create the Ruby Butler expected directory structure  
+        $RubyInstallDir = "$env:USERPROFILE\.rubies\ruby-3.4.5"
+        New-Item -ItemType Directory -Path (Split-Path $RubyInstallDir -Parent) -Force
+        
+        # Copy the entire Ruby installation to the Butler expected location
+        Write-Host "Copying Ruby installation from $($ExtractedRubyDir.FullName) to $RubyInstallDir"
+        Copy-Item $ExtractedRubyDir.FullName $RubyInstallDir -Recurse -Force
         
         # Verify the setup
         Write-Host "Ruby Butler test installation created:"
-        Get-ChildItem "$RubyInstallDir\bin" | Format-Table Name, Length
+        Get-ChildItem "$RubyInstallDir\bin" | Select-Object Name, Length | Format-Table
+        
+        # Test that key executables exist
+        $KeyExecutables = @("ruby.exe", "gem.cmd", "bundle.bat", "irb.bat")
+        foreach ($Exe in $KeyExecutables) {
+            $ExePath = "$RubyInstallDir\bin\$Exe"
+            if (Test-Path $ExePath) {
+                Write-Host "✓ Found $Exe"
+            } else {
+                Write-Warning "✗ Missing $Exe"
+            }
+        }
       shell: pwsh
     
     - name: Run Pester tests
