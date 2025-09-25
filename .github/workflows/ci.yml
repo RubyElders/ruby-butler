@@ -109,6 +109,9 @@ jobs:
     - name: Build Docker test image
       run: make docker
     
+    - name: Make shellspec executable
+      run: chmod +x ./shellspec
+    
     - name: Run ShellSpec tests in Docker
       run: make spec
 
