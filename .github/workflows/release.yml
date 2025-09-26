@@ -16,9 +16,6 @@ jobs:
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.release.outputs.upload_url }}
-      release_id: ${{ steps.release.outputs.id }}
     steps:
     - uses: actions/checkout@v4
     
@@ -28,12 +25,12 @@ jobs:
     
     - name: Create Release
       id: release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.get_version.outputs.VERSION }}
-        release_name: Ruby Butler ${{ steps.get_version.outputs.VERSION }}
+        name: Ruby Butler ${{ steps.get_version.outputs.VERSION }}
         body: |
           🎩 **Ruby Butler ${{ steps.get_version.outputs.VERSION }}**
           
@@ -107,22 +104,16 @@ jobs:
     - name: Build debug binary
       run: cargo build --target ${{ matrix.target }}
 
-    - name: Upload release binary
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: target/${{ matrix.target }}/release/rb${{ matrix.ext }}
-        asset_name: rb-${{ matrix.suffix }}${{ matrix.ext }}
-        asset_content_type: application/octet-stream
+    - name: Rename binaries with platform suffix
+      run: |
+        cp target/${{ matrix.target }}/release/rb${{ matrix.ext }} rb-${{ matrix.suffix }}${{ matrix.ext }}
+        cp target/${{ matrix.target }}/debug/rb${{ matrix.ext }} rb-${{ matrix.suffix }}-debug${{ matrix.ext }}
 
-    - name: Upload debug binary
-      uses: actions/upload-release-asset@v1
+    - name: Upload release assets
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: target/${{ matrix.target }}/debug/rb${{ matrix.ext }}
-        asset_name: rb-${{ matrix.suffix }}-debug${{ matrix.ext }}
-        asset_content_type: application/octet-stream
+        files: |
+          rb-${{ matrix.suffix }}${{ matrix.ext }}
+          rb-${{ matrix.suffix }}-debug${{ matrix.ext }}
