@@ -49,9 +49,9 @@ jobs:
           
           ## Binaries
           
-          - **Linux**: `rb` and `rb-debug`  
-          - **macOS**: `rb` and `rb-debug`
-          - **Windows**: `rb.exe` and `rb-debug.exe`
+          - **Linux**: `rb-linux` and `rb-linux-debug`  
+          - **macOS**: `rb-macos` and `rb-macos-debug`
+          - **Windows**: `rb-windows.exe` and `rb-windows-debug.exe`
           
           ---
           *At your distinguished service,*  
@@ -114,7 +114,7 @@ jobs:
       with:
         upload_url: ${{ needs.create-release.outputs.upload_url }}
         asset_path: target/${{ matrix.target }}/release/rb${{ matrix.ext }}
-        asset_name: rb${{ matrix.ext }}
+        asset_name: rb-${{ matrix.suffix }}${{ matrix.ext }}
         asset_content_type: application/octet-stream
 
     - name: Upload debug binary
@@ -124,5 +124,5 @@ jobs:
       with:
         upload_url: ${{ needs.create-release.outputs.upload_url }}
         asset_path: target/${{ matrix.target }}/debug/rb${{ matrix.ext }}
-        asset_name: rb-debug${{ matrix.ext }}
+        asset_name: rb-${{ matrix.suffix }}-debug${{ matrix.ext }}
         asset_content_type: application/octet-stream
