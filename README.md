@@ -4,7 +4,18 @@
 
 **⚠️ Prototype Status**: This is a prototype—not recommended for serious usage yet, even though the author has been using it daily for job work for some time.
 
+**🎭 Development Fun**: The butler-themed language and refined terminology are just for entertainment during development and will be updated before any real production release, if any.
+
 Your Ruby Butler doesn't reinvent the wheel, but rather composes the already well-known tools (`gem`, `bundle`) for your best experience—it serves you with distinction. Install your Rubies with your favourite installer like `ruby-install` or `ruby-build`, and those Rubies will be in good Butler's hands. Rather than modifying your shell environment, it meticulously prepares isolated environments, executes commands within them, and tidily cleans up afterward—just as a proper butler should serve.
+
+## Hiring Your Butler (Installation)
+
+Download the latest production binary for your platform from [releases](https://github.com/RubyElders/ruby-butler/releases) and add to PATH:
+
+```bash
+# Linux/macOS - download and install to local bin or any other directory in PATH
+curl -L https://github.com/RubyElders/ruby-butler/releases/latest/download/rb-linux -o ~/.local/bin/rb && chmod +x ~/.local/bin/rb
+```
 
 ## Quick Start
 
