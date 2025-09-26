@@ -2,7 +2,7 @@
 
 *A distinguished Ruby environment manager with the refined approach of a gentleman's butler*
 
-**⚠️ Prototype Status**: This is a prototype—not recommended for serious usage yet, even though the author has been using it daily for job work for some time.
+**⚠️ Prototype Status**: This is a prototype—not recommended for serious usage yet, even though the author has been using it daily for job work for some time. See [IDEAS.md](IDEAS.md) for potential future enhancements. Please share your ideas via issues.
 
 **🎭 Development Fun**: The butler-themed language and refined terminology are just for entertainment during development and will be updated before any real production release, if any.
 
