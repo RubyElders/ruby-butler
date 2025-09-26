@@ -12,9 +12,19 @@ Your Ruby Butler doesn't reinvent the wheel, but rather composes the already wel
 
 Download the latest production binary for your platform from [releases](https://github.com/RubyElders/ruby-butler/releases) and add to PATH:
 
+### Linux
 ```bash
-# Linux/macOS - download and install to local bin or any other directory in PATH
 curl -L https://github.com/RubyElders/ruby-butler/releases/latest/download/rb-linux -o ~/.local/bin/rb && chmod +x ~/.local/bin/rb
+```
+
+### macOS
+```bash
+curl -L https://github.com/RubyElders/ruby-butler/releases/latest/download/rb-macos -o ~/.local/bin/rb && chmod +x ~/.local/bin/rb
+```
+
+### Windows
+```powershell
+Invoke-WebRequest -Uri "https://github.com/RubyElders/ruby-butler/releases/latest/download/rb-windows.exe" -OutFile "$env:USERPROFILE\AppData\Local\Microsoft\WindowsApps\rb.exe"
 ```
 
 ## Quick Start
