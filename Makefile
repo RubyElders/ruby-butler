@@ -11,7 +11,7 @@ cargo:
 # Build Docker image for testing
 docker:
 	@echo "🐳 Building Docker test image..."
-	docker build -t rb-test .
+	docker compose build
 
 # Run ShellSpec tests using Docker Compose
 spec: cargo docker
