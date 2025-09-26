@@ -7,10 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - Initial Release
+## [0.1.0] - 2025-09-26
 
 ### Added
-- Initial implementation of Ruby Butler
+- Core Ruby environment detection and orchestration
+- Ruby runtime discovery with semver-based version selection
+- Gem environment management with proper PATH composition
+- Bundler project detection and automatic `bundle exec` integration
+- Distinguished command-line interface with gentleman's butler persona
+- Cross-platform support (Windows, macOS, Linux)
+- Environment composition without shell modification
+- Comprehensive error handling with sophisticated messaging
+- Git version embedding in binaries for traceability
+- Automated release workflow with cross-platform binaries
+- Complete test suite with unit, integration, and shell tests
 
 ---
 
