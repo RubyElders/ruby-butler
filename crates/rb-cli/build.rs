@@ -44,7 +44,7 @@ fn main() {
 
     // Set environment variables for the binary
     println!("cargo:rustc-env=GIT_HASH={}", git_hash);
-    
+
     if let Some(tag) = git_tag {
         println!("cargo:rustc-env=GIT_TAG={}", tag);
     }
@@ -56,7 +56,7 @@ fn main() {
     // Build profile information
     let profile = env::var("PROFILE").unwrap_or_default();
     println!("cargo:rustc-env=BUILD_PROFILE={}", profile);
-    
+
     if profile == "release" {
         println!("cargo:warning=Build script executed for release build");
     }
