@@ -10,15 +10,15 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       It "gracefully presents usage guidance when no program specified"
         When run rb -R $RUBIES_DIR exec
         The status should not equal 0
-        The stderr should include "required arguments were not provided"
-        The stderr should include "<ARGS>..."
+        The stderr should include "Request Incomplete: No program specified for execution"
+        The stderr should include "Proper usage: rb exec <program>"
       End
 
       It "responds elegantly to 'x' alias"
         When run rb -R $RUBIES_DIR x
         The status should not equal 0
-        The stderr should include "required arguments were not provided"
-        The stderr should include "<ARGS>..."
+        The stderr should include "Request Incomplete: No program specified for execution"
+        The stderr should include "Proper usage: rb exec <program>"
       End
 
       It "preserves program exit codes with dignity"
@@ -29,8 +29,8 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       It "gracefully handles non-existent programs"
         When run rb -R $RUBIES_DIR exec nonexistent-program
         The status should not equal 0
-        The stderr should include "Execution Failed"
-        The stderr should include "No such file or directory"
+        The stderr should include "appears to be"
+        The stderr should include "entirely absent from your distinguished Ruby environment"
       End
     End
 
@@ -89,7 +89,8 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       It "handles non-existent rubies directory gracefully"
         When run rb -R "/non/existent/path" exec ruby -v
         The status should not equal 0
-        The stderr should include "No such file or directory"
+        The stderr should include "designated Ruby estate directory"
+        The stderr should include "appears to be absent from your system"
       End
 
       It "combines rubies directory with specific Ruby version"

@@ -23,7 +23,8 @@ Describe "Ruby Butler Runtime System"
       It "gracefully handles non-existing paths"
         When run rb -R "/non/existing" runtime
         The status should not equal 0
-        The stderr should include "No such file or directory"
+        The stderr should include "designated Ruby estate directory"
+        The stderr should include "appears to be absent from your system"
       End
 
       It "presents latest Ruby with appropriate precedence"

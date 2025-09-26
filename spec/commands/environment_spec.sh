@@ -69,7 +69,7 @@ Describe "Ruby Butler Environment System"
       It "handles non-existent rubies directory gracefully"
         When run rb -R "/non/existent/path" environment
         The status should not equal 0
-        The stderr should include "No such file or directory"
+        The stderr should include "appears to be absent from your system"
       End
 
       It "combines rubies directory with specific Ruby version"
