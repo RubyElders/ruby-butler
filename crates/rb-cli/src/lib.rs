@@ -38,7 +38,7 @@ impl From<LogLevel> for log::LevelFilter {
     long_about = "🎩 Ruby Butler\n\nA sophisticated Ruby environment manager that orchestrates your Ruby installations\nand gem collections with the refined precision of a proper gentleman's gentleman.\n\nNot merely a version switcher, but your devoted aide in curating Ruby environments\nwith the elegance and attention to detail befitting a distinguished developer.\n\n                        At your service,\n                        RubyElders.com"
 )]
 #[command(author = "RubyElders.com")]
-#[command(version = "0.1.0")]
+#[command(version)]
 #[command(propagate_version = true)]
 #[command(styles = STYLES)]
 pub struct Cli {

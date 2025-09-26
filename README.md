@@ -109,6 +109,27 @@ Ruby Butler is built with Rust for cross-platform reliability and employs a **en
 
 If you're curious about what Butler does under the hood, add `-v` or even better `-vv` to see the distinguished orchestration in action.
 
+## Release Process
+
+To create a new release with cross-platform binaries:
+
+1. **Update version** in `crates/rb-cli/Cargo.toml`
+2. **Update CHANGELOG.md** with release notes
+3. **Create and push tag**:
+   ```bash
+   git tag v1.0.0
+   git push --tags
+   ```
+
+The release workflow automatically:
+- Builds binaries for Linux, macOS, and Windows (both release and debug)
+- Creates GitHub release with binaries attached
+- Embeds git information in version output (`rb --version`)
+
+Released binaries include version traceability:
+- **Tagged builds**: `Ruby Butler v1.0.0`
+- **Development builds**: `Ruby Butler v0.1.0 (c5156b1) [debug build] [modified]`
+
 ---
 
 *Distinguished Ruby development deserves distinguished tooling.*

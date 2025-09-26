@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write  # Required for creating releases and uploading assets
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.release.outputs.upload_url }}
+      release_id: ${{ steps.release.outputs.id }}
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Extract version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      id: release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.VERSION }}
+        release_name: Ruby Butler ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          🎩 **Ruby Butler ${{ steps.get_version.outputs.VERSION }}**
+          
+          A sophisticated Ruby environment manager release with the refined precision of a proper gentleman's gentleman.
+          
+          ## Installation
+          
+          Download the appropriate binary for your platform below and place it in your PATH.
+          
+          ## What's New
+          
+          See the [CHANGELOG](https://github.com/RubyElders/ruby-butler/blob/main/CHANGELOG.md) for detailed changes.
+          
+          ## Binaries
+          
+          - **Linux**: `rb` and `rb-debug`  
+          - **macOS**: `rb` and `rb-debug`
+          - **Windows**: `rb.exe` and `rb-debug.exe`
+          
+          ---
+          *At your distinguished service,*  
+          *RubyElders.com*
+        draft: true
+        prerelease: false
+
+  build-release:
+    name: Build Release Binaries
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+        - os: ubuntu-latest
+          target: x86_64-unknown-linux-gnu
+          suffix: linux
+          ext: ""
+        - os: macos-latest
+          target: x86_64-apple-darwin
+          suffix: macos
+          ext: ""
+        - os: windows-latest
+          target: x86_64-pc-windows-msvc
+          suffix: windows
+          ext: ".exe"
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Need full history for git info
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.90.0
+        targets: ${{ matrix.target }}
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ matrix.os }}-1.90.0-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ matrix.os }}-1.90.0-cargo-
+          ${{ matrix.os }}-cargo-
+
+    - name: Build release binary
+      run: cargo build --release --target ${{ matrix.target }}
+    
+    - name: Build debug binary
+      run: cargo build --target ${{ matrix.target }}
+
+    - name: Upload release binary
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: target/${{ matrix.target }}/release/rb${{ matrix.ext }}
+        asset_name: rb${{ matrix.ext }}
+        asset_content_type: application/octet-stream
+
+    - name: Upload debug binary
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: target/${{ matrix.target }}/debug/rb${{ matrix.ext }}
+        asset_name: rb-debug${{ matrix.ext }}
+        asset_content_type: application/octet-stream
