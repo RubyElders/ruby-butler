@@ -42,7 +42,11 @@ fn build_version_info() -> String {
 
 fn main() {
     // Handle version request with custom formatting before parsing
-    if std::env::args().any(|arg| arg == "--version" || arg == "-V") {
+    // Only handle version if it's a direct flag, not part of exec command
+    let args: Vec<String> = std::env::args().collect();
+    let is_version_request = args.len() == 2 && (args[1] == "--version" || args[1] == "-V");
+    
+    if is_version_request {
         println!("{}", build_version_info());
         return;
     }

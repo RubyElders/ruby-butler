@@ -33,13 +33,13 @@ Describe "Ruby Butler - Help System" {
         It "Shows version with --version flag" {
             $Output = & $Script:RbPath --version 2>&1
             $LASTEXITCODE | Should -Be 0
-            $Output | Should -Match "rb \d+\.\d+\.\d+"
+            ($Output -join " ") | Should -Match "Ruby Butler v\d+\.\d+\.\d+"
         }
         
         It "Shows version with -V flag" {
             $Output = & $Script:RbPath -V 2>&1
             $LASTEXITCODE | Should -Be 0
-            $Output | Should -Match "rb \d+\.\d+\.\d+"
+            ($Output -join " ") | Should -Match "Ruby Butler v\d+\.\d+\.\d+"
         }
     }
 }
