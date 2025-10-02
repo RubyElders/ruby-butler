@@ -192,7 +192,7 @@ Describe "Ruby Butler - Project Flag (-P/--project)" {
         It "Logs warning with verbose flag for invalid TOML" {
             $Output = & $Script:RbPath -v -P $Script:InvalidTomlFile env 2>&1
             $OutputText = $Output -join "`n"
-            $OutputText | Should -Match "WARN.*Failed to load"
+            $OutputText | Should -Match "\[WARN\].*Failed to load"
             $OutputText | Should -Match "TOML parse error|invalid"
         }
         
@@ -219,7 +219,7 @@ Describe "Ruby Butler - Project Flag (-P/--project)" {
         It "Logs warning with verbose flag for missing file" {
             $Output = & $Script:RbPath -v -P $Script:NonExistentFile env 2>&1
             $OutputText = $Output -join "`n"
-            $OutputText | Should -Match "WARN.*Failed to load"
+            $OutputText | Should -Match "\[WARN\].*Failed to load"
             $OutputText | Should -Match "does-not-exist\.toml"
         }
         

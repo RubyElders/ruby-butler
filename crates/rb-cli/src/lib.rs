@@ -117,10 +117,30 @@ pub enum Commands {
     /// 🔄 Synchronize your bundler environment with distinguished precision
     #[command(visible_alias = "s")]
     Sync,
+
+    /// 🎯 Execute project scripts defined in rbproject.toml
+    #[command(
+        visible_alias = "r",
+        about = "🎯 Execute project scripts defined in rbproject.toml",
+        long_about = "🎯 Run Project Scripts\n\nExecute scripts defined in your project's rbproject.toml file with the\nmeticulously prepared Ruby environment appropriate to your distinguished project.\n\nProject scripts provide convenient shortcuts for common development tasks,\nconfigured with the same refined precision befitting a proper Ruby development workflow.\n\nRun without a script name to list all available scripts."
+    )]
+    Run {
+        /// Name of the script to execute (from rbproject.toml), or omit to list available scripts
+        #[arg(help = "Name of the script to execute (omit to list available scripts)")]
+        script: Option<String>,
+
+        /// Additional arguments to pass to the script
+        #[arg(
+            trailing_var_arg = true,
+            allow_hyphen_values = true,
+            help = "Additional arguments to pass to the script"
+        )]
+        args: Vec<String>,
+    },
 }
 
 // Re-export for convenience
-pub use commands::{environment_command, exec_command, runtime_command, sync_command};
+pub use commands::{environment_command, exec_command, run_command, runtime_command, sync_command};
 
 use log::debug;
 use rb_core::butler::ButlerRuntime;

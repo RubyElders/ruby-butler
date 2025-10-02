@@ -1,6 +1,6 @@
 use clap::Parser;
 use rb_cli::{
-    Cli, Commands, environment_command, exec_command, init_logger, resolve_search_dir,
+    Cli, Commands, environment_command, exec_command, init_logger, resolve_search_dir, run_command,
     runtime_command, sync_command,
 };
 use rb_core::butler::{ButlerError, ButlerRuntime};
@@ -123,6 +123,9 @@ fn main() {
         }
         Commands::Exec { args } => {
             exec_command(butler_runtime, args);
+        }
+        Commands::Run { script, args } => {
+            run_command(butler_runtime, script, args, cli.project_file);
         }
         Commands::Sync => {
             // Already handled above

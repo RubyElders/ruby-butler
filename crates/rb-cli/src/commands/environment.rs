@@ -57,12 +57,11 @@ fn present_current_environment(butler_runtime: &ButlerRuntime, project_file: Opt
         RbprojectDetector::discover(current_dir)
             .ok()
             .flatten()
-            .map(|project| {
+            .inspect(|project| {
                 debug!(
                     "Discovered rbproject.toml with {} scripts",
                     project.scripts.len()
                 );
-                project
             })
     };
 
