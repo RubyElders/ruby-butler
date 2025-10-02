@@ -1,8 +1,8 @@
-use std::path::PathBuf;
 use log::debug;
+use std::path::PathBuf;
 
 /// Locate the configuration file following XDG Base Directory specification
-/// 
+///
 /// Priority order:
 /// 1. Explicit override path (if provided)
 /// 2. $RB_CONFIG environment variable
@@ -12,7 +12,7 @@ use log::debug;
 /// 6. ~/.rb.toml (cross-platform fallback)
 pub fn locate_config_file(override_path: Option<PathBuf>) -> Option<PathBuf> {
     debug!("Searching for configuration file...");
-    
+
     // 1. Check for explicit override first
     if let Some(path) = override_path {
         debug!("  Checking --config override: {}", path.display());
@@ -70,7 +70,10 @@ pub fn locate_config_file(override_path: Option<PathBuf>) -> Option<PathBuf> {
 
         // Cross-platform fallback: ~/.rb.toml
         let fallback_path = home_dir.join(".rb.toml");
-        debug!("  Checking fallback ~/.rb.toml: {}", fallback_path.display());
+        debug!(
+            "  Checking fallback ~/.rb.toml: {}",
+            fallback_path.display()
+        );
         if fallback_path.exists() {
             debug!("  Found configuration file at ~/.rb.toml");
             return Some(fallback_path);
@@ -97,14 +100,14 @@ mod tests {
         use std::fs;
         let temp_dir = std::env::temp_dir();
         let config_path = temp_dir.join("test_rb_override.toml");
-        
+
         // Create a temporary config file
         fs::write(&config_path, "# test config").expect("Failed to write test config");
-        
+
         // Should return the override path
         let result = locate_config_file(Some(config_path.clone()));
         assert_eq!(result, Some(config_path.clone()));
-        
+
         // Cleanup
         let _ = fs::remove_file(&config_path);
     }
@@ -114,19 +117,19 @@ mod tests {
         use std::fs;
         let temp_dir = std::env::temp_dir();
         let config_path = temp_dir.join("test_rb_env.toml");
-        
+
         // Create a temporary config file
         fs::write(&config_path, "# test config").expect("Failed to write test config");
-        
+
         // Set environment variable (unsafe but required for testing)
         unsafe {
             std::env::set_var("RB_CONFIG", &config_path);
         }
-        
+
         // Should return the env var path
         let result = locate_config_file(None);
         assert_eq!(result, Some(config_path.clone()));
-        
+
         // Cleanup
         unsafe {
             std::env::remove_var("RB_CONFIG");

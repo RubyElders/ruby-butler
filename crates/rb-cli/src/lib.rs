@@ -67,6 +67,15 @@ pub struct Cli {
     )]
     pub config_file: Option<std::path::PathBuf>,
 
+    /// Specify custom project file location
+    #[arg(
+        short = 'P',
+        long = "project",
+        global = true,
+        help = "Specify custom rbproject.toml location (skips autodetection)"
+    )]
+    pub project_file: Option<std::path::PathBuf>,
+
     /// Flattened configuration options (works for both CLI and config file)
     #[command(flatten)]
     pub config: RbConfig,
@@ -213,6 +222,7 @@ mod tests {
             log_level: LogLevel::Info,
             verbose: 0,
             config_file: None,
+            project_file: None,
             config: RbConfig::default(),
             command: Commands::Runtime,
         };
@@ -223,6 +233,7 @@ mod tests {
             log_level: LogLevel::None,
             verbose: 1,
             config_file: None,
+            project_file: None,
             config: RbConfig::default(),
             command: Commands::Runtime,
         };
@@ -233,6 +244,7 @@ mod tests {
             log_level: LogLevel::None,
             verbose: 2,
             config_file: None,
+            project_file: None,
             config: RbConfig::default(),
             command: Commands::Runtime,
         };

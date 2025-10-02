@@ -1,15 +1,17 @@
 use colored::*;
-use log::{debug, info};
+use log::{debug, info, warn};
 use rb_core::bundler::BundlerRuntime;
 use rb_core::butler::ButlerRuntime;
+use rb_core::project::{ProjectRuntime, RbprojectDetector};
 use rb_core::ruby::RubyType;
+use std::path::PathBuf;
 
-pub fn environment_command(butler_runtime: &ButlerRuntime) {
+pub fn environment_command(butler_runtime: &ButlerRuntime, project_file: Option<PathBuf>) {
     info!("Presenting current Ruby environment from the working directory");
-    present_current_environment(butler_runtime);
+    present_current_environment(butler_runtime, project_file);
 }
 
-fn present_current_environment(butler_runtime: &ButlerRuntime) {
+fn present_current_environment(butler_runtime: &ButlerRuntime, project_file: Option<PathBuf>) {
     println!("{}", "🌍 Your Current Ruby Environment".to_string().bold());
     println!();
 
@@ -26,14 +28,59 @@ fn present_current_environment(butler_runtime: &ButlerRuntime) {
     // Get gem runtime from butler runtime
     let gem_runtime = butler_runtime.gem_runtime();
 
+    // Detect or load project runtime
+    let project_runtime = if let Some(path) = project_file {
+        // Use specified project file
+        debug!(
+            "Loading rbproject.toml from specified path: {}",
+            path.display()
+        );
+        match ProjectRuntime::from_file(&path) {
+            Ok(project) => {
+                debug!(
+                    "Loaded rbproject.toml with {} scripts",
+                    project.scripts.len()
+                );
+                Some(project)
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to load specified rbproject.toml at {}: {}",
+                    path.display(),
+                    e
+                );
+                None
+            }
+        }
+    } else {
+        // Auto-detect project file
+        RbprojectDetector::discover(current_dir)
+            .ok()
+            .flatten()
+            .map(|project| {
+                debug!(
+                    "Discovered rbproject.toml with {} scripts",
+                    project.scripts.len()
+                );
+                project
+            })
+    };
+
     // Present the environment
-    present_environment_details(ruby, gem_runtime, bundler_runtime, butler_runtime);
+    present_environment_details(
+        ruby,
+        gem_runtime,
+        bundler_runtime,
+        project_runtime.as_ref(),
+        butler_runtime,
+    );
 }
 
 fn present_environment_details(
     ruby: &rb_core::ruby::RubyRuntime,
     gem_runtime: Option<&rb_core::gems::GemRuntime>,
     bundler_runtime: Option<&BundlerRuntime>,
+    project_runtime: Option<&ProjectRuntime>,
     butler: &ButlerRuntime,
 ) {
     let label_width = [
@@ -189,6 +236,79 @@ fn present_environment_details(
         println!("    {}", "Bundler environment not detected".bright_black());
     }
 
+    // Present Project Environment (if detected)
+    if let Some(project) = project_runtime {
+        println!();
+        println!("{}", "📋 Project".green().bold());
+
+        // Display project name if available
+        if let Some(name) = &project.metadata.name {
+            println!(
+                "    {:<width$}: {}",
+                "Name".bright_blue().bold(),
+                name.bright_black(),
+                width = label_width
+            );
+        }
+
+        // Display project description if available
+        if let Some(description) = &project.metadata.description {
+            println!(
+                "    {:<width$}: {}",
+                "Description".bright_blue().bold(),
+                description.bright_black(),
+                width = label_width
+            );
+        }
+
+        println!(
+            "    {:<width$}: {}",
+            "Project file".bright_blue().bold(),
+            project
+                .rbproject_path()
+                .display()
+                .to_string()
+                .bright_black(),
+            width = label_width
+        );
+
+        println!(
+            "    {:<width$}: {}",
+            "Scripts loaded".bright_blue().bold(),
+            format!("{}", project.scripts.len()).bright_black(),
+            width = label_width
+        );
+
+        if !project.scripts.is_empty() {
+            println!();
+            println!("    {}", "Available Scripts:".bright_blue().bold());
+
+            // Get sorted script names for consistent display
+            let script_names = project.script_names();
+            for name in script_names {
+                let script = project.get_script(name).unwrap();
+                let command = script.command();
+
+                // Always show: name → command
+                println!(
+                    "      {} {} {}",
+                    name.cyan().bold(),
+                    "→".bright_black(),
+                    command.to_string().bright_black()
+                );
+
+                // Optionally show description on next line with more indent
+                if let Some(description) = script.description() {
+                    println!("        {}", description.bright_black().italic());
+                }
+            }
+        }
+    } else {
+        println!();
+        println!("{}", "📋 Project Scripts".bright_black());
+        println!("    {}", "No rbproject.toml detected".bright_black());
+    }
+
     // Present environment summary
     println!();
     println!("{}", "🎯 Environment Summary".green().bold());
@@ -262,7 +382,7 @@ mod tests {
                 .expect("Failed to create butler runtime with test Ruby");
 
         // This will handle the environment presentation gracefully
-        environment_command(&butler_runtime);
+        environment_command(&butler_runtime, None);
     }
 
     #[test]
@@ -283,7 +403,7 @@ mod tests {
         let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
 
         // Test with no bundler environment
-        present_environment_details(&ruby, Some(&gem_runtime), None, &butler);
+        present_environment_details(&ruby, Some(&gem_runtime), None, None, &butler);
 
         Ok(())
     }
@@ -310,7 +430,61 @@ mod tests {
         let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
 
         // Test with bundler environment
-        present_environment_details(&ruby, Some(&gem_runtime), Some(&bundler_runtime), &butler);
+        present_environment_details(
+            &ruby,
+            Some(&gem_runtime),
+            Some(&bundler_runtime),
+            None,
+            &butler,
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn present_environment_details_with_project() -> std::io::Result<()> {
+        use rb_core::gems::GemRuntime;
+        use rb_core::project::{ProjectMetadata, ScriptDefinition};
+        use rb_tests::RubySandbox;
+        use std::collections::HashMap;
+
+        let ruby_sandbox = RubySandbox::new()?;
+        let ruby_dir = ruby_sandbox.add_ruby_dir("3.2.5")?;
+        let ruby = rb_core::ruby::RubyRuntime::new(
+            rb_core::ruby::RubyType::CRuby,
+            semver::Version::parse("3.2.5").unwrap(),
+            &ruby_dir,
+        );
+
+        // Create a project runtime with some scripts
+        let mut scripts = HashMap::new();
+        scripts.insert(
+            "test".to_string(),
+            ScriptDefinition::Detailed {
+                command: "rspec".to_string(),
+                description: Some("Run the test suite".to_string()),
+            },
+        );
+        scripts.insert(
+            "lint:fix".to_string(),
+            ScriptDefinition::Simple("rubocop -a".to_string()),
+        );
+
+        let metadata = ProjectMetadata::default();
+        let project_runtime = ProjectRuntime::new(ruby_sandbox.root(), metadata, scripts);
+
+        // Use sandboxed gem directory
+        let gem_runtime = GemRuntime::for_base_dir(&ruby_sandbox.gem_base_dir(), &ruby.version);
+        let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
+
+        // Test with project environment
+        present_environment_details(
+            &ruby,
+            Some(&gem_runtime),
+            None,
+            Some(&project_runtime),
+            &butler,
+        );
 
         Ok(())
     }

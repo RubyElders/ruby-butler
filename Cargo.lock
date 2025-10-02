@@ -367,7 +367,9 @@ dependencies = [
  "rb-tests",
  "regex",
  "semver",
+ "serde",
  "tempfile",
+ "toml",
  "which",
 ]
 

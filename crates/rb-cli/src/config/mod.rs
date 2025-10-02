@@ -1,5 +1,5 @@
-pub mod locator;
 pub mod loader;
+pub mod locator;
 
 use clap::Args;
 use serde::{Deserialize, Serialize};
@@ -47,34 +47,43 @@ impl RbConfig {
     /// Used to merge CLI args (self) with file config (other)
     pub fn merge_with(&mut self, other: RbConfig) {
         use log::debug;
-        
+
         debug!("Merging configuration (CLI arguments take precedence over config file)");
-        
+
         if self.rubies_dir.is_none() {
             if let Some(ref dir) = other.rubies_dir {
                 debug!("  Using rubies-dir from config file: {}", dir.display());
                 self.rubies_dir = other.rubies_dir;
             }
         } else {
-            debug!("  Using rubies-dir from CLI arguments: {}", self.rubies_dir.as_ref().unwrap().display());
+            debug!(
+                "  Using rubies-dir from CLI arguments: {}",
+                self.rubies_dir.as_ref().unwrap().display()
+            );
         }
-        
+
         if self.ruby_version.is_none() {
             if let Some(ref version) = other.ruby_version {
                 debug!("  Using ruby-version from config file: {}", version);
                 self.ruby_version = other.ruby_version;
             }
         } else {
-            debug!("  Using ruby-version from CLI arguments: {}", self.ruby_version.as_ref().unwrap());
+            debug!(
+                "  Using ruby-version from CLI arguments: {}",
+                self.ruby_version.as_ref().unwrap()
+            );
         }
-        
+
         if self.gem_home.is_none() {
             if let Some(ref home) = other.gem_home {
                 debug!("  Using gem-home from config file: {}", home.display());
                 self.gem_home = other.gem_home;
             }
         } else {
-            debug!("  Using gem-home from CLI arguments: {}", self.gem_home.as_ref().unwrap().display());
+            debug!(
+                "  Using gem-home from CLI arguments: {}",
+                self.gem_home.as_ref().unwrap().display()
+            );
         }
     }
 }
@@ -203,4 +212,3 @@ mod tests {
         assert!(toml_str.contains("/opt/gems"));
     }
 }
-

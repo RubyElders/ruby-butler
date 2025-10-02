@@ -1,0 +1,55 @@
+# rbproject.toml - Project-specific configuration for Ruby Butler
+#
+# This file provides project-specific scripts, similar to package.json scripts
+# in Node.js projects. Place this file in your project root, and Ruby Butler
+# will discover it by recursively searching upward from your current directory.
+#
+# Scripts defined here will appear as custom commands in `rb --help` when
+# running within the project directory.
+#
+# Scripts support two notations:
+# 1. Simple: script-name = "command"
+# 2. Detailed: script-name = { command = "command", description = "helpful description" }
+#
+# You can mix both notations in the same file.
+
+[project]
+name = "Ruby Butler Example Project"
+description = "A sophisticated Rails application demonstrating Ruby Butler's project management capabilities"
+
+[scripts]
+# Test suite execution - showing both simple and detailed notation
+test = { command = "rspec", description = "Run the test suite" }
+"test:watch" = "guard"
+coverage = { command = "rspec --format documentation", description = "Run tests with detailed output" }
+
+# Code quality and linting - detailed notation with descriptions
+lint = { command = "rubocop", description = "Run linter for code quality" }
+"lint:fix" = { command = "rubocop -a", description = "Run linter and auto-fix issues" }
+"lint:strict" = { command = "rubocop --parallel", description = "Run linter in strict parallel mode" }
+
+# Development server - simple notation
+server = "rails server -b 0.0.0.0 -p 3000"
+console = "rails console"
+
+# Database operations - mixed notation
+"db:setup" = { command = "rails db:setup", description = "Initialize database" }
+"db:migrate" = "rails db:migrate"
+"db:seed" = { command = "rails db:seed", description = "Seed database with sample data" }
+"db:reset" = "rails db:reset"
+
+# Asset management
+"assets:precompile" = "rails assets:precompile"
+"assets:clean" = "rails assets:clean"
+
+# Documentation generation - detailed notation
+docs = { command = "yard doc", description = "Generate API documentation" }
+"docs:server" = { command = "yard server --reload", description = "Start documentation server with live reload" }
+
+# Deployment - detailed notation with clear descriptions
+"deploy:staging" = { command = "cap staging deploy", description = "Deploy to staging environment" }
+"deploy:production" = { command = "cap production deploy", description = "Deploy to production environment" }
+
+# Custom tasks - simple notation for brevity
+setup = "bin/setup"
+update = "bin/update"

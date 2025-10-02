@@ -119,7 +119,7 @@ fn main() {
             runtime_command(&butler_runtime);
         }
         Commands::Environment => {
-            environment_command(&butler_runtime);
+            environment_command(&butler_runtime, cli.project_file);
         }
         Commands::Exec { args } => {
             exec_command(butler_runtime, args);
