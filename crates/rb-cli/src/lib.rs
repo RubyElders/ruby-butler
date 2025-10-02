@@ -1,8 +1,10 @@
 pub mod commands;
+pub mod config;
 pub mod discovery;
 
 use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::{Parser, Subcommand, ValueEnum};
+use config::{ConfigError, RbConfig};
 
 // Configures Clap v4-style help menu colors (same as cargo and uv)
 const STYLES: Styles = Styles::styled()
@@ -56,32 +58,18 @@ pub struct Cli {
     #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count, global = true, help = "Enhance verbosity gradually (-v for details, -vv for comprehensive diagnostics)")]
     pub verbose: u8,
 
-    /// Designate the directory containing your Ruby installations
+    /// Specify custom configuration file location
     #[arg(
-        short = 'R',
-        long = "rubies-dir",
+        short = 'c',
+        long = "config",
         global = true,
-        help = "Designate the directory containing your Ruby installations (default: ~/.rubies)"
+        help = "Specify custom configuration file location (overrides RB_CONFIG env var and default locations)"
     )]
-    pub rubies_dir: Option<std::path::PathBuf>,
+    pub config_file: Option<std::path::PathBuf>,
 
-    /// Request a particular Ruby version for your environment
-    #[arg(
-        short = 'r',
-        long = "ruby",
-        global = true,
-        help = "Request a particular Ruby version for your environment (defaults to latest available)"
-    )]
-    pub ruby_version: Option<String>,
-
-    /// Specify custom gem base directory (default: ~/.gem)
-    #[arg(
-        short = 'G',
-        long = "gem-home",
-        global = true,
-        help = "Specify custom gem base directory for gem installations (default: ~/.gem)"
-    )]
-    pub gem_home: Option<std::path::PathBuf>,
+    /// Flattened configuration options (works for both CLI and config file)
+    #[command(flatten)]
+    pub config: RbConfig,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -161,6 +149,16 @@ pub fn resolve_search_dir(rubies_dir: Option<PathBuf>) -> PathBuf {
     })
 }
 
+impl Cli {
+    /// Merge CLI arguments with config file defaults
+    /// CLI arguments always take precedence over config file values
+    pub fn with_config_defaults(mut self) -> Result<Self, ConfigError> {
+        let file_config = config::loader::load_config(self.config_file.clone())?;
+        self.config.merge_with(file_config);
+        Ok(self)
+    }
+}
+
 /// Initialize the logger with the specified log level
 pub fn init_logger(log_level: LogLevel) {
     env_logger::Builder::from_default_env()
@@ -214,9 +212,8 @@ mod tests {
         let cli = Cli {
             log_level: LogLevel::Info,
             verbose: 0,
-            rubies_dir: None,
-            ruby_version: None,
-            gem_home: None,
+            config_file: None,
+            config: RbConfig::default(),
             command: Commands::Runtime,
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
@@ -225,9 +222,8 @@ mod tests {
         let cli = Cli {
             log_level: LogLevel::None,
             verbose: 1,
-            rubies_dir: None,
-            ruby_version: None,
-            gem_home: None,
+            config_file: None,
+            config: RbConfig::default(),
             command: Commands::Runtime,
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
@@ -236,9 +232,8 @@ mod tests {
         let cli = Cli {
             log_level: LogLevel::None,
             verbose: 2,
-            rubies_dir: None,
-            ruby_version: None,
-            gem_home: None,
+            config_file: None,
+            config: RbConfig::default(),
             command: Commands::Runtime,
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Debug));
