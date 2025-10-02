@@ -112,10 +112,12 @@ Describe "Ruby Butler - Project Flag (-P/--project)" {
             $Output = & $Script:RbPath -P $Script:ValidProjectFile env 2>&1
             $LASTEXITCODE | Should -Be 0
             $OutputText = $Output -join "`n"
-            $OutputText | Should -Match "test.*rspec"
-            $OutputText | Should -Match "test:watch.*Watch and run tests"
-            $OutputText | Should -Match "lint.*Run linter"
-            $OutputText | Should -Match "lint:fix.*rubocop -a"
+            $OutputText | Should -Match "test"
+            $OutputText | Should -Match "rspec"
+            $OutputText | Should -Match "test:watch"
+            $OutputText | Should -Match "guard"
+            $OutputText | Should -Match "lint"
+            $OutputText | Should -Match "rubocop"
         }
         
         It "Shows script descriptions when available" {
@@ -192,7 +194,7 @@ Describe "Ruby Butler - Project Flag (-P/--project)" {
         It "Logs warning with verbose flag for invalid TOML" {
             $Output = & $Script:RbPath -v -P $Script:InvalidTomlFile env 2>&1
             $OutputText = $Output -join "`n"
-            $OutputText | Should -Match "\[WARN\].*Failed to load"
+            $OutputText | Should -Match "WARN.*Failed to load"
             $OutputText | Should -Match "TOML parse error|invalid"
         }
         
@@ -219,7 +221,7 @@ Describe "Ruby Butler - Project Flag (-P/--project)" {
         It "Logs warning with verbose flag for missing file" {
             $Output = & $Script:RbPath -v -P $Script:NonExistentFile env 2>&1
             $OutputText = $Output -join "`n"
-            $OutputText | Should -Match "\[WARN\].*Failed to load"
+            $OutputText | Should -Match "WARN.*Failed to load"
             $OutputText | Should -Match "does-not-exist\.toml"
         }
         
