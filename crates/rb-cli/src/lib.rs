@@ -137,10 +137,16 @@ pub enum Commands {
         )]
         args: Vec<String>,
     },
+
+    /// 📝 Initialize a new rbproject.toml in the current directory
+    #[command(about = "📝 Initialize a new rbproject.toml in the current directory")]
+    Init,
 }
 
 // Re-export for convenience
-pub use commands::{environment_command, exec_command, run_command, runtime_command, sync_command};
+pub use commands::{
+    environment_command, exec_command, init_command, run_command, runtime_command, sync_command,
+};
 
 use log::debug;
 use rb_core::butler::ButlerRuntime;

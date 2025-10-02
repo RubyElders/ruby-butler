@@ -1,7 +1,7 @@
 use clap::Parser;
 use rb_cli::{
-    Cli, Commands, environment_command, exec_command, init_logger, resolve_search_dir, run_command,
-    runtime_command, sync_command,
+    Cli, Commands, environment_command, exec_command, init_command, init_logger,
+    resolve_search_dir, run_command, runtime_command, sync_command,
 };
 use rb_core::butler::{ButlerError, ButlerRuntime};
 
@@ -66,6 +66,16 @@ fn main() {
         }
     };
 
+    // Handle init command early - doesn't require Ruby environment
+    if let Commands::Init = cli.command {
+        let current_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        if let Err(e) = init_command(&current_dir) {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
+
     // Handle sync command differently since it doesn't use ButlerRuntime in the same way
     if let Commands::Sync = cli.command {
         if let Err(e) = sync_command(
@@ -126,6 +136,10 @@ fn main() {
         }
         Commands::Run { script, args } => {
             run_command(butler_runtime, script, args, cli.project_file);
+        }
+        Commands::Init => {
+            // Already handled above
+            unreachable!()
         }
         Commands::Sync => {
             // Already handled above
