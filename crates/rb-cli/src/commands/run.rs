@@ -1,8 +1,10 @@
 use colored::*;
 use log::{debug, info, warn};
-use rb_core::butler::{ButlerRuntime, Command as ButlerCommand};
+use rb_core::butler::ButlerRuntime;
 use rb_core::project::{ProjectRuntime, RbprojectDetector};
 use std::path::PathBuf;
+
+use super::exec::exec_command;
 
 fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<PathBuf>) {
     info!("Listing available project scripts");
@@ -312,72 +314,117 @@ pub fn run_command(
 
     info!("Executing script: {} → {}", script_name, command_str);
 
-    // For complex command execution, use shell invocation
-    // This properly handles quotes, pipes, redirects, etc.
-    #[cfg(target_os = "windows")]
-    let shell = "powershell.exe";
+    // Parse the command string into program and arguments using shell word splitting
+    let command_parts = parse_command(command_str);
 
-    #[cfg(not(target_os = "windows"))]
-    let shell = "sh";
-
-    // Build the full command with user arguments
-    let full_command = if args.is_empty() {
-        command_str.to_string()
-    } else {
-        format!("{} {}", command_str, args.join(" "))
-    };
-
-    debug!("Executing via shell: {} -Command '{}'", shell, full_command);
-
-    // Create a ButlerCommand that runs the script via shell
-    let mut butler_command = ButlerCommand::new(shell);
-
-    #[cfg(target_os = "windows")]
-    {
-        butler_command.arg("-Command");
-        butler_command.arg(&full_command);
+    if command_parts.is_empty() {
+        eprintln!("{}", "❌ Invalid Script".red().bold());
+        eprintln!();
+        eprintln!(
+            "The script '{}' has an empty command.",
+            script_name.cyan().bold()
+        );
+        std::process::exit(1);
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        butler_command.arg("-c");
-        butler_command.arg(&full_command);
-    }
+    // Build the full argument list: parsed command parts + user-provided args
+    let mut full_args = command_parts;
+    full_args.extend(args);
 
-    // Set working directory to project root (use current_dir if root is empty)
-    let work_dir = if project.root.as_os_str().is_empty() {
-        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-    } else {
-        project.root.clone()
-    };
+    info!("Delegating to exec command with args: {:?}", full_args);
 
-    butler_command.current_dir(&work_dir);
+    // Delegate to exec_command - this ensures consistent behavior including:
+    // - Automatic bundle exec detection
+    // - Bundler environment synchronization
+    // - Proper environment composition
+    // - Command validation and error handling
+    exec_command(butler_runtime, full_args);
+}
 
-    info!(
-        "Executing command in project directory: {}",
-        work_dir.display()
-    );
+/// Parse a command string into program and arguments
+/// This is a simple whitespace-based parser that respects quotes
+fn parse_command(command: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
 
-    // Execute the command with butler context (no validation since we're using shell)
-    match butler_command.status_with_context(&butler_runtime) {
-        Ok(status) => {
-            if let Some(code) = status.code() {
-                debug!("Script concluded with exit code: {}", code);
-                std::process::exit(code);
-            } else {
-                debug!("Script was terminated by system signal");
-                std::process::exit(1);
+    for ch in command.chars() {
+        match ch {
+            '"' => {
+                in_quotes = !in_quotes;
+            }
+            ' ' if !in_quotes => {
+                if !current.is_empty() {
+                    parts.push(current.clone());
+                    current.clear();
+                }
+            }
+            _ => {
+                current.push(ch);
             }
         }
-        Err(e) => {
-            eprintln!("{}", "❌ Execution Failed".red().bold());
-            eprintln!();
-            eprintln!("Failed to execute script '{}':", script_name.cyan().bold());
-            eprintln!("  Command: {}", full_command.bright_black());
-            eprintln!("  Error: {}", e.to_string().bright_black());
-            eprintln!();
-            eprintln!("Please verify the command is correct and all dependencies are available.");
-            std::process::exit(1);
-        }
+    }
+
+    if !current.is_empty() {
+        parts.push(current);
+    }
+
+    parts
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_command_simple() {
+        assert_eq!(
+            parse_command("ruby -v"),
+            vec!["ruby".to_string(), "-v".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_parse_command_with_multiple_args() {
+        assert_eq!(
+            parse_command("gem install bundler --version 2.4.0"),
+            vec![
+                "gem".to_string(),
+                "install".to_string(),
+                "bundler".to_string(),
+                "--version".to_string(),
+                "2.4.0".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_command_with_quotes() {
+        assert_eq!(
+            parse_command("rails new \"my app\""),
+            vec!["rails".to_string(), "new".to_string(), "my app".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_parse_command_with_extra_spaces() {
+        assert_eq!(
+            parse_command("ruby  -e   \"puts 'hello'\""),
+            vec![
+                "ruby".to_string(),
+                "-e".to_string(),
+                "puts 'hello'".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_command_empty() {
+        assert_eq!(parse_command(""), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_parse_command_only_spaces() {
+        assert_eq!(parse_command("   "), Vec::<String>::new());
     }
 }

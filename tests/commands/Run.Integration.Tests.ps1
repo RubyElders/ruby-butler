@@ -573,3 +573,215 @@ Describe "Ruby Butler - Run Command Edge Cases" {
         }
     }
 }
+
+Describe "Ruby Butler - Run Command Delegation to Exec" {
+    
+    Context "Exec Command Delegation" {
+        It "Delegates to exec command for script execution" {
+            Push-Location $Script:ProjectWithScripts
+            try {
+                $Output = & $Script:RbPath -v run version 2>&1 | Out-String
+                # Should show exec-related log messages
+                $Output | Should -Match "Delegating to exec command"
+                $Output | Should -Match "Preparing to execute"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Parses script command correctly" {
+            Push-Location $Script:ProjectWithScripts
+            try {
+                $Output = & $Script:RbPath -vv run version 2>&1 | Out-String
+                # Should parse "ruby -v" into program and args (debug level logging)
+                $Output | Should -Match "Program: ruby"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Passes additional arguments to executed command" {
+            # Create project with ruby -e script
+            $EchoProject = Join-Path $Script:TestDir "echo-args"
+            New-Item -ItemType Directory -Path $EchoProject -Force | Out-Null
+            @'
+[scripts]
+echo = "ruby -e"
+'@ | Set-Content (Join-Path $EchoProject "rbproject.toml") -Encoding UTF8
+            
+            Push-Location $EchoProject
+            try {
+                # Pass additional arguments after the script name
+                $Output = & $Script:RbPath run echo "puts ARGV.inspect" arg1 arg2 2>&1 | Out-String
+                # Should show the arguments were passed
+                $Output | Should -Match 'arg1.*arg2'
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Uses same environment composition as exec" {
+            Push-Location $Script:ProjectWithScripts
+            try {
+                $Output = & $Script:RbPath -v run version 2>&1 | Out-String
+                # Should show environment composition messages (same as exec)
+                $Output | Should -Match "Environment composition complete"
+            } finally {
+                Pop-Location
+            }
+        }
+    }
+    
+    Context "Command Parsing" {
+        It "Handles commands with multiple arguments" {
+            # Create project with multi-arg command
+            $MultiArgProject = Join-Path $Script:TestDir "multi-arg"
+            New-Item -ItemType Directory -Path $MultiArgProject -Force | Out-Null
+            @'
+[scripts]
+multi = "ruby -e \"puts 'test'\""
+'@ | Set-Content (Join-Path $MultiArgProject "rbproject.toml") -Encoding UTF8
+            
+            Push-Location $MultiArgProject
+            try {
+                $Output = & $Script:RbPath run multi 2>&1
+                $LASTEXITCODE | Should -Be 0
+                ($Output -join "`n") | Should -Match "test"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Preserves quoted arguments in command" {
+            # Create project with quoted command
+            $QuotedProject = Join-Path $Script:TestDir "quoted"
+            New-Item -ItemType Directory -Path $QuotedProject -Force | Out-Null
+            @'
+[scripts]
+hello = "ruby -e \"puts 'Hello World'\""
+'@ | Set-Content (Join-Path $QuotedProject "rbproject.toml") -Encoding UTF8
+            
+            Push-Location $QuotedProject
+            try {
+                $Output = & $Script:RbPath run hello 2>&1
+                $LASTEXITCODE | Should -Be 0
+                ($Output -join "`n") | Should -Match "Hello World"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Handles commands with extra whitespace" {
+            # Create project with extra spaces
+            $SpaceProject = Join-Path $Script:TestDir "spaces"
+            New-Item -ItemType Directory -Path $SpaceProject -Force | Out-Null
+            @'
+[scripts]
+spaced = "ruby   -v"
+'@ | Set-Content (Join-Path $SpaceProject "rbproject.toml") -Encoding UTF8
+            
+            Push-Location $SpaceProject
+            try {
+                $Output = & $Script:RbPath run spaced 2>&1
+                $LASTEXITCODE | Should -Be 0
+                ($Output -join "`n") | Should -Match "ruby \d+\.\d+\.\d+"
+            } finally {
+                Pop-Location
+            }
+        }
+    }
+    
+    Context "Bundler Integration via Exec" {
+        It "Detects bundler environment when Gemfile exists" {
+            # Create project with Gemfile
+            $BundlerProject = Join-Path $Script:TestDir "bundler-detect"
+            New-Item -ItemType Directory -Path $BundlerProject -Force | Out-Null
+            
+            # Create minimal Gemfile
+            @'
+source 'https://rubygems.org'
+gem 'rake'
+'@ | Set-Content (Join-Path $BundlerProject "Gemfile") -Encoding UTF8
+            
+            @'
+[scripts]
+version = "ruby -v"
+'@ | Set-Content (Join-Path $BundlerProject "rbproject.toml") -Encoding UTF8
+            
+            Push-Location $BundlerProject
+            try {
+                $Output = & $Script:RbPath -v run version 2>&1 | Out-String
+                # Should detect bundler environment
+                $Output | Should -Match "Bundler.*detected|Found Gemfile"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Triggers bundle sync when needed" {
+            # Create project with Gemfile but no bundle install
+            $BundlerSyncProject = Join-Path $Script:TestDir "bundler-sync"
+            New-Item -ItemType Directory -Path $BundlerSyncProject -Force | Out-Null
+            
+            # Create minimal Gemfile
+            @'
+source 'https://rubygems.org'
+gem 'rake'
+'@ | Set-Content (Join-Path $BundlerSyncProject "Gemfile") -Encoding UTF8
+            
+            @'
+[scripts]
+test = "ruby -v"
+'@ | Set-Content (Join-Path $BundlerSyncProject "rbproject.toml") -Encoding UTF8
+            
+            Push-Location $BundlerSyncProject
+            try {
+                $Output = & $Script:RbPath run test 2>&1 | Out-String
+                # Should trigger bundle sync if needed
+                $Output | Should -Match "ruby \d+\.\d+\.\d+|Butler Notice|Bundle complete"
+            } finally {
+                Pop-Location
+            }
+        }
+    }
+    
+    Context "Error Handling via Exec" {
+        It "Provides helpful error for non-existent commands" {
+            # Create project with non-existent command
+            $BadCommandProject = Join-Path $Script:TestDir "bad-command"
+            New-Item -ItemType Directory -Path $BadCommandProject -Force | Out-Null
+            @'
+[scripts]
+missing = "nonexistent-command-xyz"
+'@ | Set-Content (Join-Path $BadCommandProject "rbproject.toml") -Encoding UTF8
+            
+            Push-Location $BadCommandProject
+            try {
+                $Output = & $Script:RbPath run missing 2>&1 | Out-String
+                # Should get exec's helpful error message
+                $Output | Should -Match "My sincerest apologies|command.*appears to be.*absent|not found"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Handles command exit codes correctly" {
+            # Create project with failing command
+            $FailProject = Join-Path $Script:TestDir "fail"
+            New-Item -ItemType Directory -Path $FailProject -Force | Out-Null
+            @'
+[scripts]
+fail = "ruby -e \"exit 42\""
+'@ | Set-Content (Join-Path $FailProject "rbproject.toml") -Encoding UTF8
+            
+            Push-Location $FailProject
+            try {
+                $Output = & $Script:RbPath run fail 2>&1
+                # Should exit with the command's exit code
+                $LASTEXITCODE | Should -Be 42
+            } finally {
+                Pop-Location
+            }
+        }
+    }
+}
