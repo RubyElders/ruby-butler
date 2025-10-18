@@ -89,12 +89,12 @@ Ruby Butler expects Ruby installations in `~/.rubies/` (the standard location fo
 - `rb exec` / `rb x` - Execute commands within meticulously prepared environments
 - `rb environment` / `rb env` - Display current environment composition
 - `rb sync` - Manually synchronize bundler environments (auto-triggered when needed)
-- `rb run` / `rb r` - Execute project scripts defined in `rbproject.toml`
+- `rb run` / `rb r` - Execute project scripts defined in `gem.toml` or `rbproject.toml`
 
 ## Configuration
 
 - **`rb.toml`** - Global configuration file (in `%APPDATA%/rb/` or `~/.rb.toml`)
-- **`rbproject.toml`** - Project-level script definitions and metadata
+- **`gem.toml`** or **`rbproject.toml`** - Project-level script definitions and metadata
 
 ## Development
 

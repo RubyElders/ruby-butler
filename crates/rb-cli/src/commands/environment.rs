@@ -32,20 +32,21 @@ fn present_current_environment(butler_runtime: &ButlerRuntime, project_file: Opt
     let project_runtime = if let Some(path) = project_file {
         // Use specified project file
         debug!(
-            "Loading rbproject.toml from specified path: {}",
+            "Loading project config from specified path: {}",
             path.display()
         );
         match ProjectRuntime::from_file(&path) {
             Ok(project) => {
                 debug!(
-                    "Loaded rbproject.toml with {} scripts",
+                    "Loaded {} with {} scripts",
+                    project.config_filename,
                     project.scripts.len()
                 );
                 Some(project)
             }
             Err(e) => {
                 warn!(
-                    "Failed to load specified rbproject.toml at {}: {}",
+                    "Failed to load specified project config at {}: {}",
                     path.display(),
                     e
                 );
@@ -59,7 +60,8 @@ fn present_current_environment(butler_runtime: &ButlerRuntime, project_file: Opt
             .flatten()
             .inspect(|project| {
                 debug!(
-                    "Discovered rbproject.toml with {} scripts",
+                    "Discovered {} with {} scripts",
+                    project.config_filename,
                     project.scripts.len()
                 );
             })
@@ -305,7 +307,7 @@ fn present_environment_details(
     } else {
         println!();
         println!("{}", "📋 Project Scripts".bright_black());
-        println!("    {}", "No rbproject.toml detected".bright_black());
+        println!("    {}", "No project config detected".bright_black());
     }
 
     // Present environment summary
@@ -470,7 +472,8 @@ mod tests {
         );
 
         let metadata = ProjectMetadata::default();
-        let project_runtime = ProjectRuntime::new(ruby_sandbox.root(), metadata, scripts);
+        let project_runtime =
+            ProjectRuntime::new(ruby_sandbox.root(), "rbproject.toml", metadata, scripts);
 
         // Use sandboxed gem directory
         let gem_runtime = GemRuntime::for_base_dir(&ruby_sandbox.gem_base_dir(), &ruby.version);

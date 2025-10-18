@@ -99,7 +99,7 @@ Describe "Ruby Butler - Project Flag (-P/--project)" {
             $Output = & $Script:RbPath -P $Script:ValidProjectFile env 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join "`n") | Should -Match "Project file"
-            ($Output -join "`n") | Should -Match "rbproject\.toml"
+            ($Output -join "`n") | Should -Match "valid-project\.toml"
         }
         
         It "Shows correct script count" {
@@ -188,7 +188,7 @@ Describe "Ruby Butler - Project Flag (-P/--project)" {
         It "Shows no project detected message for invalid TOML" {
             $Output = & $Script:RbPath -P $Script:InvalidTomlFile env 2>&1
             $LASTEXITCODE | Should -Be 0
-            ($Output -join "`n") | Should -Match "No rbproject\.toml detected"
+            ($Output -join "`n") | Should -Match "No project config detected"
         }
         
         It "Logs warning with verbose flag for invalid TOML" {
@@ -215,7 +215,7 @@ Describe "Ruby Butler - Project Flag (-P/--project)" {
         It "Shows no project detected message for missing file" {
             $Output = & $Script:RbPath -P $Script:NonExistentFile env 2>&1
             $LASTEXITCODE | Should -Be 0
-            ($Output -join "`n") | Should -Match "No rbproject\.toml detected"
+            ($Output -join "`n") | Should -Match "No project config detected"
         }
         
         It "Logs warning with verbose flag for missing file" {
@@ -338,6 +338,154 @@ Describe "Ruby Butler - Project Flag Error Messages" {
             $Output = & $Script:RbPath -v -P $Script:InvalidTomlFile env 2>&1
             $OutputText = $Output -join "`n"
             $OutputText | Should -Match "parse error|invalid"
+        }
+    }
+}
+
+Describe "Ruby Butler - gem.toml Support" {
+    BeforeAll {
+        # Create a gem.toml test file
+        $Script:GemTomlDir = Join-Path $Script:TestDir "gem-toml-test"
+        New-Item -ItemType Directory -Path $Script:GemTomlDir -Force | Out-Null
+        
+        $GemTomlFile = Join-Path $Script:GemTomlDir "gem.toml"
+        @'
+[project]
+name = "Gem TOML Project"
+description = "Testing gem.toml as alternative filename"
+
+[scripts]
+test = "rspec spec"
+build = { command = "rake build", description = "Build the gem" }
+publish = "gem push *.gem"
+'@ | Set-Content -Path $GemTomlFile -Encoding UTF8
+        
+        # Create a directory with both rbproject.toml and gem.toml
+        $Script:BothFilesDir = Join-Path $Script:TestDir "both-files-test"
+        New-Item -ItemType Directory -Path $Script:BothFilesDir -Force | Out-Null
+        
+        $RbprojectFile = Join-Path $Script:BothFilesDir "rbproject.toml"
+        @'
+[project]
+name = "RBProject File"
+
+[scripts]
+from-rbproject = "echo from rbproject.toml"
+'@ | Set-Content -Path $RbprojectFile -Encoding UTF8
+        
+        $GemFile = Join-Path $Script:BothFilesDir "gem.toml"
+        @'
+[project]
+name = "Gem File"
+
+[scripts]
+from-gem = "echo from gem.toml"
+'@ | Set-Content -Path $GemFile -Encoding UTF8
+    }
+    
+    Context "gem.toml Discovery" {
+        It "Detects gem.toml in current directory" {
+            Push-Location $Script:GemTomlDir
+            try {
+                $Output = & $Script:RbPath env 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "gem\.toml"
+                $OutputText | Should -Match "Gem TOML Project"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Lists scripts from gem.toml with rb run" {
+            Push-Location $Script:GemTomlDir
+            try {
+                $Output = & $Script:RbPath run 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "test.*rspec spec"
+                $OutputText | Should -Match "build.*Build the gem"
+                $OutputText | Should -Match "publish"
+                $OutputText | Should -Match "gem\.toml"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Shows gem.toml scripts in rb env" {
+            Push-Location $Script:GemTomlDir
+            try {
+                $Output = & $Script:RbPath env 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "Project file.*gem\.toml"
+                $OutputText | Should -Match "Scripts loaded.*3"
+                $OutputText | Should -Match "test.*rspec spec"
+                $OutputText | Should -Match "build.*rake build"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Can specify gem.toml with -P flag" {
+            $GemTomlFile = Join-Path $Script:GemTomlDir "gem.toml"
+            $Output = & $Script:RbPath -P $GemTomlFile env 2>&1
+            $LASTEXITCODE | Should -Be 0
+            $OutputText = $Output -join "`n"
+            $OutputText | Should -Match "gem\.toml"
+            $OutputText | Should -Match "Gem TOML Project"
+        }
+    }
+    
+    Context "File Priority" {
+        It "Prefers rbproject.toml over gem.toml when both exist" {
+            Push-Location $Script:BothFilesDir
+            try {
+                $Output = & $Script:RbPath env 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                # Should find rbproject.toml, not gem.toml
+                # Check for the full path ending with rbproject.toml
+                $OutputText | Should -Match "rbproject\.toml"
+                $OutputText | Should -Match "RBProject File"
+                $OutputText | Should -Not -Match "Gem File"
+                $OutputText | Should -Match "from-rbproject"
+                $OutputText | Should -Not -Match "from-gem"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Uses rbproject.toml for rb run when both files exist" {
+            Push-Location $Script:BothFilesDir
+            try {
+                $Output = & $Script:RbPath run 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "rbproject\.toml"
+                $OutputText | Should -Match "from-rbproject"
+                $OutputText | Should -Not -Match "from-gem"
+            } finally {
+                Pop-Location
+            }
+        }
+    }
+    
+    Context "Error Messages Mention Both Filenames" {
+        It "Mentions both rbproject.toml and gem.toml when no config found" {
+            # Create a truly isolated temp directory (not under TestDir which might have project files)
+            $IsolatedDir = Join-Path $env:TEMP "rb-isolated-test-$(Get-Random)"
+            New-Item -ItemType Directory -Path $IsolatedDir -Force | Out-Null
+            
+            Push-Location $IsolatedDir
+            try {
+                $Output = & $Script:RbPath run 2>&1
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "rbproject\.toml.*gem\.toml|gem\.toml.*rbproject\.toml"
+            } finally {
+                Pop-Location
+                Remove-Item -Path $IsolatedDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }

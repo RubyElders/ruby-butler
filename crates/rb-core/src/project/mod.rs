@@ -62,8 +62,10 @@ struct RbprojectConfig {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectRuntime {
-    /// Root directory containing the rbproject.toml file
+    /// Root directory containing the project config file
     pub root: PathBuf,
+    /// Name of the config file (rbproject.toml or gem.toml)
+    pub config_filename: String,
     /// Project metadata
     pub metadata: ProjectMetadata,
     /// Scripts defined in the [scripts] section
@@ -71,15 +73,18 @@ pub struct ProjectRuntime {
 }
 
 impl ProjectRuntime {
-    /// Create a new ProjectRuntime from a directory containing rbproject.toml
+    /// Create a new ProjectRuntime from a directory containing a project config file
     pub fn new(
         root: impl AsRef<Path>,
+        config_filename: impl Into<String>,
         metadata: ProjectMetadata,
         scripts: HashMap<String, ScriptDefinition>,
     ) -> Self {
         let root = root.as_ref().to_path_buf();
+        let config_filename = config_filename.into();
 
         debug!("Creating ProjectRuntime for root: {}", root.display());
+        debug!("Config file: {}", config_filename);
         if let Some(ref name) = metadata.name {
             debug!("Project name: {}", name);
         }
@@ -87,28 +92,37 @@ impl ProjectRuntime {
 
         Self {
             root,
+            config_filename,
             metadata,
             scripts,
         }
     }
 
-    /// Load ProjectRuntime from an rbproject.toml file
-    pub fn from_file(rbproject_path: impl AsRef<Path>) -> io::Result<Self> {
-        let rbproject_path = rbproject_path.as_ref();
-        debug!("Loading rbproject.toml from: {}", rbproject_path.display());
+    /// Load ProjectRuntime from a project config file
+    pub fn from_file(config_path: impl AsRef<Path>) -> io::Result<Self> {
+        let config_path = config_path.as_ref();
 
-        let content = fs::read_to_string(rbproject_path)?;
-        debug!("Read {} bytes from rbproject.toml", content.len());
+        // Extract the filename from the path
+        let config_filename = config_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid config file path"))?
+            .to_string();
+
+        debug!("Loading project config from: {}", config_path.display());
+
+        let content = fs::read_to_string(config_path)?;
+        debug!("Read {} bytes from {}", content.len(), config_filename);
 
         let config: RbprojectConfig = toml::from_str(&content).map_err(|e| {
             debug!("Failed to parse TOML: {}", e);
             io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Failed to parse rbproject.toml: {}", e),
+                format!("Failed to parse {}: {}", config_filename, e),
             )
         })?;
 
-        let root = rbproject_path
+        let root = config_path
             .parent()
             .ok_or_else(|| {
                 io::Error::new(
@@ -119,9 +133,9 @@ impl ProjectRuntime {
             .to_path_buf();
 
         if let Some(ref name) = config.project.name {
-            info!("Loaded project '{}' from rbproject.toml", name);
+            info!("Loaded project '{}' from {}", name, config_filename);
         } else {
-            info!("Loaded rbproject.toml");
+            info!("Loaded {}", config_filename);
         }
 
         let script_names: Vec<&str> = config.scripts.keys().map(|s| s.as_str()).collect();
@@ -143,12 +157,17 @@ impl ProjectRuntime {
             }
         }
 
-        Ok(Self::new(root, config.project, config.scripts))
+        Ok(Self::new(
+            root,
+            config_filename,
+            config.project,
+            config.scripts,
+        ))
     }
 
-    /// Returns the full path to the rbproject.toml file
+    /// Returns the full path to the project config file
     pub fn rbproject_path(&self) -> PathBuf {
-        self.root.join("rbproject.toml")
+        self.root.join(&self.config_filename)
     }
 
     /// Check if a script with the given name exists
@@ -217,7 +236,8 @@ mod tests {
         );
 
         let metadata = ProjectMetadata::default();
-        let project = ProjectRuntime::new(temp_dir.path(), metadata, scripts.clone());
+        let project =
+            ProjectRuntime::new(temp_dir.path(), "rbproject.toml", metadata, scripts.clone());
 
         assert_eq!(project.root, temp_dir.path());
         assert_eq!(project.scripts, scripts);
@@ -301,8 +321,12 @@ this is not valid toml
     #[test]
     fn rbproject_path_returns_correct_path() {
         let temp_dir = TempDir::new().unwrap();
-        let project =
-            ProjectRuntime::new(temp_dir.path(), ProjectMetadata::default(), HashMap::new());
+        let project = ProjectRuntime::new(
+            temp_dir.path(),
+            "rbproject.toml",
+            ProjectMetadata::default(),
+            HashMap::new(),
+        );
 
         let expected_path = temp_dir.path().join("rbproject.toml");
         assert_eq!(project.rbproject_path(), expected_path);
@@ -316,7 +340,12 @@ this is not valid toml
             "test".to_string(),
             ScriptDefinition::Simple("rspec".to_string()),
         );
-        let project = ProjectRuntime::new(temp_dir.path(), ProjectMetadata::default(), scripts);
+        let project = ProjectRuntime::new(
+            temp_dir.path(),
+            "rbproject.toml",
+            ProjectMetadata::default(),
+            scripts,
+        );
 
         assert!(project.has_script("test"));
         assert!(!project.has_script("nonexistent"));
@@ -334,7 +363,12 @@ this is not valid toml
             "lint".to_string(),
             ScriptDefinition::Simple("rubocop -a".to_string()),
         );
-        let project = ProjectRuntime::new(temp_dir.path(), ProjectMetadata::default(), scripts);
+        let project = ProjectRuntime::new(
+            temp_dir.path(),
+            "rbproject.toml",
+            ProjectMetadata::default(),
+            scripts,
+        );
 
         assert_eq!(project.get_script_command("test"), Some("rspec"));
         assert_eq!(project.get_script_command("lint"), Some("rubocop -a"));
@@ -357,7 +391,12 @@ this is not valid toml
             "lint".to_string(),
             ScriptDefinition::Simple("rubocop".to_string()),
         );
-        let project = ProjectRuntime::new(temp_dir.path(), ProjectMetadata::default(), scripts);
+        let project = ProjectRuntime::new(
+            temp_dir.path(),
+            "rbproject.toml",
+            ProjectMetadata::default(),
+            scripts,
+        );
 
         let names = project.script_names();
 
@@ -367,8 +406,12 @@ this is not valid toml
     #[test]
     fn runtime_provider_returns_none() {
         let temp_dir = TempDir::new().unwrap();
-        let project =
-            ProjectRuntime::new(temp_dir.path(), ProjectMetadata::default(), HashMap::new());
+        let project = ProjectRuntime::new(
+            temp_dir.path(),
+            "rbproject.toml",
+            ProjectMetadata::default(),
+            HashMap::new(),
+        );
 
         assert_eq!(project.bin_dir(), None);
         assert_eq!(project.gem_dir(), None);

@@ -6,11 +6,14 @@ use super::ProjectRuntime;
 pub struct RbprojectDetector;
 
 impl RbprojectDetector {
-    /// Discover a ProjectRuntime by searching for rbproject.toml in the current directory
-    /// and walking up the directory tree until one is found or we reach the root.
+    /// Supported project file names in order of preference
+    const PROJECT_FILENAMES: &'static [&'static str] = &["rbproject.toml", "gem.toml"];
+
+    /// Discover a ProjectRuntime by searching for project config files (rbproject.toml or gem.toml)
+    /// in the current directory and walking up the directory tree until one is found or we reach the root.
     pub fn discover(start_dir: &Path) -> std::io::Result<Option<ProjectRuntime>> {
         debug!(
-            "Searching for rbproject.toml starting from directory: {}",
+            "Searching for project config file starting from directory: {}",
             start_dir.display()
         );
 
@@ -18,32 +21,37 @@ impl RbprojectDetector {
 
         loop {
             debug!(
-                "Checking directory for rbproject.toml: {}",
+                "Checking directory for project config: {}",
                 current_dir.display()
             );
-            let rbproject_path = current_dir.join("rbproject.toml");
 
-            if rbproject_path.exists() && rbproject_path.is_file() {
-                info!("Discovered rbproject.toml at: {}", rbproject_path.display());
+            // Try each supported filename in order
+            for filename in Self::PROJECT_FILENAMES {
+                let project_path = current_dir.join(filename);
 
-                // Parse the file and create ProjectRuntime
-                match ProjectRuntime::from_file(&rbproject_path) {
-                    Ok(project_runtime) => {
-                        debug!("Created ProjectRuntime for root: {}", current_dir.display());
-                        return Ok(Some(project_runtime));
-                    }
-                    Err(e) => {
-                        debug!(
-                            "Failed to parse rbproject.toml at {}: {}",
-                            rbproject_path.display(),
-                            e
-                        );
-                        return Err(e);
+                if project_path.exists() && project_path.is_file() {
+                    info!("Discovered {} at: {}", filename, project_path.display());
+
+                    // Parse the file and create ProjectRuntime
+                    match ProjectRuntime::from_file(&project_path) {
+                        Ok(project_runtime) => {
+                            debug!("Created ProjectRuntime for root: {}", current_dir.display());
+                            return Ok(Some(project_runtime));
+                        }
+                        Err(e) => {
+                            debug!(
+                                "Failed to parse {} at {}: {}",
+                                filename,
+                                project_path.display(),
+                                e
+                            );
+                            return Err(e);
+                        }
                     }
                 }
-            } else {
-                debug!("No rbproject.toml found in: {}", current_dir.display());
             }
+
+            debug!("No project config found in: {}", current_dir.display());
 
             // Move up one directory
             match current_dir.parent() {
@@ -52,14 +60,14 @@ impl RbprojectDetector {
                     debug!("Moving up to parent directory: {}", current_dir.display());
                 }
                 None => {
-                    debug!("Reached filesystem root, no rbproject.toml found");
+                    debug!("Reached filesystem root, no project config found");
                     break;
                 }
             }
         }
 
         info!(
-            "No rbproject.toml found starting from: {}",
+            "No project config found starting from: {}",
             start_dir.display()
         );
         Ok(None)
@@ -248,6 +256,64 @@ this is not valid toml
         let result = RbprojectDetector::discover(project_dir);
 
         assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn discover_finds_gem_toml_in_current_directory() -> io::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let project_dir = temp_dir.path();
+
+        let toml_content = r#"
+[scripts]
+test = "rspec"
+"#;
+        // Create gem.toml instead of rbproject.toml
+        let gem_toml_path = project_dir.join("gem.toml");
+        fs::write(&gem_toml_path, toml_content)?;
+
+        let result = RbprojectDetector::discover(project_dir)?;
+
+        assert!(result.is_some());
+        let project_runtime = result.unwrap();
+        assert_eq!(project_runtime.root, project_dir);
+        assert_eq!(project_runtime.config_filename, "gem.toml");
+        assert_eq!(project_runtime.scripts.len(), 1);
+        assert_eq!(project_runtime.get_script_command("test"), Some("rspec"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn discover_prefers_rbproject_toml_over_gem_toml() -> io::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let project_dir = temp_dir.path();
+
+        // Create both files with different content
+        let rbproject_content = r#"
+[scripts]
+test = "rspec from rbproject.toml"
+"#;
+        create_rbproject_toml(project_dir, rbproject_content)?;
+
+        let gem_content = r#"
+[scripts]
+test = "rspec from gem.toml"
+"#;
+        let gem_toml_path = project_dir.join("gem.toml");
+        fs::write(&gem_toml_path, gem_content)?;
+
+        let result = RbprojectDetector::discover(project_dir)?;
+
+        assert!(result.is_some());
+        let project_runtime = result.unwrap();
+        assert_eq!(project_runtime.root, project_dir);
+        assert_eq!(project_runtime.config_filename, "rbproject.toml");
+        assert_eq!(
+            project_runtime.get_script_command("test"),
+            Some("rspec from rbproject.toml")
+        );
 
         Ok(())
     }

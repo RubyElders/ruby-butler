@@ -14,7 +14,7 @@ fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<Pa
     let project_runtime = if let Some(path) = project_file {
         // Use specified project file
         debug!(
-            "Loading rbproject.toml from specified path: {}",
+            "Loading project config from specified path: {}",
             path.display()
         );
         match ProjectRuntime::from_file(&path) {
@@ -35,14 +35,15 @@ fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<Pa
         match RbprojectDetector::discover(current_dir) {
             Ok(Some(project)) => {
                 debug!(
-                    "Discovered rbproject.toml with {} scripts",
+                    "Discovered {} with {} scripts",
+                    project.config_filename,
                     project.scripts.len()
                 );
                 Some(project)
             }
             Ok(None) => None,
             Err(e) => {
-                warn!("Error detecting rbproject.toml: {}", e);
+                warn!("Error detecting project config: {}", e);
                 None
             }
         }
@@ -57,8 +58,9 @@ fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<Pa
             eprintln!("No project configuration detected in the current directory hierarchy.");
             eprintln!();
             eprintln!(
-                "To define project scripts, create an {} file:",
-                "rbproject.toml".cyan()
+                "To define project scripts, create an {} or {} file:",
+                "rbproject.toml".cyan(),
+                "gem.toml".cyan()
             );
             eprintln!();
             eprintln!("  {}", "[scripts]".bright_black());
@@ -109,7 +111,7 @@ fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<Pa
         println!();
         println!(
             "To define scripts, add them to {}:",
-            "rbproject.toml".cyan()
+            project.config_filename.cyan()
         );
         println!();
         println!("  {}", "[scripts]".bright_black());
@@ -192,7 +194,7 @@ pub fn run_command(
     let project_runtime = if let Some(path) = project_file {
         // Use specified project file
         debug!(
-            "Loading rbproject.toml from specified path: {}",
+            "Loading project config from specified path: {}",
             path.display()
         );
         match ProjectRuntime::from_file(&path) {
@@ -213,14 +215,15 @@ pub fn run_command(
         match RbprojectDetector::discover(current_dir) {
             Ok(Some(project)) => {
                 debug!(
-                    "Discovered rbproject.toml with {} scripts",
+                    "Discovered {} with {} scripts",
+                    project.config_filename,
                     project.scripts.len()
                 );
                 Some(project)
             }
             Ok(None) => None,
             Err(e) => {
-                warn!("Error detecting rbproject.toml: {}", e);
+                warn!("Error detecting project config: {}", e);
                 None
             }
         }
@@ -235,8 +238,9 @@ pub fn run_command(
             eprintln!("No project configuration detected in the current directory hierarchy.");
             eprintln!();
             eprintln!(
-                "To use project scripts, please create an {} file with script definitions:",
-                "rbproject.toml".cyan()
+                "To use project scripts, please create an {} or {} file with script definitions:",
+                "rbproject.toml".cyan(),
+                "gem.toml".cyan()
             );
             eprintln!();
             eprintln!("  {}", "[scripts]".bright_black());
