@@ -57,10 +57,13 @@ fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<Pa
             eprintln!();
             eprintln!("No project configuration detected in the current directory hierarchy.");
             eprintln!();
+            eprintln!("To define project scripts, create one of these files (in priority order):");
             eprintln!(
-                "To define project scripts, create an {} or {} file:",
-                "rbproject.toml".cyan(),
-                "gem.toml".cyan()
+                "  {} {} {} {}",
+                "gem.kdl".cyan(),
+                "gem.toml".cyan(),
+                "rbproject.kdl".cyan(),
+                "rbproject.toml".cyan()
             );
             eprintln!();
             eprintln!("  {}", "[scripts]".bright_black());
@@ -73,7 +76,7 @@ fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<Pa
             );
             eprintln!();
             eprintln!(
-                "Or specify a custom location: {} -P path/to/rbproject.toml run",
+                "Or specify a custom location: {} -P path/to/gem.kdl run",
                 "rb".green().bold()
             );
             std::process::exit(1);
@@ -238,9 +241,15 @@ pub fn run_command(
             eprintln!("No project configuration detected in the current directory hierarchy.");
             eprintln!();
             eprintln!(
-                "To use project scripts, please create an {} or {} file with script definitions:",
+                "To use project scripts, please create one of these files with script definitions:"
+            );
+            eprintln!(
+                "  {} {} {} {} {}",
                 "rbproject.toml".cyan(),
-                "gem.toml".cyan()
+                "rb.toml".cyan(),
+                "rb.kdl".cyan(),
+                "gem.toml".cyan(),
+                "gem.kdl".cyan()
             );
             eprintln!();
             eprintln!("  {}", "[scripts]".bright_black());
@@ -253,7 +262,7 @@ pub fn run_command(
             );
             eprintln!();
             eprintln!(
-                "Or specify a custom location with: {} -P path/to/rbproject.toml run {}",
+                "Or specify a custom location with: {} -P path/to/rb.toml run {}",
                 "rb".green().bold(),
                 script_name.cyan()
             );
