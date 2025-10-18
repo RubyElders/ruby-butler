@@ -359,14 +359,18 @@ pub fn run_command(
 fn parse_command(command: &str) -> Vec<String> {
     let mut parts = Vec::new();
     let mut current = String::new();
-    let mut in_quotes = false;
+    let mut in_double_quotes = false;
+    let mut in_single_quotes = false;
 
     for ch in command.chars() {
         match ch {
-            '"' => {
-                in_quotes = !in_quotes;
+            '"' if !in_single_quotes => {
+                in_double_quotes = !in_double_quotes;
             }
-            ' ' if !in_quotes => {
+            '\'' if !in_double_quotes => {
+                in_single_quotes = !in_single_quotes;
+            }
+            ' ' if !in_double_quotes && !in_single_quotes => {
                 if !current.is_empty() {
                     parts.push(current.clone());
                     current.clear();
@@ -427,6 +431,18 @@ mod tests {
                 "ruby".to_string(),
                 "-e".to_string(),
                 "puts 'hello'".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_command_with_single_quotes() {
+        assert_eq!(
+            parse_command("ruby -e 'puts ARGV.join(\", \")'"),
+            vec![
+                "ruby".to_string(),
+                "-e".to_string(),
+                "puts ARGV.join(\", \")".to_string()
             ]
         );
     }
