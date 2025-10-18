@@ -128,6 +128,7 @@ jobs:
     name: ShellSpec Tests (Linux)
     runs-on: ubuntu-latest
     needs: [test-rust, docker-build]
+    if: ${{ !cancelled() && needs.test-rust.result == 'success' && (needs.docker-build.result == 'success' || needs.docker-build.result == 'skipped') }}
     steps:
     - uses: actions/checkout@v4
     
