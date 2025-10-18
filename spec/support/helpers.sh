@@ -70,6 +70,25 @@ cleanup_test_project() {
 
 # Distinguished rb command function with complete isolation
 rb() {
-    local cmd="/app/rb"
-    "$cmd" "$@"
+    # Use local build if available (for development), otherwise Docker path
+    if [ -n "$RB_TEST_BINARY" ] && [ -f "$RB_TEST_BINARY" ]; then
+        "$RB_TEST_BINARY" "$@"
+    elif [ -f "/app/rb" ]; then
+        "/app/rb" "$@"
+    elif [ -f "./target/debug/rb" ]; then
+        "./target/debug/rb" "$@"
+    else
+        # Fallback to PATH
+        command rb "$@"
+    fi
+}
+
+# Check if Ruby is available for testing
+is_ruby_available() {
+    command -v ruby >/dev/null 2>&1
+}
+
+# Check if Bundler is available for testing
+is_bundler_available() {
+    command -v bundle >/dev/null 2>&1
 }

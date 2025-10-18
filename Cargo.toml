@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 authors = ["RubyElders.com"]
 description = "A sophisticated Ruby environment manager that orchestrates installations and gem collections with distinguished precision"

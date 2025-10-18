@@ -27,6 +27,8 @@ log = "0.4"
 env_logger = "0.11"
 semver = "1.0.26"
 which = "6.0"
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 rb-tests = { path = "../rb-tests" }
