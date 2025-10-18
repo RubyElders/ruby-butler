@@ -342,6 +342,220 @@ Describe "Ruby Butler - Project Flag Error Messages" {
     }
 }
 
+Describe "Ruby Butler - KDL Support" {
+    BeforeAll {
+        # Create isolated test directory for KDL tests (not under $Script:TestDir to avoid parent rbproject.toml)
+        $Script:KdlTestRoot = Join-Path $env:TEMP "rb-kdl-tests-$(Get-Random)"
+        New-Item -ItemType Directory -Path $Script:KdlTestRoot -Force | Out-Null
+        
+        # Create gem.kdl test file
+        $Script:GemKdlDir = Join-Path $Script:KdlTestRoot "gem-kdl-test"
+        New-Item -ItemType Directory -Path $Script:GemKdlDir -Force | Out-Null
+        
+        $GemKdlFile = Join-Path $Script:GemKdlDir "gem.kdl"
+        @'
+project {
+    name "Gem KDL Project"
+    description "Testing gem.kdl KDL format"
+}
+
+scripts {
+    test "rspec spec"
+    build {
+        command "gem build *.gemspec"
+        description "Build the gem"
+    }
+    publish "gem push *.gem"
+}
+'@ | Set-Content -Path $GemKdlFile -Encoding UTF8
+        
+        # Create rbproject.kdl test file
+        $Script:RbprojectKdlDir = Join-Path $Script:KdlTestRoot "rbproject-kdl-test"
+        New-Item -ItemType Directory -Path $Script:RbprojectKdlDir -Force | Out-Null
+        
+        $RbprojectKdlFile = Join-Path $Script:RbprojectKdlDir "rbproject.kdl"
+        @'
+project {
+    name "RBProject KDL"
+    description "Testing rbproject.kdl KDL format"
+}
+
+scripts {
+    test "rspec spec"
+    build {
+        command "rake build"
+        description "Build the project"
+    }
+}
+'@ | Set-Content -Path $RbprojectKdlFile -Encoding UTF8
+        
+        # Create directory with multiple config file types for priority testing
+        $Script:PriorityTestDir = Join-Path $Script:KdlTestRoot "priority-test"
+        New-Item -ItemType Directory -Path $Script:PriorityTestDir -Force | Out-Null
+        
+        # Create all project file types (gem.kdl should win)
+        $GemKdlFile2 = Join-Path $Script:PriorityTestDir "gem.kdl"
+        @'
+project {
+    name "Gem KDL File"
+}
+
+scripts {
+    from-gem-kdl "echo from gem.kdl"
+}
+'@ | Set-Content -Path $GemKdlFile2 -Encoding UTF8
+        
+        $GemTomlFile = Join-Path $Script:PriorityTestDir "gem.toml"
+        @'
+[project]
+name = "Gem TOML File"
+
+[scripts]
+from-gem-toml = "echo from gem.toml"
+'@ | Set-Content -Path $GemTomlFile -Encoding UTF8
+        
+        $RbprojectKdlFile2 = Join-Path $Script:PriorityTestDir "rbproject.kdl"
+        @'
+project {
+    name "RBProject KDL File"
+}
+
+scripts {
+    from-rbproject-kdl "echo from rbproject.kdl"
+}
+'@ | Set-Content -Path $RbprojectKdlFile2 -Encoding UTF8
+        
+        $RbprojectTomlFile = Join-Path $Script:PriorityTestDir "rbproject.toml"
+        @'
+[project]
+name = "RBProject TOML File"
+
+[scripts]
+from-rbproject-toml = "echo from rbproject.toml"
+'@ | Set-Content -Path $RbprojectTomlFile -Encoding UTF8
+    }
+    
+    Context "gem.kdl Discovery and Parsing" {
+        It "Detects gem.kdl in current directory" {
+            Push-Location $Script:GemKdlDir
+            try {
+                $Output = & $Script:RbPath env 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "gem\.kdl"
+                $OutputText | Should -Match "Gem KDL Project"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Parses KDL project metadata correctly" {
+            Push-Location $Script:GemKdlDir
+            try {
+                $Output = & $Script:RbPath env 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "Name\s*:\s*Gem KDL Project"
+                $OutputText | Should -Match "Description\s*:\s*Testing gem\.kdl KDL format"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Parses simple KDL scripts (direct string)" {
+            Push-Location $Script:GemKdlDir
+            try {
+                $Output = & $Script:RbPath env 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "test.*rspec spec"
+                $OutputText | Should -Match "publish.*gem push"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Parses detailed KDL scripts (with description)" {
+            Push-Location $Script:GemKdlDir
+            try {
+                $Output = & $Script:RbPath env 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "build.*gem build"
+                $OutputText | Should -Match "Build the gem"
+            } finally {
+                Pop-Location
+            }
+        }
+        
+        It "Can specify gem.kdl with -P flag" {
+            $GemKdlFile = Join-Path $Script:GemKdlDir "gem.kdl"
+            $Output = & $Script:RbPath -P $GemKdlFile env 2>&1
+            $LASTEXITCODE | Should -Be 0
+            $OutputText = $Output -join "`n"
+            $OutputText | Should -Match "gem\.kdl"
+            $OutputText | Should -Match "Gem KDL Project"
+        }
+    }
+    
+    Context "rbproject.kdl Discovery and Parsing" {
+        It "Detects rbproject.kdl in current directory" {
+            Push-Location $Script:RbprojectKdlDir
+            try {
+                $Output = & $Script:RbPath env 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "rbproject\.kdl"
+                $OutputText | Should -Match "RBProject KDL"
+            } finally {
+                Pop-Location
+            }
+        }
+    }
+    
+    Context "KDL Priority Order" {
+        It "Prefers gem.kdl over all other project files" {
+            Push-Location $Script:PriorityTestDir
+            try {
+                $Output = & $Script:RbPath env 2>&1
+                $LASTEXITCODE | Should -Be 0
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "gem\.kdl"
+                $OutputText | Should -Match "Gem KDL File"
+                $OutputText | Should -Not -Match "Gem TOML File"
+                $OutputText | Should -Not -Match "RBProject"
+                $OutputText | Should -Match "from-gem-kdl"
+                $OutputText | Should -Not -Match "from-gem-toml"
+                $OutputText | Should -Not -Match "from-rbproject"
+            } finally {
+                Pop-Location
+            }
+        }
+    }
+    
+    Context "Error Messages Include All Filenames" {
+        It "Mentions all 4 supported project filenames when no config found" {
+            $IsolatedDir = Join-Path $env:TEMP "rb-kdl-isolated-$(Get-Random)"
+            New-Item -ItemType Directory -Path $IsolatedDir -Force | Out-Null
+            
+            Push-Location $IsolatedDir
+            try {
+                $Output = & $Script:RbPath run 2>&1
+                $OutputText = $Output -join "`n"
+                $OutputText | Should -Match "gem\.kdl"
+                $OutputText | Should -Match "gem\.toml"
+                $OutputText | Should -Match "rbproject\.kdl"
+                $OutputText | Should -Match "rbproject\.toml"
+                $OutputText | Should -Not -Match "rb\.toml"
+                $OutputText | Should -Not -Match "rb\.kdl"
+            } finally {
+                Pop-Location
+                Remove-Item -Path $IsolatedDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
+
 Describe "Ruby Butler - gem.toml Support" {
     BeforeAll {
         # Create a gem.toml test file
@@ -438,41 +652,40 @@ from-gem = "echo from gem.toml"
     }
     
     Context "File Priority" {
-        It "Prefers rbproject.toml over gem.toml when both exist" {
+        It "Prefers gem.toml over rbproject.toml when both exist" {
             Push-Location $Script:BothFilesDir
             try {
                 $Output = & $Script:RbPath env 2>&1
                 $LASTEXITCODE | Should -Be 0
                 $OutputText = $Output -join "`n"
-                # Should find rbproject.toml, not gem.toml
-                # Check for the full path ending with rbproject.toml
-                $OutputText | Should -Match "rbproject\.toml"
-                $OutputText | Should -Match "RBProject File"
-                $OutputText | Should -Not -Match "Gem File"
-                $OutputText | Should -Match "from-rbproject"
-                $OutputText | Should -Not -Match "from-gem"
+                # Should find gem.toml, not rbproject.toml (gem.* has priority)
+                $OutputText | Should -Match "gem\.toml"
+                $OutputText | Should -Match "Gem File"
+                $OutputText | Should -Not -Match "RBProject File"
+                $OutputText | Should -Match "from-gem"
+                $OutputText | Should -Not -Match "from-rbproject"
             } finally {
                 Pop-Location
             }
         }
         
-        It "Uses rbproject.toml for rb run when both files exist" {
+        It "Uses gem.toml for rb run when both files exist" {
             Push-Location $Script:BothFilesDir
             try {
                 $Output = & $Script:RbPath run 2>&1
                 $LASTEXITCODE | Should -Be 0
                 $OutputText = $Output -join "`n"
-                $OutputText | Should -Match "rbproject\.toml"
-                $OutputText | Should -Match "from-rbproject"
-                $OutputText | Should -Not -Match "from-gem"
+                $OutputText | Should -Match "gem\.toml"
+                $OutputText | Should -Match "from-gem"
+                $OutputText | Should -Not -Match "from-rbproject"
             } finally {
                 Pop-Location
             }
         }
     }
     
-    Context "Error Messages Mention Both Filenames" {
-        It "Mentions both rbproject.toml and gem.toml when no config found" {
+    Context "Error Messages Mention All Filenames" {
+        It "Mentions all 4 supported project filenames when no config found" {
             # Create a truly isolated temp directory (not under TestDir which might have project files)
             $IsolatedDir = Join-Path $env:TEMP "rb-isolated-test-$(Get-Random)"
             New-Item -ItemType Directory -Path $IsolatedDir -Force | Out-Null
@@ -481,7 +694,10 @@ from-gem = "echo from gem.toml"
             try {
                 $Output = & $Script:RbPath run 2>&1
                 $OutputText = $Output -join "`n"
-                $OutputText | Should -Match "rbproject\.toml.*gem\.toml|gem\.toml.*rbproject\.toml"
+                $OutputText | Should -Match "gem\.kdl"
+                $OutputText | Should -Match "gem\.toml"
+                $OutputText | Should -Match "rbproject\.kdl"
+                $OutputText | Should -Match "rbproject\.toml"
             } finally {
                 Pop-Location
                 Remove-Item -Path $IsolatedDir -Recurse -Force -ErrorAction SilentlyContinue

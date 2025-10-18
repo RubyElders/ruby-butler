@@ -3,13 +3,15 @@ use std::path::PathBuf;
 
 /// Locate the configuration file following XDG Base Directory specification
 ///
+/// Supports both rb.kdl and rb.toml (preferring .kdl)
+///
 /// Priority order:
 /// 1. Explicit override path (if provided)
 /// 2. $RB_CONFIG environment variable
-/// 3. $XDG_CONFIG_HOME/rb/rb.toml (Unix/Linux)
-/// 4. ~/.config/rb/rb.toml (Unix/Linux fallback)
-/// 5. %APPDATA%/rb/rb.toml (Windows)
-/// 6. ~/.rb.toml (cross-platform fallback)
+/// 3. $XDG_CONFIG_HOME/rb/rb.kdl or rb.toml (Unix/Linux)
+/// 4. ~/.config/rb/rb.kdl or rb.toml (Unix/Linux fallback)
+/// 5. %APPDATA%/rb/rb.kdl or rb.toml (Windows)
+/// 6. ~/.rb.kdl or ~/.rb.toml (cross-platform fallback)
 pub fn locate_config_file(override_path: Option<PathBuf>) -> Option<PathBuf> {
     debug!("Searching for configuration file...");
 
@@ -34,49 +36,58 @@ pub fn locate_config_file(override_path: Option<PathBuf>) -> Option<PathBuf> {
 
     // 3. Try XDG_CONFIG_HOME (Unix/Linux)
     if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME") {
-        let config_path = PathBuf::from(xdg_config).join("rb").join("rb.toml");
-        debug!("  Checking XDG_CONFIG_HOME: {}", config_path.display());
-        if config_path.exists() {
-            debug!("  Found configuration file in XDG_CONFIG_HOME");
-            return Some(config_path);
+        let base_path = PathBuf::from(xdg_config).join("rb");
+        // Try .kdl first, then .toml
+        for ext in &["rb.kdl", "rb.toml"] {
+            let config_path = base_path.join(ext);
+            debug!("  Checking XDG_CONFIG_HOME: {}", config_path.display());
+            if config_path.exists() {
+                debug!("  Found configuration file in XDG_CONFIG_HOME");
+                return Some(config_path);
+            }
         }
     }
 
     // Try home directory based paths
     if let Some(home_dir) = home::home_dir() {
-        // Unix/Linux: ~/.config/rb/rb.toml
+        // Unix/Linux: ~/.config/rb/rb.kdl or rb.toml
         #[cfg(not(target_os = "windows"))]
         {
-            let config_path = home_dir.join(".config").join("rb").join("rb.toml");
-            debug!("  Checking ~/.config/rb/rb.toml: {}", config_path.display());
-            if config_path.exists() {
-                debug!("  Found configuration file in ~/.config/rb/");
-                return Some(config_path);
-            }
-        }
-
-        // Windows: %APPDATA%/rb/rb.toml
-        #[cfg(target_os = "windows")]
-        {
-            if let Ok(appdata) = std::env::var("APPDATA") {
-                let config_path = PathBuf::from(appdata).join("rb").join("rb.toml");
-                debug!("  Checking %APPDATA%/rb/rb.toml: {}", config_path.display());
+            let base_path = home_dir.join(".config").join("rb");
+            for ext in &["rb.kdl", "rb.toml"] {
+                let config_path = base_path.join(ext);
+                debug!("  Checking ~/.config/rb/{}: {}", ext, config_path.display());
                 if config_path.exists() {
-                    debug!("  Found configuration file in %APPDATA%/rb/");
+                    debug!("  Found configuration file in ~/.config/rb/");
                     return Some(config_path);
                 }
             }
         }
 
-        // Cross-platform fallback: ~/.rb.toml
-        let fallback_path = home_dir.join(".rb.toml");
-        debug!(
-            "  Checking fallback ~/.rb.toml: {}",
-            fallback_path.display()
-        );
-        if fallback_path.exists() {
-            debug!("  Found configuration file at ~/.rb.toml");
-            return Some(fallback_path);
+        // Windows: %APPDATA%/rb/rb.kdl or rb.toml
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                let base_path = PathBuf::from(appdata).join("rb");
+                for ext in &["rb.kdl", "rb.toml"] {
+                    let config_path = base_path.join(ext);
+                    debug!("  Checking %APPDATA%/rb/{}: {}", ext, config_path.display());
+                    if config_path.exists() {
+                        debug!("  Found configuration file in %APPDATA%/rb/");
+                        return Some(config_path);
+                    }
+                }
+            }
+        }
+
+        // Cross-platform fallback: ~/.rb.kdl or ~/.rb.toml
+        for ext in &[".rb.kdl", ".rb.toml"] {
+            let fallback_path = home_dir.join(ext);
+            debug!("  Checking fallback ~/{}: {}", ext, fallback_path.display());
+            if fallback_path.exists() {
+                debug!("  Found configuration file at ~/{}", ext);
+                return Some(fallback_path);
+            }
         }
     }
 

@@ -7,9 +7,11 @@ pub struct RbprojectDetector;
 
 impl RbprojectDetector {
     /// Supported project file names in order of preference
-    const PROJECT_FILENAMES: &'static [&'static str] = &["rbproject.toml", "gem.toml"];
+    /// Priority: gem.kdl > gem.toml > rbproject.kdl > rbproject.toml
+    const PROJECT_FILENAMES: &'static [&'static str] =
+        &["gem.kdl", "gem.toml", "rbproject.kdl", "rbproject.toml"];
 
-    /// Discover a ProjectRuntime by searching for project config files (rbproject.toml or gem.toml)
+    /// Discover a ProjectRuntime by searching for project config files
     /// in the current directory and walking up the directory tree until one is found or we reach the root.
     pub fn discover(start_dir: &Path) -> std::io::Result<Option<ProjectRuntime>> {
         debug!(
@@ -286,7 +288,7 @@ test = "rspec"
     }
 
     #[test]
-    fn discover_prefers_rbproject_toml_over_gem_toml() -> io::Result<()> {
+    fn discover_prefers_gem_toml_over_rbproject_toml() -> io::Result<()> {
         let temp_dir = TempDir::new()?;
         let project_dir = temp_dir.path();
 
@@ -309,10 +311,58 @@ test = "rspec from gem.toml"
         assert!(result.is_some());
         let project_runtime = result.unwrap();
         assert_eq!(project_runtime.root, project_dir);
-        assert_eq!(project_runtime.config_filename, "rbproject.toml");
+        assert_eq!(project_runtime.config_filename, "gem.toml");
         assert_eq!(
             project_runtime.get_script_command("test"),
-            Some("rspec from rbproject.toml")
+            Some("rspec from gem.toml")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn discover_respects_priority_order() -> io::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let project_dir = temp_dir.path();
+
+        // Create all supported project files
+        create_rbproject_toml(
+            project_dir,
+            r#"[scripts]
+test = "from rbproject.toml"
+"#,
+        )?;
+
+        fs::write(
+            project_dir.join("rbproject.kdl"),
+            r#"scripts {
+    test "from rbproject.kdl"
+}"#,
+        )?;
+
+        fs::write(
+            project_dir.join("gem.toml"),
+            r#"[scripts]
+test = "from gem.toml"
+"#,
+        )?;
+
+        fs::write(
+            project_dir.join("gem.kdl"),
+            r#"scripts {
+    test "from gem.kdl"
+}"#,
+        )?;
+
+        let result = RbprojectDetector::discover(project_dir)?;
+
+        assert!(result.is_some());
+        let project_runtime = result.unwrap();
+        // Should pick gem.kdl (highest priority)
+        assert_eq!(project_runtime.config_filename, "gem.kdl");
+        assert_eq!(
+            project_runtime.get_script_command("test"),
+            Some("from gem.kdl")
         );
 
         Ok(())

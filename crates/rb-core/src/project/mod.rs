@@ -60,6 +60,95 @@ struct RbprojectConfig {
     scripts: HashMap<String, ScriptDefinition>,
 }
 
+/// Parse KDL format project configuration
+fn parse_kdl(content: &str, filename: &str) -> io::Result<RbprojectConfig> {
+    let document: kdl::KdlDocument = content.parse().map_err(|e| {
+        debug!("Failed to parse KDL: {}", e);
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Failed to parse {}: {}", filename, e),
+        )
+    })?;
+
+    let mut metadata = ProjectMetadata::default();
+    let mut scripts = HashMap::new();
+
+    // Parse project node
+    if let Some(project_node) = document.get("project") {
+        if let Some(name_node) = project_node.children().and_then(|c| c.get("name"))
+            && let Some(name_val) = name_node.entries().first()
+            && let Some(name_str) = name_val.value().as_string()
+        {
+            metadata.name = Some(name_str.to_string());
+        }
+        if let Some(desc_node) = project_node.children().and_then(|c| c.get("description"))
+            && let Some(desc_val) = desc_node.entries().first()
+            && let Some(desc_str) = desc_val.value().as_string()
+        {
+            metadata.description = Some(desc_str.to_string());
+        }
+    }
+
+    // Parse scripts node
+    if let Some(scripts_node) = document.get("scripts")
+        && let Some(children) = scripts_node.children()
+    {
+        for child in children.nodes() {
+            let script_name = child.name().value().to_string();
+
+            // Check if it's a simple string or detailed format
+            if let Some(command_entry) = child.entries().first() {
+                if let Some(command_str) = command_entry.value().as_string() {
+                    // Simple format: script "command"
+                    scripts.insert(
+                        script_name.clone(),
+                        ScriptDefinition::Simple(command_str.to_string()),
+                    );
+                }
+            } else if let Some(script_children) = child.children() {
+                // Detailed format with command and description nodes
+                let mut command = None;
+                let mut description = None;
+
+                for prop in script_children.nodes() {
+                    match prop.name().value() {
+                        "command" => {
+                            if let Some(cmd) =
+                                prop.entries().first().and_then(|e| e.value().as_string())
+                            {
+                                command = Some(cmd.to_string());
+                            }
+                        }
+                        "description" => {
+                            if let Some(desc) =
+                                prop.entries().first().and_then(|e| e.value().as_string())
+                            {
+                                description = Some(desc.to_string());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                if let Some(cmd) = command {
+                    scripts.insert(
+                        script_name.clone(),
+                        ScriptDefinition::Detailed {
+                            command: cmd,
+                            description,
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(RbprojectConfig {
+        project: metadata,
+        scripts,
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectRuntime {
     /// Root directory containing the project config file
@@ -114,13 +203,19 @@ impl ProjectRuntime {
         let content = fs::read_to_string(config_path)?;
         debug!("Read {} bytes from {}", content.len(), config_filename);
 
-        let config: RbprojectConfig = toml::from_str(&content).map_err(|e| {
-            debug!("Failed to parse TOML: {}", e);
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Failed to parse {}: {}", config_filename, e),
-            )
-        })?;
+        // Parse based on file extension
+        let config: RbprojectConfig = if config_filename.ends_with(".kdl") {
+            parse_kdl(&content, &config_filename)?
+        } else {
+            // Default to TOML parsing
+            toml::from_str(&content).map_err(|e| {
+                debug!("Failed to parse TOML: {}", e);
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Failed to parse {}: {}", config_filename, e),
+                )
+            })?
+        };
 
         let root = config_path
             .parent()
@@ -640,6 +735,162 @@ test = "rspec"
             Some("Project Without Description".to_string())
         );
         assert_eq!(project.metadata.description, None);
+
+        Ok(())
+    }
+
+    // KDL format tests
+    #[test]
+    fn from_file_parses_simple_kdl_scripts() -> io::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let kdl_content = r#"
+scripts {
+    test "rspec"
+    lint "rubocop"
+    server "rails server -p 3000"
+}
+"#;
+        let kdl_path = temp_dir.path().join("rb.kdl");
+        fs::write(&kdl_path, kdl_content)?;
+
+        let project = ProjectRuntime::from_file(&kdl_path)?;
+
+        assert_eq!(project.root, temp_dir.path());
+        assert_eq!(project.config_filename, "rb.kdl");
+        assert_eq!(project.scripts.len(), 3);
+        assert_eq!(project.get_script_command("test"), Some("rspec"));
+        assert_eq!(project.get_script_command("lint"), Some("rubocop"));
+        assert_eq!(
+            project.get_script_command("server"),
+            Some("rails server -p 3000")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn from_file_parses_detailed_kdl_scripts() -> io::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let kdl_content = r#"
+scripts {
+    test {
+        command "rspec"
+        description "Run test suite"
+    }
+    lint {
+        command "rubocop"
+        description "Run linter"
+    }
+    server {
+        command "rails server -p 3000"
+    }
+}
+"#;
+        let kdl_path = temp_dir.path().join("rb.kdl");
+        fs::write(&kdl_path, kdl_content)?;
+
+        let project = ProjectRuntime::from_file(&kdl_path)?;
+
+        assert_eq!(project.scripts.len(), 3);
+        assert_eq!(project.get_script_command("test"), Some("rspec"));
+        assert_eq!(
+            project.get_script_description("test"),
+            Some("Run test suite")
+        );
+        assert_eq!(project.get_script_command("lint"), Some("rubocop"));
+        assert_eq!(project.get_script_description("lint"), Some("Run linter"));
+        assert_eq!(
+            project.get_script_command("server"),
+            Some("rails server -p 3000")
+        );
+        assert_eq!(project.get_script_description("server"), None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn from_file_parses_kdl_with_project_metadata() -> io::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let kdl_content = r#"
+project {
+    name "My KDL Project"
+    description "A project configured with KDL"
+}
+
+scripts {
+    test "rspec"
+    lint "rubocop"
+}
+"#;
+        let kdl_path = temp_dir.path().join("gem.kdl");
+        fs::write(&kdl_path, kdl_content)?;
+
+        let project = ProjectRuntime::from_file(&kdl_path)?;
+
+        assert_eq!(project.config_filename, "gem.kdl");
+        assert_eq!(project.metadata.name, Some("My KDL Project".to_string()));
+        assert_eq!(
+            project.metadata.description,
+            Some("A project configured with KDL".to_string())
+        );
+        assert_eq!(project.scripts.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn from_file_handles_empty_kdl_scripts() -> io::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let kdl_content = r#"
+scripts {
+}
+"#;
+        let kdl_path = temp_dir.path().join("rb.kdl");
+        fs::write(&kdl_path, kdl_content)?;
+
+        let project = ProjectRuntime::from_file(&kdl_path)?;
+
+        assert_eq!(project.scripts.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn from_file_handles_kdl_without_project_section() -> io::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let kdl_content = r#"
+scripts {
+    test "rspec"
+}
+"#;
+        let kdl_path = temp_dir.path().join("rb.kdl");
+        fs::write(&kdl_path, kdl_content)?;
+
+        let project = ProjectRuntime::from_file(&kdl_path)?;
+
+        assert_eq!(project.metadata.name, None);
+        assert_eq!(project.metadata.description, None);
+        assert_eq!(project.scripts.len(), 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn from_file_returns_error_for_invalid_kdl() -> io::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let invalid_kdl = r#"
+scripts {
+    test "missing closing quote
+}
+"#;
+        let kdl_path = temp_dir.path().join("rb.kdl");
+        fs::write(&kdl_path, invalid_kdl)?;
+
+        let result = ProjectRuntime::from_file(&kdl_path);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
 
         Ok(())
     }

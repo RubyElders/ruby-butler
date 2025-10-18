@@ -7,6 +7,8 @@ use std::path::PathBuf;
 /// Load configuration from file
 /// Returns default config if no file is found
 ///
+/// Supports both TOML and KDL formats (detected by file extension)
+///
 /// # Arguments
 /// * `override_path` - Optional path to explicitly load config from (for testing)
 pub fn load_config(override_path: Option<PathBuf>) -> Result<RbConfig, ConfigError> {
@@ -14,7 +16,15 @@ pub fn load_config(override_path: Option<PathBuf>) -> Result<RbConfig, ConfigErr
         info!("Loading configuration from: {}", config_path.display());
 
         let contents = fs::read_to_string(&config_path)?;
-        let config: RbConfig = toml::from_str(&contents)?;
+
+        // Determine format based on file extension
+        let config: RbConfig = if config_path.extension().and_then(|s| s.to_str()) == Some("kdl") {
+            debug!("Parsing configuration as KDL format");
+            parse_kdl_config(&contents)?
+        } else {
+            debug!("Parsing configuration as TOML format");
+            toml::from_str(&contents)?
+        };
 
         // Log what was loaded
         debug!("Configuration file contents parsed successfully");
@@ -37,6 +47,44 @@ pub fn load_config(override_path: Option<PathBuf>) -> Result<RbConfig, ConfigErr
         }
         Ok(RbConfig::default())
     }
+}
+
+/// Parse KDL configuration into RbConfig
+fn parse_kdl_config(content: &str) -> Result<RbConfig, ConfigError> {
+    let doc: kdl::KdlDocument = content.parse().map_err(|e: kdl::KdlError| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Failed to parse KDL: {}", e),
+        )
+    })?;
+
+    let mut config = RbConfig::default();
+
+    // Parse rubies-dir
+    if let Some(node) = doc.get("rubies-dir")
+        && let Some(entry) = node.entries().first()
+        && let Some(value) = entry.value().as_string()
+    {
+        config.rubies_dir = Some(PathBuf::from(value));
+    }
+
+    // Parse ruby-version
+    if let Some(node) = doc.get("ruby-version")
+        && let Some(entry) = node.entries().first()
+        && let Some(value) = entry.value().as_string()
+    {
+        config.ruby_version = Some(value.to_string());
+    }
+
+    // Parse gem-home
+    if let Some(node) = doc.get("gem-home")
+        && let Some(entry) = node.entries().first()
+        && let Some(value) = entry.value().as_string()
+    {
+        config.gem_home = Some(PathBuf::from(value));
+    }
+
+    Ok(config)
 }
 
 #[cfg(test)]
@@ -74,6 +122,34 @@ mod tests {
 
         let config = result.unwrap();
         assert_eq!(config.ruby_version, Some("3.2.0".to_string()));
+
+        // Cleanup
+        let _ = fs::remove_file(&config_path);
+    }
+
+    #[test]
+    fn test_load_kdl_config() {
+        use std::fs;
+
+        let temp_dir = std::env::temp_dir();
+        let config_path = temp_dir.join("test_rb_config.kdl");
+
+        // Create a test KDL config file
+        let kdl_content = r#"
+rubies-dir "/opt/rubies"
+ruby-version "3.3.0"
+gem-home "/opt/gems"
+"#;
+        fs::write(&config_path, kdl_content).expect("Failed to write KDL config");
+
+        // Load config from KDL path
+        let result = load_config(Some(config_path.clone()));
+        assert!(result.is_ok());
+
+        let config = result.unwrap();
+        assert_eq!(config.rubies_dir, Some(PathBuf::from("/opt/rubies")));
+        assert_eq!(config.ruby_version, Some("3.3.0".to_string()));
+        assert_eq!(config.gem_home, Some(PathBuf::from("/opt/gems")));
 
         // Cleanup
         let _ = fs::remove_file(&config_path);
