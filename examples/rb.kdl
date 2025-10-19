@@ -1,0 +1,82 @@
+// Ruby Butler Configuration File (KDL format)
+// 
+// This configuration file allows you to set default values for Ruby Butler's
+// global options. These defaults will be used when the corresponding CLI flags
+// are not provided.
+//
+// Location:
+//   Unix/Linux/macOS: ~/.config/rb/rb.kdl (primary) or ~/.rb.kdl (fallback)
+//   Windows:          %APPDATA%\rb\rb.kdl (primary) or ~\.rb.kdl (fallback)
+//
+// Note: CLI arguments always take precedence over configuration file values.
+//
+// KDL Format Benefits:
+// - Clean, readable syntax with less punctuation than TOML
+// - More flexible node structure
+// - Comments using // instead of #
+// - Native support for hierarchical data
+
+// Designate the directory containing your Ruby installations
+// Default: ~/.rubies
+//
+// This is where Ruby Butler will look for Ruby installations, typically
+// directories named ruby-X.Y.Z (e.g., ruby-3.3.0, ruby-3.2.5)
+//
+// rubies-dir "~/.rubies"
+// rubies-dir "/opt/rubies"
+
+// Request a particular Ruby version for your environment
+// Default: latest available version
+//
+// Specify which Ruby version to use by default. You can use:
+// - Exact version: "3.3.0"
+// - Major.minor: "3.3"
+// - Just major: "3"
+//
+// ruby-version "3.3"
+// ruby-version "3.3.0"
+
+// Specify custom gem base directory
+// Default: ~/.gem
+//
+// This is the base directory where gems will be installed. Ruby Butler
+// will create version-specific subdirectories within this location
+// (e.g., ~/.gem/ruby/3.3.0)
+//
+// gem-home "~/.gem"
+// gem-home "/opt/gems"
+
+// Politely decline Bundler's company and operate independently
+// Default: false (bundler will be used when Gemfile is present)
+//
+// Set to true to disable automatic bundler environment activation,
+// even when a Gemfile is present in the project
+//
+// no-bundler true
+
+// ============================================================================
+// Example: Complete configuration
+// Uncomment and adjust these values to suit your needs:
+// ============================================================================
+
+// Basic Ruby environment configuration
+// rubies-dir "~/.rubies"
+// ruby-version "3.3"
+// gem-home "~/.gem"
+
+// Advanced: Disable bundler globally
+// no-bundler true
+
+// ============================================================================
+// Example: Development environment with custom paths
+// ============================================================================
+
+// rubies-dir "/opt/rubies"
+// ruby-version "3.3.0"
+// gem-home "/opt/gems"
+
+// ============================================================================
+// Example: Minimal configuration (use latest Ruby, default gem home)
+// ============================================================================
+
+// rubies-dir "~/.rubies"
