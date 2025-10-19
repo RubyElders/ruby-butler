@@ -188,8 +188,12 @@ fn test_butler_runtime_discover_with_gem_base_nonexistent_directory() {
     let nonexistent_path = PathBuf::from("completely_nonexistent_directory_butler_gem_test");
     let gem_base = Some(PathBuf::from("/tmp/gems"));
 
-    let result =
-        ButlerRuntime::discover_and_compose_with_gem_base(nonexistent_path.clone(), None, gem_base);
+    let result = ButlerRuntime::discover_and_compose_with_gem_base(
+        nonexistent_path.clone(),
+        None,
+        gem_base,
+        false,
+    );
 
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -198,4 +202,53 @@ fn test_butler_runtime_discover_with_gem_base_nonexistent_directory() {
         }
         _ => panic!("Expected RubiesDirectoryNotFound error"),
     }
+}
+
+#[test]
+fn test_butler_runtime_skip_bundler_flag() -> Result<(), Box<dyn std::error::Error>> {
+    use rb_tests::BundlerSandbox;
+
+    let sandbox = RubySandbox::new()?;
+    let ruby_dir = sandbox.add_ruby_dir("3.3.0")?;
+    std::fs::create_dir_all(ruby_dir.join("bin"))?;
+
+    // Create a bundler project with Gemfile
+    let bundler_sandbox = BundlerSandbox::new()?;
+    bundler_sandbox.add_gemfile(
+        None::<&str>,
+        Some("source 'https://rubygems.org'\ngem 'rake'"),
+    )?;
+
+    // Change to the bundler project directory
+    let original_dir = std::env::current_dir()?;
+    std::env::set_current_dir(bundler_sandbox.root())?;
+
+    // Discover with skip_bundler = false - should detect bundler
+    let runtime_with_bundler = ButlerRuntime::discover_and_compose_with_gem_base(
+        sandbox.root().to_path_buf(),
+        Some("3.3.0".to_string()),
+        None,
+        false,
+    )?;
+    assert!(
+        runtime_with_bundler.bundler_runtime().is_some(),
+        "Bundler should be detected when skip_bundler=false"
+    );
+
+    // Discover with skip_bundler = true - should NOT detect bundler
+    let runtime_without_bundler = ButlerRuntime::discover_and_compose_with_gem_base(
+        sandbox.root().to_path_buf(),
+        Some("3.3.0".to_string()),
+        None,
+        true,
+    )?;
+    assert!(
+        runtime_without_bundler.bundler_runtime().is_none(),
+        "Bundler should NOT be detected when skip_bundler=true"
+    );
+
+    // Restore original directory
+    std::env::set_current_dir(original_dir)?;
+
+    Ok(())
 }

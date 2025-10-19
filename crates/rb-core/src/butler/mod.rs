@@ -115,7 +115,7 @@ impl ButlerRuntime {
         rubies_dir: PathBuf,
         requested_ruby_version: Option<String>,
     ) -> Result<Self, ButlerError> {
-        Self::discover_and_compose_with_gem_base(rubies_dir, requested_ruby_version, None)
+        Self::discover_and_compose_with_gem_base(rubies_dir, requested_ruby_version, None, false)
     }
 
     /// Perform comprehensive environment discovery with optional custom gem base directory
@@ -123,6 +123,7 @@ impl ButlerRuntime {
         rubies_dir: PathBuf,
         requested_ruby_version: Option<String>,
         gem_base_dir: Option<PathBuf>,
+        skip_bundler: bool,
     ) -> Result<Self, ButlerError> {
         let current_dir = env::current_dir().map_err(|e| {
             ButlerError::General(format!("Unable to determine current directory: {}", e))
@@ -147,23 +148,28 @@ impl ButlerRuntime {
 
         info!("Found {} Ruby installations", ruby_installations.len());
 
-        // Step 2: Detect bundler environment
-        debug!("Detecting bundler environment");
-        let bundler_runtime = match BundlerRuntimeDetector::discover(&current_dir) {
-            Ok(Some(bundler)) => {
-                debug!(
-                    "Bundler environment detected at: {}",
-                    bundler.root.display()
-                );
-                Some(bundler)
-            }
-            Ok(None) => {
-                debug!("No bundler environment detected");
-                None
-            }
-            Err(e) => {
-                debug!("Error detecting bundler environment: {}", e);
-                None
+        // Step 2: Detect bundler environment (skip if requested)
+        let bundler_runtime = if skip_bundler {
+            debug!("Bundler detection skipped (--no-bundler flag set)");
+            None
+        } else {
+            debug!("Detecting bundler environment");
+            match BundlerRuntimeDetector::discover(&current_dir) {
+                Ok(Some(bundler)) => {
+                    debug!(
+                        "Bundler environment detected at: {}",
+                        bundler.root.display()
+                    );
+                    Some(bundler)
+                }
+                Ok(None) => {
+                    debug!("No bundler environment detected");
+                    None
+                }
+                Err(e) => {
+                    debug!("Error detecting bundler environment: {}", e);
+                    None
+                }
             }
         };
 
