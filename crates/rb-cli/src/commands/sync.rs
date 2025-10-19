@@ -6,17 +6,33 @@ pub fn sync_command(
     rubies_dir: Option<std::path::PathBuf>,
     requested_ruby_version: Option<String>,
     gem_home: Option<std::path::PathBuf>,
+    no_bundler: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     debug!("Starting sync command");
+
+    // Check if --no-bundler flag is set
+    if no_bundler {
+        eprintln!("❌ Sync Requires Bundler Environment");
+        eprintln!();
+        eprintln!("The sync command cannot operate without bundler, as it is designed");
+        eprintln!("to synchronize bundler-managed gem dependencies.");
+        eprintln!();
+        eprintln!("Please remove the --no-bundler (-B) flag to use sync:");
+        eprintln!("  rb sync");
+        eprintln!();
+        std::process::exit(1);
+    }
 
     // Resolve search directory
     let search_dir = crate::resolve_search_dir(rubies_dir);
 
     // Discover and compose the butler runtime with optional custom gem base
+    // Note: sync command always needs bundler, so skip_bundler is always false
     let runtime = ButlerRuntime::discover_and_compose_with_gem_base(
         search_dir,
         requested_ruby_version,
         gem_home,
+        false,
     )?;
 
     // Check if bundler runtime is available
@@ -150,7 +166,7 @@ mod tests {
         std::env::set_current_dir(&project_dir)?;
 
         // Should return error when no bundler environment detected
-        let result = sync_command(Some(rubies_dir), None, None);
+        let result = sync_command(Some(rubies_dir), None, None, false);
 
         // Restore directory (ignore errors in case directory was deleted)
         let _ = std::env::set_current_dir(original_dir);

@@ -82,6 +82,7 @@ fn main() {
             cli.config.rubies_dir.clone(),
             cli.config.ruby_version.clone(),
             cli.config.gem_home.clone(),
+            cli.config.no_bundler.unwrap_or(false),
         ) {
             eprintln!("Sync failed: {}", e);
             std::process::exit(1);
@@ -97,6 +98,7 @@ fn main() {
         rubies_dir,
         cli.config.ruby_version,
         cli.config.gem_home,
+        cli.config.no_bundler.unwrap_or(false),
     ) {
         Ok(runtime) => runtime,
         Err(e) => match e {

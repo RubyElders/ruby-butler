@@ -40,6 +40,17 @@ pub struct RbConfig {
     )]
     #[serde(rename = "gem-home", skip_serializing_if = "Option::is_none")]
     pub gem_home: Option<PathBuf>,
+
+    /// Politely decline Bundler's company and operate independently
+    #[arg(
+        short = 'B',
+        long = "no-bundler",
+        global = true,
+        action = clap::ArgAction::SetTrue,
+        help = "Politely decline to activate bundler environment, even when Gemfile is present"
+    )]
+    #[serde(rename = "no-bundler", skip_serializing_if = "Option::is_none")]
+    pub no_bundler: Option<bool>,
 }
 
 impl RbConfig {
@@ -85,6 +96,18 @@ impl RbConfig {
                 self.gem_home.as_ref().unwrap().display()
             );
         }
+
+        if self.no_bundler.is_none() {
+            if let Some(no_bundler) = other.no_bundler {
+                debug!("  Using no-bundler from config file: {}", no_bundler);
+                self.no_bundler = Some(no_bundler);
+            }
+        } else {
+            debug!(
+                "  Using no-bundler from CLI arguments: {}",
+                self.no_bundler.unwrap()
+            );
+        }
     }
 }
 
@@ -128,6 +151,7 @@ mod tests {
             rubies_dir: Some(PathBuf::from("/test/rubies")),
             ruby_version: Some("3.3.0".to_string()),
             gem_home: Some(PathBuf::from("/test/gems")),
+            no_bundler: None,
         };
 
         cli_config.merge_with(file_config);
@@ -135,6 +159,7 @@ mod tests {
         assert_eq!(cli_config.rubies_dir, Some(PathBuf::from("/test/rubies")));
         assert_eq!(cli_config.ruby_version, Some("3.3.0".to_string()));
         assert_eq!(cli_config.gem_home, Some(PathBuf::from("/test/gems")));
+        assert_eq!(cli_config.no_bundler, None);
     }
 
     #[test]
@@ -143,11 +168,13 @@ mod tests {
             rubies_dir: Some(PathBuf::from("/cli/rubies")),
             ruby_version: Some("3.2.0".to_string()),
             gem_home: None,
+            no_bundler: None,
         };
         let file_config = RbConfig {
             rubies_dir: Some(PathBuf::from("/file/rubies")),
             ruby_version: Some("3.3.0".to_string()),
             gem_home: Some(PathBuf::from("/file/gems")),
+            no_bundler: Some(true),
         };
 
         cli_config.merge_with(file_config);
@@ -157,6 +184,7 @@ mod tests {
         assert_eq!(cli_config.ruby_version, Some("3.2.0".to_string()));
         // File value should fill in missing CLI value
         assert_eq!(cli_config.gem_home, Some(PathBuf::from("/file/gems")));
+        assert_eq!(cli_config.no_bundler, Some(true));
     }
 
     #[test]
@@ -165,11 +193,13 @@ mod tests {
             rubies_dir: None,
             ruby_version: Some("3.2.0".to_string()),
             gem_home: None,
+            no_bundler: None,
         };
         let file_config = RbConfig {
             rubies_dir: Some(PathBuf::from("/file/rubies")),
             ruby_version: None,
             gem_home: Some(PathBuf::from("/file/gems")),
+            no_bundler: None,
         };
 
         cli_config.merge_with(file_config);
@@ -177,6 +207,7 @@ mod tests {
         assert_eq!(cli_config.rubies_dir, Some(PathBuf::from("/file/rubies")));
         assert_eq!(cli_config.ruby_version, Some("3.2.0".to_string()));
         assert_eq!(cli_config.gem_home, Some(PathBuf::from("/file/gems")));
+        assert_eq!(cli_config.no_bundler, None);
     }
 
     #[test]
@@ -200,6 +231,7 @@ mod tests {
             rubies_dir: Some(PathBuf::from("/opt/rubies")),
             ruby_version: Some("3.3.0".to_string()),
             gem_home: Some(PathBuf::from("/opt/gems")),
+            no_bundler: None,
         };
 
         let toml_str = toml::to_string(&config).expect("Failed to serialize to TOML");
