@@ -8,9 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Configuration file support via `rb.toml` for global settings
-- Project script management with `rbproject.toml` and `rb run` command
+- Configuration file support via `rb.toml` or `rb.kdl` for global settings
+- Project script management with `rbproject.toml` or `rbproject.kdl` and `rb run` command
 - Project bootstrap script with `rb init`
+- Alternative project file naming: `gem.toml` or `gem.kdl` (for gem development)
+- Short flag `-B` for `--no-bundler` option
 
 ## [0.1.0] - 2025-09-26
 
