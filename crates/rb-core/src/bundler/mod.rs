@@ -187,6 +187,7 @@ impl BundlerRuntime {
     }
 
     /// Check if bundler environment is synchronized (dependencies satisfied)
+    /// Also updates Gemfile.lock if check passes to handle removed gems
     pub fn check_sync(
         &self,
         butler_runtime: &crate::butler::ButlerRuntime,
@@ -209,6 +210,13 @@ impl BundlerRuntime {
                     is_synced,
                     output.status.code().unwrap_or(-1)
                 );
+
+                // If check passes, update lockfile to handle removed gems
+                if is_synced {
+                    debug!("Bundle check passed, updating lockfile to match Gemfile");
+                    self.update_lockfile_quietly(butler_runtime)?;
+                }
+
                 Ok(is_synced)
             }
             Err(e) => {
@@ -344,11 +352,87 @@ impl BundlerRuntime {
         }
     }
 
+    /// Update Gemfile.lock to match Gemfile quietly (no output)
+    /// Used by check_sync to ensure lockfile is up to date
+    fn update_lockfile_quietly(
+        &self,
+        butler_runtime: &crate::butler::ButlerRuntime,
+    ) -> std::io::Result<()> {
+        debug!("Quietly updating Gemfile.lock to match Gemfile");
+
+        // Run bundle lock --local to regenerate lockfile based on Gemfile
+        // Uses --local to avoid network access since bundle check already passed
+        let output = Command::new("bundle")
+            .arg("lock")
+            .arg("--local")
+            .current_dir(&self.root)
+            .output_with_context(butler_runtime)?;
+
+        if output.status.success() {
+            debug!("Gemfile.lock updated successfully");
+            Ok(())
+        } else {
+            // Silently ignore errors - lockfile update is best-effort
+            // The bundle check already passed, so environment is functional
+            debug!(
+                "Bundle lock failed but continuing (exit code: {})",
+                output.status.code().unwrap_or(-1)
+            );
+            Ok(())
+        }
+    }
+
+    /// Update Gemfile.lock to match Gemfile (handles removed gems)
+    /// Used by sync command with output streaming
+    fn update_lockfile<F>(
+        &self,
+        butler_runtime: &crate::butler::ButlerRuntime,
+        output_handler: &mut F,
+    ) -> std::io::Result<()>
+    where
+        F: FnMut(&str),
+    {
+        debug!("Updating Gemfile.lock to match Gemfile");
+
+        // Run bundle lock --local to regenerate lockfile based on Gemfile
+        // Uses --local to avoid network access since bundle check already passed
+        let output = Command::new("bundle")
+            .arg("lock")
+            .arg("--local")
+            .current_dir(&self.root)
+            .output_with_context(butler_runtime)?;
+
+        // Stream output to handler
+        if !output.stdout.is_empty() {
+            let stdout_str = String::from_utf8_lossy(&output.stdout);
+            for line in stdout_str.lines() {
+                output_handler(line);
+            }
+        }
+
+        if !output.stderr.is_empty() {
+            let stderr_str = String::from_utf8_lossy(&output.stderr);
+            for line in stderr_str.lines() {
+                eprintln!("{}", line);
+            }
+        }
+
+        if output.status.success() {
+            debug!("Gemfile.lock updated successfully");
+            Ok(())
+        } else {
+            Err(std::io::Error::other(format!(
+                "Bundle lock failed (exit code: {})",
+                output.status.code().unwrap_or(-1)
+            )))
+        }
+    }
+
     /// Synchronize the bundler environment (configure path, check, and install if needed)
     pub fn synchronize<F>(
         &self,
         butler_runtime: &crate::butler::ButlerRuntime,
-        output_handler: F,
+        mut output_handler: F,
     ) -> std::io::Result<SyncResult>
     where
         F: FnMut(&str),
@@ -356,9 +440,15 @@ impl BundlerRuntime {
         debug!("Starting bundler synchronization");
 
         // Step 1: Check if already synchronized
+        // Note: check_sync already updates lockfile quietly, but for sync command
+        // we want to show output, so we call update_lockfile explicitly
         match self.check_sync(butler_runtime)? {
             true => {
                 debug!("Bundler environment already synchronized");
+
+                // For sync command, show the lockfile update output
+                self.update_lockfile(butler_runtime, &mut output_handler)?;
+
                 Ok(SyncResult::AlreadySynced)
             }
             false => {

@@ -67,4 +67,38 @@ Describe 'rb sync command'
       The output should include "Synchronizing"
     End
   End
+
+  Context 'when gem is removed from Gemfile'
+    It 'updates Gemfile.lock to reflect removed gem'
+      # Create Gemfile with TWO gems
+      cat > Gemfile << 'EOF'
+source 'https://rubygems.org'
+gem 'rake'
+gem 'minitest'
+EOF
+
+      # Initial sync - install both gems
+      rb -R $RUBIES_DIR sync >/dev/null 2>&1
+
+      # Verify both gems are in Gemfile.lock
+      grep -q "rake" Gemfile.lock || fail "rake should be in initial Gemfile.lock"
+      grep -q "minitest" Gemfile.lock || fail "minitest should be in initial Gemfile.lock"
+
+      # Remove minitest from Gemfile
+      cat > Gemfile << 'EOF'
+source 'https://rubygems.org'
+gem 'rake'
+EOF
+
+      # Run sync again
+      When run rb -R $RUBIES_DIR sync
+      The status should be success
+      The output should include "Synchronizing"
+
+      # Verify rake is still in lockfile but minitest is removed
+      The path Gemfile.lock should be exist
+      The contents of file Gemfile.lock should include "rake"
+      The contents of file Gemfile.lock should not include "minitest"
+    End
+  End
 End
