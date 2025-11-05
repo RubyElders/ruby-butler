@@ -4,7 +4,7 @@
 
 # Ruby versions available in Docker environment
 LATEST_RUBY="3.4.5"
-OLDER_RUBY="3.2.4" 
+OLDER_RUBY="3.2.4"
 RUBIES_DIR="/opt/rubies"
 
 # Essential project creation for bundler testing with complete isolation
@@ -12,25 +12,25 @@ create_bundler_project() {
     local project_dir="$1"
     local ruby_version="${2:-}"
     local gemfile_ruby="${3:-}"
-    
+
     mkdir -p "$project_dir"
-    
+
     # Create .ruby-version if specified
     if [ -n "$ruby_version" ]; then
         echo "$ruby_version" > "$project_dir/.ruby-version"
     fi
-    
+
     # Create Gemfile with real source for integration testing
     cat > "$project_dir/Gemfile" << EOF
 source 'https://rubygems.org'
 
 EOF
-    
+
     if [ -n "$gemfile_ruby" ]; then
         echo "ruby '$gemfile_ruby'" >> "$project_dir/Gemfile"
         echo "" >> "$project_dir/Gemfile"
     fi
-    
+
     # Add minimal gems for integration testing
     cat >> "$project_dir/Gemfile" << EOF
 # Minimal gems for integration testing
@@ -43,11 +43,11 @@ setup_test_project() {
     # Create unique isolated test directory for parallel execution
     TEST_PROJECT_DIR=$(mktemp -d "/tmp/rb-test-$$-XXXXXXXX")
     export TEST_PROJECT_DIR
-    
+
     # Store original working directory
     ORIGINAL_PWD=$(pwd)
     export ORIGINAL_PWD
-    
+
     # Change to isolated test directory
     cd "$TEST_PROJECT_DIR"
 }
@@ -57,12 +57,12 @@ cleanup_test_project() {
     if [ -n "$ORIGINAL_PWD" ]; then
         cd "$ORIGINAL_PWD"
     fi
-    
+
     # Clean up test directory
     if [ -n "$TEST_PROJECT_DIR" ] && [ -d "$TEST_PROJECT_DIR" ]; then
         rm -rf "$TEST_PROJECT_DIR"
     fi
-    
+
     # Clean up variables
     unset TEST_PROJECT_DIR
     unset ORIGINAL_PWD

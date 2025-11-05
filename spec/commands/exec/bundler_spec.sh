@@ -4,15 +4,15 @@
 
 Describe "Ruby Butler Exec Command - Bundler Environment"
   Include spec/support/helpers.sh
-  
+
   Describe "exec command with Bundler environment"
     Context "bundler project execution"
       BeforeEach 'setup_test_project'
       BeforeEach 'create_bundler_project .'
       AfterEach 'cleanup_test_project'
-      
+
       It "executes bundle env with appropriate ceremony"
-        When run rb -R $RUBIES_DIR exec bundle env
+        When run rb -R "$RUBIES_DIR" exec bundle env
         The status should equal 0
         The output should include "## Environment"
         The output should include "Bundler"
@@ -23,14 +23,14 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
       End
 
       It "shows correct Ruby version in bundle env"
-        When run rb -R $RUBIES_DIR -r "$LATEST_RUBY" exec bundle env
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" exec bundle env
         The status should equal 0
         The output should include "Ruby          $LATEST_RUBY"
         The output should include "Full Path   /opt/rubies/ruby-$LATEST_RUBY/bin/ruby"
       End
 
       It "shows correct Ruby version with older version"
-        When run rb -R $RUBIES_DIR -r "$OLDER_RUBY" exec bundle env
+        When run rb -R "$RUBIES_DIR" -r "$OLDER_RUBY" exec bundle env
         The status should equal 0
         The output should include "Ruby          $OLDER_RUBY"
         The output should include "Full Path   /opt/rubies/ruby-$OLDER_RUBY/bin/ruby"
@@ -41,29 +41,29 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
       BeforeEach 'setup_test_project'
       BeforeEach 'create_bundler_project .'
       AfterEach 'cleanup_test_project'
-      
+
       It "respects specific Ruby version with -r flag in bundler"
-        When run rb -R $RUBIES_DIR -r "$OLDER_RUBY" exec bundle env
+        When run rb -R "$RUBIES_DIR" -r "$OLDER_RUBY" exec bundle env
         The status should equal 0
         The output should include "Ruby          $OLDER_RUBY"
         The output should include "/opt/rubies/ruby-$OLDER_RUBY/bin/ruby"
       End
 
       It "respects specific Ruby version with --ruby flag in bundler"
-        When run rb -R $RUBIES_DIR --ruby "$LATEST_RUBY" exec bundle env
+        When run rb -R "$RUBIES_DIR" --ruby "$LATEST_RUBY" exec bundle env
         The status should equal 0
         The output should include "Ruby          $LATEST_RUBY"
         The output should include "/opt/rubies/ruby-$LATEST_RUBY/bin/ruby"
       End
 
       It "works with latest Ruby version variable in bundler"
-        When run rb -R $RUBIES_DIR -r "$LATEST_RUBY" exec bundle env
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" exec bundle env
         The status should equal 0
         The output should include "Ruby          $LATEST_RUBY"
       End
 
       It "works with older Ruby version variable in bundler"
-        When run rb -R $RUBIES_DIR -r "$OLDER_RUBY" exec bundle env
+        When run rb -R "$RUBIES_DIR" -r "$OLDER_RUBY" exec bundle env
         The status should equal 0
         The output should include "Ruby          $OLDER_RUBY"
         # Note: No stderr expectation to avoid network timeout issues
@@ -74,7 +74,7 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
       BeforeEach 'setup_test_project'
       BeforeEach 'create_bundler_project .'
       AfterEach 'cleanup_test_project'
-      
+
       It "respects custom rubies directory with -R flag in bundler"
         When run rb -R "$RUBIES_DIR" exec bundle env
         The status should equal 0
@@ -99,7 +99,7 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
       BeforeEach 'setup_test_project'
       BeforeEach 'create_bundler_project .'
       AfterEach 'cleanup_test_project'
-      
+
       It "respects custom gem home with -G flag in bundler"
         When run rb -R "$RUBIES_DIR" -G "/tmp/bundler-gems" exec bundle env
         The status should equal 0
@@ -131,7 +131,7 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
       BeforeEach 'setup_test_project'
       BeforeEach 'create_bundler_project .'
       AfterEach 'cleanup_test_project'
-      
+
       It "handles all parameters together in bundler"
         When run rb -R "$RUBIES_DIR" -r "$OLDER_RUBY" -G "/tmp/bundler-all" exec bundle env
         The status should equal 0
@@ -158,10 +158,10 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
     Context "bundler project with .ruby-version detection"
       BeforeEach 'setup_test_project'
       AfterEach 'cleanup_test_project'
-      
+
       It "respects .ruby-version file in bundler project"
         create_bundler_project "." "$OLDER_RUBY"
-        
+
         When run rb -R "$RUBIES_DIR" exec bundle env
         The status should equal 0
         The output should include "Ruby          $OLDER_RUBY"
@@ -169,7 +169,7 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
 
       It "overrides .ruby-version with -r flag in bundler"
         create_bundler_project "." "$OLDER_RUBY"
-        
+
         When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" exec bundle env
         The status should equal 0
         The output should include "Ruby          $LATEST_RUBY"
@@ -179,10 +179,10 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
     Context "bundler project with Gemfile ruby directive"
       BeforeEach 'setup_test_project'
       AfterEach 'cleanup_test_project'
-      
+
       It "respects Gemfile ruby directive in bundler project"
         create_bundler_project "." "" "$LATEST_RUBY"
-        
+
         When run rb -R "$RUBIES_DIR" exec bundle env
         The status should equal 0
         The output should include "Ruby          $LATEST_RUBY"
@@ -190,7 +190,7 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
 
       It "shows correct config directory with Gemfile ruby"
         create_bundler_project "." "" "$LATEST_RUBY"
-        
+
         When run rb -R "$RUBIES_DIR" exec bundle env
         The status should equal 0
         The output should include "Config Dir  /opt/rubies/ruby-$LATEST_RUBY/etc"
@@ -201,7 +201,7 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
       BeforeEach 'setup_test_project'
       BeforeEach 'create_bundler_project .'
       AfterEach 'cleanup_test_project'
-      
+
       It "executes bundle install successfully"
         When run rb -R "$RUBIES_DIR" exec bundle install
         The status should equal 0
@@ -234,7 +234,7 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
       BeforeEach 'setup_test_project'
       # Empty directory without Gemfile for error testing
       AfterEach 'cleanup_test_project'
-      
+
       It "handles bundle install gracefully without Gemfile"
         When run rb -R "$RUBIES_DIR" exec bundle install
         The status should not equal 0

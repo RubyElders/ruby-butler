@@ -4,22 +4,22 @@
 
 Describe "Ruby Butler Configuration System"
   Include spec/support/helpers.sh
-  
+
   setup() {
     TEST_CONFIG_DIR="${SHELLSPEC_TMPBASE}/config-test-$$-${RANDOM}"
     mkdir -p "$TEST_CONFIG_DIR"
   }
-  
+
   cleanup() {
     if [ -d "$TEST_CONFIG_DIR" ]; then
       rm -rf "$TEST_CONFIG_DIR"
     fi
     unset RB_CONFIG
   }
-  
+
   BeforeEach 'setup'
   AfterEach 'cleanup'
-  
+
   Describe "--config flag"
     Context "when loading custom configuration file"
       It "accepts --config flag with valid TOML file"
@@ -32,7 +32,7 @@ EOF
         The status should equal 0
         The output should include "rb"
       End
-      
+
       It "applies rubies-dir from config file"
         cd "$TEST_CONFIG_DIR"
         cat > test-config.toml << 'EOF'
@@ -42,7 +42,7 @@ EOF
         The status should not equal 0
         The stderr should include "/nonexistent/custom/rubies"
       End
-      
+
       It "shows --config option in help"
         When run rb --help
         The status should equal 0
@@ -50,7 +50,7 @@ EOF
         The output should include "configuration file"
       End
     End
-    
+
     Context "with short form -c flag"
       It "accepts -c flag as alias for --config"
         cd "$TEST_CONFIG_DIR"
@@ -63,7 +63,7 @@ EOF
       End
     End
   End
-  
+
   Describe "RB_CONFIG environment variable"
     Context "when RB_CONFIG is set"
       It "loads configuration from RB_CONFIG path"
@@ -76,21 +76,21 @@ EOF
         The status should not equal 0
         The stderr should include "/env/var/rubies"
       End
-      
+
       It "shows config loading with verbose flag"
         cd "$TEST_CONFIG_DIR"
         cat > rb-env-config.toml << 'EOF'
 rubies-dir = "/env/var/rubies"
 EOF
         export RB_CONFIG="${TEST_CONFIG_DIR}/rb-env-config.toml"
-        When run rb -R $RUBIES_DIR -v runtime
+        When run rb -R "$RUBIES_DIR" -v runtime
         The status should equal 0
         The output should include "Ruby Environment Survey"
         The stderr should include "Loading configuration"
       End
     End
   End
-  
+
   Describe "Configuration precedence"
     Context "when both --config and RB_CONFIG are set"
       It "prefers --config flag over RB_CONFIG"
@@ -107,7 +107,7 @@ EOF
         The stderr should include "/cli/rubies"
       End
     End
-    
+
     Context "CLI flags override config file values"
       It "uses -R flag over config file rubies-dir"
         cd "$TEST_CONFIG_DIR"

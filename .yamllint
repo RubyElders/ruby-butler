@@ -1,0 +1,33 @@
+---
+# yamllint configuration for Ruby Butler CI files
+
+extends: default
+
+rules:
+  # Allow longer lines for GitHub Actions (they often have long commands)
+  line-length:
+    max: 160
+    level: warning
+
+  # Indentation: Allow GitHub Actions style (4 spaces for steps is common)
+  indentation:
+    spaces: consistent
+    indent-sequences: whatever
+
+  # Don't require document start marker (---)
+  document-start: disable
+
+  # Allow truthy values like 'on' in GitHub Actions
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off']
+
+  # Trailing spaces
+  trailing-spaces: enable
+
+  # New line at end of file
+  new-line-at-end-of-file: enable
+
+  # Brackets spacing (GitHub Actions uses both styles)
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
