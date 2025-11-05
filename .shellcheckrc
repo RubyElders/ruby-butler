@@ -1,0 +1,11 @@
+# ShellCheck configuration for Ruby Butler
+# Excludes warnings that don't apply to ShellSpec test files
+
+# SC2034: Variable appears unused
+# False positive - variables like LATEST_RUBY, OLDER_RUBY, RUBIES_DIR
+# are used by ShellSpec framework
+disable=SC2034
+
+# SC2164: Use 'cd ... || exit' or 'cd ... || return'
+# Not critical in test setup code where failures are caught by test assertions
+disable=SC2164

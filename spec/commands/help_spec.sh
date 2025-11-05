@@ -4,7 +4,7 @@
 
 Describe "Ruby Butler Help System"
   Include spec/support/helpers.sh
-  
+
   Describe "help command"
     Context "when invoked with --help flag"
       It "presents distinguished usage information"

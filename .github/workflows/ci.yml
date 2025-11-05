@@ -16,13 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: 1.90.0
         components: rustfmt, clippy
-    
+
     - name: Cache cargo registry
       uses: actions/cache@v4
       with:
@@ -33,15 +33,55 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-
-    
+
     - name: Check formatting
       run: cargo fmt --all -- --check
-    
+
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::pedantic -A clippy::nursery
-    
+
     - name: Check documentation
       run: cargo doc --no-deps --document-private-items --all-features
+
+  lint-shell-format:
+    name: Shell Script Formatting
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check shell script formatting
+      run: |
+        make fmt-shell
+        if ! git diff --exit-code spec/; then
+          echo "Shell scripts have formatting issues. Run 'make fmt-shell' locally."
+          git diff spec/
+          exit 1
+        fi
+        echo "All shell scripts are properly formatted"
+
+  lint-shell:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run ShellCheck
+      uses: ludeeus/action-shellcheck@master
+      with:
+        scandir: './spec'
+        severity: info
+
+  lint-yaml:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install yamllint
+      run: pip install yamllint
+
+    - name: Run yamllint
+      run: make lint-yaml
 
   test-rust:
     name: Rust Tests
@@ -52,12 +92,12 @@ jobs:
         rust: [1.90.0]
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
-    
+
     - name: Cache cargo registry
       uses: actions/cache@v4
       with:
@@ -69,16 +109,16 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-${{ matrix.rust }}-cargo-
           ${{ runner.os }}-cargo-
-    
+
     - name: Build
       run: cargo build --verbose
-    
+
     - name: Run unit tests
       run: cargo test --verbose
-    
+
     - name: Run integration tests
       run: cargo test --verbose --test '*'
-    
+
     - name: Build release
       run: cargo build --release
 
@@ -100,7 +140,7 @@ jobs:
       packages: write
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Check for Docker file changes
       uses: dorny/paths-filter@v3
       id: changes
@@ -109,7 +149,7 @@ jobs:
           docker:
             - 'Dockerfile'
             - 'docker-compose.yml'
-    
+
     - name: Log in to GitHub Container Registry
       if: steps.changes.outputs.docker == 'true'
       uses: docker/login-action@v3
@@ -117,7 +157,7 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Build and push Docker image
       if: steps.changes.outputs.docker == 'true'
       run: |
@@ -131,30 +171,30 @@ jobs:
     if: ${{ !cancelled() && needs.test-rust.result == 'success' && (needs.docker-build.result == 'success' || needs.docker-build.result == 'skipped') }}
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Download Linux release binary
       uses: actions/download-artifact@v4
       with:
         name: rb-linux-release
         path: target/release/
-    
+
     - name: Make binary executable
       run: chmod +x target/release/rb
-    
+
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Try to pull Docker test image
       run: |
         docker compose pull
-    
+
     - name: Make shellspec executable
       run: chmod +x ./shellspec
-    
+
     - name: Run ShellSpec tests in Docker
       run: ./shellspec
 
@@ -164,12 +204,12 @@ jobs:
     needs: test-rust
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: 1.90.0
-    
+
     - name: Cache cargo registry
       uses: actions/cache@v4
       with:
@@ -178,43 +218,43 @@ jobs:
           ~/.cargo/git
           target
         key: windows-latest-cargo-${{ hashFiles('**/Cargo.lock') }}
-    
+
     - name: Build Ruby Butler
       run: cargo build --release
-    
+
     - name: Setup Ruby Butler test installation from RubyInstaller
       run: |
         # Download RubyInstaller 3.4.5
         $DownloadUrl = "https://github.com/oneclick/rubyinstaller2/releases/download/RubyInstaller-3.4.5-1/rubyinstaller-3.4.5-1-x64.7z"
         $ArchivePath = "$env:TEMP\rubyinstaller-3.4.5-1-x64.7z"
         $ExtractPath = "$env:TEMP\ruby-extract"
-        
+
         Write-Host "Downloading Ruby installer from $DownloadUrl"
         Invoke-WebRequest -Uri $DownloadUrl -OutFile $ArchivePath
-        
+
         # Extract using 7z (available on GitHub Actions Windows runners)
         Write-Host "Extracting Ruby installer..."
         & 7z x $ArchivePath -o"$ExtractPath"
-        
+
         # Find the extracted Ruby directory (should be rubyinstaller-3.4.5-1-x64)
         $ExtractedRubyDir = Get-ChildItem "$ExtractPath" -Directory | Where-Object { $_.Name -like "*rubyinstaller*" } | Select-Object -First 1
-        
+
         if (-not $ExtractedRubyDir) {
             throw "Could not find extracted Ruby directory in $ExtractPath"
         }
-        
-        # Create the Ruby Butler expected directory structure  
+
+        # Create the Ruby Butler expected directory structure
         $RubyInstallDir = "$env:USERPROFILE\.rubies\ruby-3.4.5"
         New-Item -ItemType Directory -Path (Split-Path $RubyInstallDir -Parent) -Force
-        
+
         # Copy the entire Ruby installation to the Butler expected location
         Write-Host "Copying Ruby installation from $($ExtractedRubyDir.FullName) to $RubyInstallDir"
         Copy-Item $ExtractedRubyDir.FullName $RubyInstallDir -Recurse -Force
-        
+
         # Verify the setup
         Write-Host "Ruby Butler test installation created:"
         Get-ChildItem "$RubyInstallDir\bin" | Select-Object Name, Length | Format-Table
-        
+
         # Test that key executables exist
         $KeyExecutables = @("ruby.exe", "gem.cmd", "bundle.bat", "irb.bat")
         foreach ($Exe in $KeyExecutables) {
@@ -226,7 +266,7 @@ jobs:
             }
         }
       shell: pwsh
-    
+
     - name: Run Pester tests
       run: |
         $env:RB_TEST_PATH = "${{ github.workspace }}\target\release\rb.exe"
@@ -238,15 +278,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: 1.90.0
-    
+
     - name: Install cargo-audit
       run: cargo install --force cargo-audit
-    
+
     - name: Run security audit
       run: cargo audit
 
@@ -256,13 +296,13 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: 1.90.0
         components: llvm-tools-preview
-    
+
     - name: Cache cargo registry
       uses: actions/cache@v4
       with:
@@ -271,13 +311,13 @@ jobs:
           ~/.cargo/git
           target
         key: coverage-cargo-${{ hashFiles('**/Cargo.lock') }}
-    
+
     - name: Install cargo-llvm-cov
       run: cargo install --force cargo-llvm-cov
-    
+
     - name: Generate coverage report
       run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
-    
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
