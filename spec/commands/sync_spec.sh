@@ -78,7 +78,7 @@ gem 'minitest'
 EOF
 
       # Initial sync - install both gems
-      rb -R $RUBIES_DIR sync >/dev/null 2>&1
+      rb -R "$RUBIES_DIR" sync >/dev/null 2>&1
 
       # Verify both gems are in Gemfile.lock
       grep -q "rake" Gemfile.lock || fail "rake should be in initial Gemfile.lock"
@@ -91,7 +91,7 @@ gem 'rake'
 EOF
 
       # Run sync again
-      When run rb -R $RUBIES_DIR sync
+      When run rb -R "$RUBIES_DIR" sync
       The status should be success
       The output should include "Synchronizing"
 
