@@ -243,7 +243,7 @@ gem 'minitest'
 EOF
 
         # Initial sync to install both gems
-        rb -R $RUBIES_DIR sync >/dev/null 2>&1
+        rb -R "$RUBIES_DIR" sync >/dev/null 2>&1
 
         # Verify both gems are in Gemfile.lock
         grep -q "rake" Gemfile.lock || fail "rake should be in initial Gemfile.lock"
@@ -256,7 +256,7 @@ gem 'rake'
 EOF
 
         # Execute a ruby command - this should trigger lockfile update via check_sync
-        When run rb -R $RUBIES_DIR exec ruby -e "puts 'test'"
+        When run rb -R "$RUBIES_DIR" exec ruby -e "puts 'test'"
         The status should equal 0
         The output should include "test"
 
