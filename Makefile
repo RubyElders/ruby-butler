@@ -28,7 +28,7 @@ fmt-shell:
 # Check shell scripts for common issues
 lint-shell:
 	@echo "🔍 Linting shell scripts..."
-	@shellcheck spec/**/*.sh
+	@shellcheck spec/**/**/*.sh spec/**/*.sh
 
 # Format YAML files (trailing whitespace + final newline only)
 fmt-yaml:
