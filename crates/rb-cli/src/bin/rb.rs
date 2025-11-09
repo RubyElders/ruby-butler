@@ -1,7 +1,7 @@
 use clap::Parser;
 use rb_cli::{
     Cli, Commands, environment_command, exec_command, init_command, init_logger,
-    resolve_search_dir, run_command, runtime_command, sync_command,
+    resolve_search_dir, run_command, runtime_command, shell_integration_command, sync_command,
 };
 use rb_core::butler::{ButlerError, ButlerRuntime};
 
@@ -53,6 +53,18 @@ fn main() {
 
     let cli = Cli::parse();
 
+    // Handle completion generation (hidden flag)
+    if let Some(complete_args) = &cli.complete {
+        if complete_args.len() >= 2 {
+            rb_cli::completion::generate_completions(
+                &complete_args[0],
+                &complete_args[1],
+                cli.config.rubies_dir.clone(),
+            );
+            return;
+        }
+    }
+
     // Initialize logger early with the effective log level (considering -v/-vv flags)
     // This allows us to see config file loading and merging logs
     init_logger(cli.effective_log_level());
@@ -66,8 +78,17 @@ fn main() {
         }
     };
 
+    // Ensure we have a command - if not, show help
+    let Some(command) = cli.command else {
+        use clap::CommandFactory;
+        let mut cmd = Cli::command();
+        let _ = cmd.print_help();
+        println!(); // Add newline after help
+        std::process::exit(0);
+    };
+
     // Handle init command early - doesn't require Ruby environment
-    if let Commands::Init = cli.command {
+    if let Commands::Init = command {
         let current_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
         if let Err(e) = init_command(&current_dir) {
             eprintln!("{}", e);
@@ -76,8 +97,24 @@ fn main() {
         return;
     }
 
+    // Handle shell-integration command early - doesn't require Ruby environment
+    if let Commands::ShellIntegration { shell } = command {
+        match shell {
+            Some(s) => {
+                if let Err(e) = shell_integration_command(s) {
+                    eprintln!("Shell integration error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+            None => {
+                rb_cli::commands::shell_integration::show_available_integrations();
+            }
+        }
+        return;
+    }
+
     // Handle sync command differently since it doesn't use ButlerRuntime in the same way
-    if let Commands::Sync = cli.command {
+    if let Commands::Sync = command {
         if let Err(e) = sync_command(
             cli.config.rubies_dir.clone(),
             cli.config.ruby_version.clone(),
@@ -126,7 +163,7 @@ fn main() {
         },
     };
 
-    match cli.command {
+    match command {
         Commands::Runtime => {
             runtime_command(&butler_runtime);
         }
@@ -144,6 +181,10 @@ fn main() {
             unreachable!()
         }
         Commands::Sync => {
+            // Already handled above
+            unreachable!()
+        }
+        Commands::ShellIntegration { .. } => {
             // Already handled above
             unreachable!()
         }

@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod completion;
 pub mod config;
 pub mod discovery;
 
@@ -80,8 +81,12 @@ pub struct Cli {
     #[command(flatten)]
     pub config: RbConfig,
 
+    /// Internal: Generate dynamic completions (hidden from help)
+    #[arg(long = "complete", hide = true, num_args = 2)]
+    pub complete: Option<Vec<String>>,
+
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 impl Cli {
@@ -141,11 +146,25 @@ pub enum Commands {
     /// 📝 Initialize a new rbproject.toml in the current directory
     #[command(about = "📝 Initialize a new rbproject.toml in the current directory")]
     Init,
+
+    /// 🔧 Generate shell integration (completions) for your distinguished shell
+    #[command(about = "🔧 Generate shell integration (completions)")]
+    ShellIntegration {
+        /// The shell to generate completions for (omit to see available integrations)
+        #[arg(value_enum, help = "Shell type (bash)")]
+        shell: Option<Shell>,
+    },
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+pub enum Shell {
+    Bash,
 }
 
 // Re-export for convenience
 pub use commands::{
-    environment_command, exec_command, init_command, run_command, runtime_command, sync_command,
+    environment_command, exec_command, init_command, run_command, runtime_command,
+    shell_integration_command, sync_command,
 };
 
 use log::debug;
@@ -250,7 +269,8 @@ mod tests {
             config_file: None,
             project_file: None,
             config: RbConfig::default(),
-            command: Commands::Runtime,
+            complete: None,
+            command: Some(Commands::Runtime),
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
 
@@ -261,7 +281,8 @@ mod tests {
             config_file: None,
             project_file: None,
             config: RbConfig::default(),
-            command: Commands::Runtime,
+            complete: None,
+            command: Some(Commands::Runtime),
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
 
@@ -272,7 +293,8 @@ mod tests {
             config_file: None,
             project_file: None,
             config: RbConfig::default(),
-            command: Commands::Runtime,
+            complete: None,
+            command: Some(Commands::Runtime),
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Debug));
     }
