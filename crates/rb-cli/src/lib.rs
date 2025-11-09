@@ -227,11 +227,36 @@ mod tests {
     #[test]
     fn test_create_ruby_context_with_sandbox() {
         let sandbox = RubySandbox::new().expect("Failed to create sandbox");
-        sandbox
+        let ruby_dir = sandbox
             .add_ruby_dir("3.2.5")
             .expect("Failed to create ruby-3.2.5");
 
-        let result = create_ruby_context(Some(sandbox.root().to_path_buf()), None);
+        // Create Ruby executable so it can be discovered
+        std::fs::create_dir_all(ruby_dir.join("bin")).expect("Failed to create bin dir");
+        let ruby_exe = ruby_dir.join("bin").join("ruby");
+        std::fs::write(&ruby_exe, "#!/bin/sh\necho ruby").expect("Failed to write ruby exe");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&ruby_exe, std::fs::Permissions::from_mode(0o755))
+                .expect("Failed to set permissions");
+        }
+
+        // Create gem directories so gem runtime is inferred
+        let gem_base = sandbox.gem_base_dir();
+        let gem_dir = gem_base.join("3.2.5");
+        std::fs::create_dir_all(&gem_dir).expect("Failed to create gem dir");
+
+        // Use the internal method that accepts current_dir to avoid global state
+        use rb_core::butler::ButlerRuntime;
+        let result = ButlerRuntime::discover_and_compose_with_current_dir(
+            sandbox.root().to_path_buf(),
+            None,
+            None,
+            false,
+            sandbox.root().to_path_buf(), // Current dir = sandbox root
+        )
+        .expect("Failed to create ButlerRuntime");
 
         // Should successfully create a ButlerRuntime
         let current_path = std::env::var("PATH").ok();

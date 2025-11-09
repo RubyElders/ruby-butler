@@ -129,6 +129,29 @@ impl ButlerRuntime {
             ButlerError::General(format!("Unable to determine current directory: {}", e))
         })?;
 
+        Self::discover_and_compose_with_current_dir(
+            rubies_dir,
+            requested_ruby_version,
+            gem_base_dir,
+            skip_bundler,
+            current_dir,
+        )
+    }
+
+    /// Internal method: Perform comprehensive environment discovery with explicit current directory
+    ///
+    /// This method accepts the current directory as a parameter instead of reading it from
+    /// the environment, which makes it suitable for testing without global state mutation.
+    ///
+    /// Note: This method is primarily intended for testing but is made public to allow
+    /// flexible usage patterns where the current directory needs to be explicitly controlled.
+    pub fn discover_and_compose_with_current_dir(
+        rubies_dir: PathBuf,
+        requested_ruby_version: Option<String>,
+        gem_base_dir: Option<PathBuf>,
+        skip_bundler: bool,
+        current_dir: PathBuf,
+    ) -> Result<Self, ButlerError> {
         debug!("Starting comprehensive environment discovery");
         debug!("Rubies directory: {}", rubies_dir.display());
         debug!("Current directory: {}", current_dir.display());
@@ -149,18 +172,18 @@ impl ButlerRuntime {
         info!("Found {} Ruby installations", ruby_installations.len());
 
         // Step 2: Detect bundler environment (skip if requested)
-        let bundler_runtime = if skip_bundler {
+        let bundler_root = if skip_bundler {
             debug!("Bundler detection skipped (--no-bundler flag set)");
             None
         } else {
             debug!("Detecting bundler environment");
             match BundlerRuntimeDetector::discover(&current_dir) {
-                Ok(Some(bundler)) => {
+                Ok(Some(bundler_root)) => {
                     debug!(
                         "Bundler environment detected at: {}",
-                        bundler.root.display()
+                        bundler_root.display()
                     );
-                    Some(bundler)
+                    Some(bundler_root)
                 }
                 Ok(None) => {
                     debug!("No bundler environment detected");
@@ -173,10 +196,14 @@ impl ButlerRuntime {
             }
         };
 
-        // Step 3: Extract version requirements from bundler
-        let required_ruby_version = bundler_runtime
-            .as_ref()
-            .and_then(|bundler| bundler.ruby_version());
+        // Step 3: Extract version requirements from project directory
+        let required_ruby_version = if bundler_root.is_some() {
+            use crate::ruby::CompositeDetector;
+            let detector = CompositeDetector::bundler();
+            detector.detect(&current_dir)
+        } else {
+            None
+        };
 
         // Step 4: Select the most appropriate Ruby installation
         let selected_ruby = Self::select_ruby_runtime(
@@ -188,13 +215,23 @@ impl ButlerRuntime {
             ButlerError::NoSuitableRuby("No suitable Ruby installation found".to_string())
         })?;
 
-        // Step 5: Create gem runtime (using custom base directory if provided)
+        // Step 5: Create bundler runtime with selected Ruby version (if bundler detected)
+        let bundler_runtime =
+            bundler_root.map(|root| BundlerRuntime::new(root, selected_ruby.version.clone()));
+
+        // Step 6: Create gem runtime (using custom base directory if provided)
+        // IMPORTANT: Custom gem base (-G flag) takes precedence over bundler isolation
         let gem_runtime = if let Some(ref custom_gem_base) = gem_base_dir {
             debug!(
-                "Using custom gem base directory: {}",
+                "Using custom gem base directory (overrides bundler isolation): {}",
                 custom_gem_base.display()
             );
             Some(selected_ruby.gem_runtime_for_base(custom_gem_base))
+        } else if bundler_runtime.is_some() {
+            debug!(
+                "Bundler context detected - user gems will NOT be available (bundler isolation)"
+            );
+            None
         } else {
             match selected_ruby.infer_gem_runtime() {
                 Ok(gem_runtime) => {
@@ -217,7 +254,7 @@ impl ButlerRuntime {
             if gem_runtime.is_some() {
                 "available"
             } else {
-                "unavailable"
+                "unavailable (bundler isolation)"
             },
             if bundler_runtime.is_some() {
                 "detected"
@@ -377,21 +414,46 @@ impl ButlerRuntime {
         }
     }
 
-    /// Returns a list of bin directories from both ruby and gem runtimes
-    /// Gem bin directory comes first (higher priority) if present, then Ruby bin directory
+    /// Returns a list of bin directories from all active runtimes
+    ///
+    /// When in bundler context (bundler_runtime present):
+    /// 1. Bundler bin directory (.rb/vendor/bundler/ruby/X.Y.Z/bin) - bundled gems only
+    /// 2. Ruby bin directory (~/.rubies/ruby-X.Y.Z/bin) - core executables
+    ///
+    /// When NOT in bundler context:
+    /// 1. Gem bin directory (~/.gem/ruby/X.Y.Z/bin) - user-installed gems
+    /// 2. Ruby bin directory (~/.rubies/ruby-X.Y.Z/bin) - core executables
+    ///
+    /// NOTE: User gems are NOT available in bundler context for proper isolation.
+    /// Use --no-bundler to opt out of bundler context and access user gems.
     pub fn bin_dirs(&self) -> Vec<PathBuf> {
         let mut dirs = Vec::new();
 
-        // Gem runtime bin dir first (highest priority) - for user-installed tools
-        if let Some(ref gem_runtime) = self.gem_runtime {
+        // Bundler runtime bin dir first (if in bundler context)
+        if let Some(ref bundler_runtime) = self.bundler_runtime
+            && let Some(bundler_bin) = RuntimeProvider::bin_dir(bundler_runtime)
+        {
             debug!(
-                "Adding gem bin directory to PATH: {}",
-                gem_runtime.gem_bin.display()
+                "Adding bundler bin directory to PATH: {}",
+                bundler_bin.display()
             );
-            dirs.push(gem_runtime.gem_bin.clone());
+            dirs.push(bundler_bin);
         }
 
-        // Ruby runtime bin dir second - for core Ruby executables
+        // Gem runtime bin dir (only if NOT in bundler context for isolation)
+        if self.bundler_runtime.is_none() {
+            if let Some(ref gem_runtime) = self.gem_runtime {
+                debug!(
+                    "Adding gem bin directory to PATH: {}",
+                    gem_runtime.gem_bin.display()
+                );
+                dirs.push(gem_runtime.gem_bin.clone());
+            }
+        } else {
+            debug!("Skipping user gem bin directory (bundler isolation)");
+        }
+
+        // Ruby runtime bin dir always included
         let ruby_bin = self.ruby_runtime.bin_dir();
         debug!("Adding ruby bin directory to PATH: {}", ruby_bin.display());
         dirs.push(ruby_bin);
@@ -400,22 +462,46 @@ impl ButlerRuntime {
         dirs
     }
 
-    /// Returns a list of gem directories from both ruby and gem runtimes
+    /// Returns a list of gem directories from all active runtimes
+    ///
+    /// When in bundler context (bundler_runtime present):
+    /// 1. Bundler vendor directory (.rb/vendor/bundler/ruby/X.Y.Z) - bundled gems only
+    /// 2. Ruby lib directory (~/.rubies/ruby-X.Y.Z/lib/ruby/gems/X.Y.0) - system gems
+    ///
+    /// When NOT in bundler context:
+    /// 1. User gem home (~/.gem/ruby/X.Y.Z) - user-installed gems
+    /// 2. Ruby lib directory (~/.rubies/ruby-X.Y.Z/lib/ruby/gems/X.Y.0) - system gems
+    ///
+    /// NOTE: User gems are NOT available in bundler context for proper isolation.
+    /// Use --no-bundler to opt out of bundler context and access user gems.
     pub fn gem_dirs(&self) -> Vec<PathBuf> {
         let mut dirs = Vec::new();
 
-        // Ruby runtime always has a lib dir for gems
+        // Bundler runtime gem dir first (if in bundler context)
+        if let Some(ref bundler_runtime) = self.bundler_runtime
+            && let Some(bundler_gem) = RuntimeProvider::gem_dir(bundler_runtime)
+        {
+            debug!("Adding bundler gem directory: {}", bundler_gem.display());
+            dirs.push(bundler_gem);
+        }
+
+        // User gem home (only if NOT in bundler context for isolation)
+        if self.bundler_runtime.is_none() {
+            if let Some(ref gem_runtime) = self.gem_runtime {
+                debug!(
+                    "Adding gem home directory: {}",
+                    gem_runtime.gem_home.display()
+                );
+                dirs.push(gem_runtime.gem_home.clone());
+            }
+        } else {
+            debug!("Skipping user gem home (bundler isolation)");
+        }
+
+        // Ruby runtime lib dir always included
         let ruby_lib = self.ruby_runtime.lib_dir();
         debug!("Adding ruby lib directory for gems: {}", ruby_lib.display());
         dirs.push(ruby_lib);
-
-        if let Some(ref gem_runtime) = self.gem_runtime {
-            debug!(
-                "Adding gem home directory: {}",
-                gem_runtime.gem_home.display()
-            );
-            dirs.push(gem_runtime.gem_home.clone());
-        }
 
         debug!("Total gem directories: {}", dirs.len());
         dirs
@@ -597,11 +683,11 @@ mod tests {
         assert_eq!(bin_dirs[0], gem_runtime.gem_bin); // Gem bin dir first (higher priority)
         assert_eq!(bin_dirs[1], ruby.bin_dir()); // Ruby bin dir second
 
-        // Test gem_dirs - should have both ruby and gem dirs
+        // Test gem_dirs - should have gem_home first (user gems), then ruby lib (system gems)
         let gem_dirs = butler.gem_dirs();
         assert_eq!(gem_dirs.len(), 2);
-        assert_eq!(gem_dirs[0], ruby.lib_dir());
-        assert_eq!(gem_dirs[1], gem_runtime.gem_home);
+        assert_eq!(gem_dirs[0], gem_runtime.gem_home); // User gem home first (higher priority)
+        assert_eq!(gem_dirs[1], ruby.lib_dir()); // Ruby lib dir second (system gems)
 
         // Test gem_home should return the gem runtime's gem_home
         assert_eq!(butler.gem_home(), Some(gem_runtime.gem_home));
