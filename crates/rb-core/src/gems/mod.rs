@@ -3,6 +3,8 @@ use log::debug;
 use semver::Version;
 use std::path::{Path, PathBuf};
 
+pub mod gem_path_detector;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GemRuntime {
     pub gem_home: PathBuf,
