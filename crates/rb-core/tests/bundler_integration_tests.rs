@@ -74,11 +74,11 @@ fn bundler_runtime_provides_correct_paths_for_configured_project() -> io::Result
         project_dir.join(".rb").join("vendor").join("bundler")
     );
 
-    // Bin dir should be in ruby-specific path: .rb/vendor/bundler/ruby/3.3.7/bin
+    // Bin dir should be in ruby-minor-specific path: .rb/vendor/bundler/ruby/3.3.0/bin
     let expected_bin = bundler_runtime
         .vendor_dir()
         .join("ruby")
-        .join("3.3.7")
+        .join("3.3.0")
         .join("bin");
     assert_eq!(bundler_runtime.bin_dir(), expected_bin);
 
@@ -240,11 +240,11 @@ fn bundler_runtime_bin_dir_includes_ruby_version() -> io::Result<()> {
     let sandbox = BundlerSandbox::new()?;
     let project_dir = sandbox.add_bundler_project("versioned-bins", true)?;
 
-    // Test with Ruby 3.3.7
+    // Test with Ruby 3.3.7 - should use 3.3.0 directory
     let bundler_runtime = BundlerRuntime::new(&project_dir, Version::new(3, 3, 7));
     let bin_dir = bundler_runtime.bin_dir();
 
-    assert!(bin_dir.ends_with("ruby/3.3.7/bin"));
+    assert!(bin_dir.ends_with("ruby/3.3.0/bin"));
     assert_eq!(
         bin_dir,
         project_dir
@@ -252,7 +252,7 @@ fn bundler_runtime_bin_dir_includes_ruby_version() -> io::Result<()> {
             .join("vendor")
             .join("bundler")
             .join("ruby")
-            .join("3.3.7")
+            .join("3.3.0")
             .join("bin")
     );
 
@@ -264,13 +264,13 @@ fn bundler_runtime_bin_dir_varies_by_ruby_version() -> io::Result<()> {
     let sandbox = BundlerSandbox::new()?;
     let project_dir = sandbox.add_bundler_project("multi-version", true)?;
 
-    // Same project, different Ruby versions should have different bin dirs
+    // Same project, different Ruby minor versions should have different bin dirs
     let runtime_337 = BundlerRuntime::new(&project_dir, Version::new(3, 3, 7));
     let runtime_324 = BundlerRuntime::new(&project_dir, Version::new(3, 2, 4));
 
     assert_ne!(runtime_337.bin_dir(), runtime_324.bin_dir());
-    assert!(runtime_337.bin_dir().ends_with("ruby/3.3.7/bin"));
-    assert!(runtime_324.bin_dir().ends_with("ruby/3.2.4/bin"));
+    assert!(runtime_337.bin_dir().ends_with("ruby/3.3.0/bin"));
+    assert!(runtime_324.bin_dir().ends_with("ruby/3.2.0/bin"));
 
     Ok(())
 }
@@ -283,7 +283,7 @@ fn bundler_runtime_gem_dir_includes_ruby_version() -> io::Result<()> {
     let bundler_runtime = BundlerRuntime::new(&project_dir, Version::new(3, 3, 7));
     let ruby_vendor = bundler_runtime.ruby_vendor_dir(&Version::new(3, 3, 7));
 
-    assert!(ruby_vendor.ends_with("ruby/3.3.7"));
+    assert!(ruby_vendor.ends_with("ruby/3.3.0"));
     assert_eq!(
         ruby_vendor,
         project_dir
@@ -291,7 +291,7 @@ fn bundler_runtime_gem_dir_includes_ruby_version() -> io::Result<()> {
             .join("vendor")
             .join("bundler")
             .join("ruby")
-            .join("3.3.7")
+            .join("3.3.0")
     );
 
     Ok(())
