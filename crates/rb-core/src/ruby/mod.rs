@@ -5,6 +5,11 @@ use semver::Version;
 use std::env::consts::EXE_SUFFIX;
 use std::path::{Path, PathBuf};
 
+pub mod version_detector;
+pub use version_detector::{
+    CompositeDetector, GemfileDetector, RubyVersionDetector, RubyVersionFileDetector,
+};
+
 /// Errors that can occur during Ruby discovery
 #[derive(Debug, Clone)]
 pub enum RubyDiscoveryError {

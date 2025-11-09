@@ -424,7 +424,7 @@ mod tests {
 
         let bundler_sandbox = BundlerSandbox::new()?;
         let project_dir = bundler_sandbox.add_bundler_project("test-app", true)?;
-        let bundler_runtime = BundlerRuntime::new(&project_dir);
+        let bundler_runtime = BundlerRuntime::new(&project_dir, ruby.version.clone());
 
         // Use sandboxed gem directory instead of real home directory
         let gem_runtime = GemRuntime::for_base_dir(&ruby_sandbox.gem_base_dir(), &ruby.version);

@@ -254,9 +254,20 @@ mod tests {
     #[test]
     fn test_create_ruby_context_with_sandbox() {
         let sandbox = RubySandbox::new().expect("Failed to create sandbox");
-        sandbox
+        let ruby_dir = sandbox
             .add_ruby_dir("3.2.5")
             .expect("Failed to create ruby-3.2.5");
+
+        // Create Ruby executable so it can be discovered
+        std::fs::create_dir_all(ruby_dir.join("bin")).expect("Failed to create bin dir");
+        let ruby_exe = ruby_dir.join("bin").join("ruby");
+        std::fs::write(&ruby_exe, "#!/bin/sh\necho ruby").expect("Failed to write ruby exe");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&ruby_exe, std::fs::Permissions::from_mode(0o755))
+                .expect("Failed to set permissions");
+        }
 
         let result = create_ruby_context(Some(sandbox.root().to_path_buf()), None);
 

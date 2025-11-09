@@ -1,14 +1,13 @@
 use log::{debug, info};
-use std::path::Path;
-
-use super::BundlerRuntime;
+use std::path::{Path, PathBuf};
 
 pub struct BundlerRuntimeDetector;
 
 impl BundlerRuntimeDetector {
-    /// Discover a BundlerRuntime by searching for Gemfile in the current directory
+    /// Discover a Bundler project by searching for Gemfile in the current directory
     /// and walking up the directory tree until one is found or we reach the root.
-    pub fn discover(start_dir: &Path) -> std::io::Result<Option<BundlerRuntime>> {
+    /// Returns the root directory containing the Gemfile.
+    pub fn discover(start_dir: &Path) -> std::io::Result<Option<PathBuf>> {
         debug!(
             "Starting Bundler discovery from directory: {}",
             start_dir.display()
@@ -22,9 +21,8 @@ impl BundlerRuntimeDetector {
 
             if gemfile_path.exists() && gemfile_path.is_file() {
                 info!("Found Gemfile at: {}", gemfile_path.display());
-                let bundler_runtime = BundlerRuntime::new(&current_dir);
-                debug!("Created BundlerRuntime for root: {}", current_dir.display());
-                return Ok(Some(bundler_runtime));
+                debug!("Returning bundler root: {}", current_dir.display());
+                return Ok(Some(current_dir));
             } else {
                 debug!("No Gemfile found in: {}", current_dir.display());
             }
@@ -50,7 +48,7 @@ impl BundlerRuntimeDetector {
     }
 
     /// Convenience method to discover from current working directory
-    pub fn discover_from_cwd() -> std::io::Result<Option<BundlerRuntime>> {
+    pub fn discover_from_cwd() -> std::io::Result<Option<PathBuf>> {
         let cwd = std::env::current_dir()?;
         debug!(
             "Discovering Bundler runtime from current working directory: {}",
@@ -64,7 +62,6 @@ impl BundlerRuntimeDetector {
 mod tests {
     use super::*;
     use rb_tests::BundlerSandbox;
-    use semver;
     use std::io;
 
     #[test]
@@ -75,9 +72,9 @@ mod tests {
         let result = BundlerRuntimeDetector::discover(&project_dir)?;
 
         assert!(result.is_some());
-        let bundler_runtime = result.unwrap();
-        assert_eq!(bundler_runtime.root, project_dir);
-        assert_eq!(bundler_runtime.gemfile_path(), project_dir.join("Gemfile"));
+        let bundler_root = result.unwrap();
+        assert_eq!(bundler_root, project_dir);
+        assert_eq!(bundler_root.join("Gemfile"), project_dir.join("Gemfile"));
 
         Ok(())
     }
@@ -95,9 +92,9 @@ mod tests {
         let result = BundlerRuntimeDetector::discover(&sub_dir)?;
 
         assert!(result.is_some());
-        let bundler_runtime = result.unwrap();
-        assert_eq!(bundler_runtime.root, project_dir);
-        assert_eq!(bundler_runtime.gemfile_path(), project_dir.join("Gemfile"));
+        let bundler_root = result.unwrap();
+        assert_eq!(bundler_root, project_dir);
+        assert_eq!(bundler_root.join("Gemfile"), project_dir.join("Gemfile"));
 
         Ok(())
     }
@@ -125,9 +122,9 @@ mod tests {
         let result = BundlerRuntimeDetector::discover(&deep_dir)?;
 
         assert!(result.is_some());
-        let bundler_runtime = result.unwrap();
-        assert_eq!(bundler_runtime.root, subproject);
-        assert_eq!(bundler_runtime.gemfile_path(), subproject.join("Gemfile"));
+        let bundler_root = result.unwrap();
+        assert_eq!(bundler_root, subproject);
+        assert_eq!(bundler_root.join("Gemfile"), subproject.join("Gemfile"));
 
         Ok(())
     }
@@ -147,41 +144,9 @@ mod tests {
         let result = BundlerRuntimeDetector::discover(&deep_dir)?;
 
         assert!(result.is_some());
-        let bundler_runtime = result.unwrap();
-        assert_eq!(bundler_runtime.root, project_dir);
-        assert_eq!(bundler_runtime.gemfile_path(), project_dir.join("Gemfile"));
-
-        Ok(())
-    }
-
-    #[test]
-    fn discover_detects_ruby_version_from_project() -> io::Result<()> {
-        let sandbox = BundlerSandbox::new()?;
-        let project_dir = sandbox.add_dir("ruby-version-app")?;
-
-        // Create Gemfile with ruby version
-        let gemfile_content = r#"source 'https://rubygems.org'
-
-ruby '3.2.1'
-
-gem 'rails'
-"#;
-        sandbox.add_file(
-            format!(
-                "{}/Gemfile",
-                project_dir.file_name().unwrap().to_str().unwrap()
-            ),
-            gemfile_content,
-        )?;
-
-        let result = BundlerRuntimeDetector::discover(&project_dir)?;
-
-        assert!(result.is_some());
-        let bundler_runtime = result.unwrap();
-        assert_eq!(
-            bundler_runtime.ruby_version(),
-            Some(semver::Version::parse("3.2.1").unwrap())
-        );
+        let bundler_root = result.unwrap();
+        assert_eq!(bundler_root, project_dir);
+        assert_eq!(bundler_root.join("Gemfile"), project_dir.join("Gemfile"));
 
         Ok(())
     }

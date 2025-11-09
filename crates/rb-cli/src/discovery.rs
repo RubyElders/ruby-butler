@@ -45,13 +45,10 @@ impl DiscoveryContext {
 
         // Step 2: Detect bundler environment
         debug!("Detecting bundler environment");
-        let bundler_environment = match BundlerRuntimeDetector::discover(&current_dir) {
-            Ok(Some(bundler)) => {
-                debug!(
-                    "Bundler environment detected at: {}",
-                    bundler.root.display()
-                );
-                Some(bundler)
+        let bundler_root = match BundlerRuntimeDetector::discover(&current_dir) {
+            Ok(Some(root)) => {
+                debug!("Bundler environment detected at: {}", root.display());
+                Some(root)
             }
             Ok(None) => {
                 debug!("No bundler environment detected");
@@ -64,8 +61,10 @@ impl DiscoveryContext {
         };
 
         // Step 3: Determine required Ruby version
-        let required_ruby_version = if let Some(bundler) = &bundler_environment {
-            match bundler.ruby_version() {
+        let required_ruby_version = if bundler_root.is_some() {
+            use rb_core::ruby::CompositeDetector;
+            let detector = CompositeDetector::bundler();
+            match detector.detect(&current_dir) {
                 Some(version) => {
                     debug!("Bundler environment specifies Ruby version: {}", version);
                     Some(version)
@@ -86,7 +85,19 @@ impl DiscoveryContext {
             &required_ruby_version,
         );
 
-        // Step 5: Create butler runtime if we have a selected Ruby
+        // Step 5: Create bundler runtime with selected Ruby version (if bundler detected)
+        let bundler_environment = if let Some(ref root) = bundler_root {
+            if let Some(ref ruby) = selected_ruby {
+                Some(BundlerRuntime::new(root, ruby.version.clone()))
+            } else {
+                // No suitable Ruby found - create with temp version for display purposes
+                Some(BundlerRuntime::new(root, Version::new(0, 0, 0)))
+            }
+        } else {
+            None
+        };
+
+        // Step 6: Create butler runtime if we have a selected Ruby
         let butler_runtime = if let Some(ruby) = &selected_ruby {
             match ruby.infer_gem_runtime() {
                 Ok(gem_runtime) => {
