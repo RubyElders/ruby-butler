@@ -168,8 +168,28 @@ impl BundlerRuntime {
 
     /// Returns the bin directory where bundler-installed executables live
     pub fn bin_dir(&self) -> PathBuf {
-        let bin_dir = self.vendor_dir().join("bin");
-        debug!("Bundler bin directory: {}", bin_dir.display());
+        let vendor_dir = self.vendor_dir();
+        let ruby_subdir = vendor_dir.join("ruby");
+
+        if ruby_subdir.exists()
+            && let Ok(entries) = fs::read_dir(&ruby_subdir)
+        {
+            for entry in entries.flatten() {
+                if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                    let bin_dir = entry.path().join("bin");
+                    if bin_dir.exists() {
+                        debug!("Found bundler bin directory: {}", bin_dir.display());
+                        return bin_dir;
+                    }
+                }
+            }
+        }
+
+        let bin_dir = vendor_dir.join("bin");
+        debug!(
+            "Using fallback bundler bin directory: {}",
+            bin_dir.display()
+        );
         bin_dir
     }
 
@@ -520,9 +540,39 @@ mod tests {
 
     #[test]
     fn bin_dir_is_vendor_bin() {
+        // When no ruby/X.Y.Z structure exists, falls back to vendor/bundler/bin
         let br = bundler_rt("/home/user/project");
         let expected = Path::new("/home/user/project/.rb/vendor/bundler/bin");
         assert_eq!(br.bin_dir(), expected);
+    }
+
+    #[test]
+    fn bin_dir_finds_versioned_ruby_directory() -> io::Result<()> {
+        // When ruby/X.Y.Z/bin structure exists, uses that instead
+        let sandbox = BundlerSandbox::new()?;
+        let project_root = sandbox.root().join("versioned-project");
+        fs::create_dir_all(&project_root)?;
+
+        // Create Gemfile
+        fs::write(
+            project_root.join("Gemfile"),
+            "source 'https://rubygems.org'\n",
+        )?;
+
+        // Create versioned ruby bin directory
+        let ruby_bin = project_root
+            .join(".rb")
+            .join("vendor")
+            .join("bundler")
+            .join("ruby")
+            .join("3.3.0")
+            .join("bin");
+        fs::create_dir_all(&ruby_bin)?;
+
+        let br = BundlerRuntime::new(&project_root);
+        assert_eq!(br.bin_dir(), ruby_bin);
+
+        Ok(())
     }
 
     #[test]

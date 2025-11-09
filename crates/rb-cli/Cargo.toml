@@ -20,6 +20,7 @@ path = "src/bin/rb.rs"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive", "color", "help", "usage"] }
+clap_complete = "4.0"
 rb-core = { path = "../rb-core" }
 home = "0.5"
 colored = "2.0"
@@ -33,3 +34,4 @@ serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 rb-tests = { path = "../rb-tests" }
+tempfile = "3.0"
