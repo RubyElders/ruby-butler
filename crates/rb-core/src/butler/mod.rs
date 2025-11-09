@@ -129,6 +129,29 @@ impl ButlerRuntime {
             ButlerError::General(format!("Unable to determine current directory: {}", e))
         })?;
 
+        Self::discover_and_compose_with_current_dir(
+            rubies_dir,
+            requested_ruby_version,
+            gem_base_dir,
+            skip_bundler,
+            current_dir,
+        )
+    }
+
+    /// Internal method: Perform comprehensive environment discovery with explicit current directory
+    ///
+    /// This method accepts the current directory as a parameter instead of reading it from
+    /// the environment, which makes it suitable for testing without global state mutation.
+    ///
+    /// Note: This method is primarily intended for testing but is made public to allow
+    /// flexible usage patterns where the current directory needs to be explicitly controlled.
+    pub fn discover_and_compose_with_current_dir(
+        rubies_dir: PathBuf,
+        requested_ruby_version: Option<String>,
+        gem_base_dir: Option<PathBuf>,
+        skip_bundler: bool,
+        current_dir: PathBuf,
+    ) -> Result<Self, ButlerError> {
         debug!("Starting comprehensive environment discovery");
         debug!("Rubies directory: {}", rubies_dir.display());
         debug!("Current directory: {}", current_dir.display());
@@ -197,18 +220,18 @@ impl ButlerRuntime {
             bundler_root.map(|root| BundlerRuntime::new(root, selected_ruby.version.clone()));
 
         // Step 6: Create gem runtime (using custom base directory if provided)
-        // IMPORTANT: When in bundler context, user gems are NOT available for isolation
-        let gem_runtime = if bundler_runtime.is_some() {
+        // IMPORTANT: Custom gem base (-G flag) takes precedence over bundler isolation
+        let gem_runtime = if let Some(ref custom_gem_base) = gem_base_dir {
+            debug!(
+                "Using custom gem base directory (overrides bundler isolation): {}",
+                custom_gem_base.display()
+            );
+            Some(selected_ruby.gem_runtime_for_base(custom_gem_base))
+        } else if bundler_runtime.is_some() {
             debug!(
                 "Bundler context detected - user gems will NOT be available (bundler isolation)"
             );
             None
-        } else if let Some(ref custom_gem_base) = gem_base_dir {
-            debug!(
-                "Using custom gem base directory: {}",
-                custom_gem_base.display()
-            );
-            Some(selected_ruby.gem_runtime_for_base(custom_gem_base))
         } else {
             match selected_ruby.infer_gem_runtime() {
                 Ok(gem_runtime) => {

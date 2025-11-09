@@ -4,30 +4,7 @@ use rb_core::ruby::{RubyRuntime, RubyRuntimeDetector, RubyType};
 use rb_tests::RubySandbox;
 use semver::Version;
 use std::io;
-use std::path::{Path, PathBuf};
-
-/// RAII guard that restores the current directory when dropped
-struct DirGuard {
-    original_dir: PathBuf,
-}
-
-impl DirGuard {
-    fn new() -> io::Result<Self> {
-        Ok(Self {
-            original_dir: std::env::current_dir()?,
-        })
-    }
-
-    fn change_to(&self, path: impl AsRef<Path>) -> io::Result<()> {
-        std::env::set_current_dir(path)
-    }
-}
-
-impl Drop for DirGuard {
-    fn drop(&mut self) {
-        let _ = std::env::set_current_dir(&self.original_dir);
-    }
-}
+use std::path::PathBuf;
 
 #[test]
 fn test_butler_runtime_with_only_ruby() -> io::Result<()> {
@@ -251,38 +228,31 @@ fn test_butler_runtime_skip_bundler_flag() -> Result<(), Box<dyn std::error::Err
         Some("source 'https://rubygems.org'\ngem 'rake'"),
     )?;
 
-    // Scope to ensure proper cleanup ordering
-    {
-        // Change to the bundler project directory with RAII guard
-        let _dir_guard = DirGuard::new()?;
-        _dir_guard.change_to(bundler_sandbox.root())?;
+    // Discover with skip_bundler = false - should detect bundler
+    let runtime_with_bundler = ButlerRuntime::discover_and_compose_with_current_dir(
+        sandbox.root().to_path_buf(),
+        Some("3.3.0".to_string()),
+        None,
+        false,
+        bundler_sandbox.root().to_path_buf(),
+    )?;
+    assert!(
+        runtime_with_bundler.bundler_runtime().is_some(),
+        "Bundler should be detected when skip_bundler=false"
+    );
 
-        // Discover with skip_bundler = false - should detect bundler
-        let runtime_with_bundler = ButlerRuntime::discover_and_compose_with_gem_base(
-            sandbox.root().to_path_buf(),
-            Some("3.3.0".to_string()),
-            None,
-            false,
-        )?;
-        assert!(
-            runtime_with_bundler.bundler_runtime().is_some(),
-            "Bundler should be detected when skip_bundler=false"
-        );
-
-        // Discover with skip_bundler = true - should NOT detect bundler
-        let runtime_without_bundler = ButlerRuntime::discover_and_compose_with_gem_base(
-            sandbox.root().to_path_buf(),
-            Some("3.3.0".to_string()),
-            None,
-            true,
-        )?;
-        assert!(
-            runtime_without_bundler.bundler_runtime().is_none(),
-            "Bundler should NOT be detected when skip_bundler=true"
-        );
-
-        // DirGuard drops here, restoring directory before sandboxes are dropped
-    }
+    // Discover with skip_bundler = true - should NOT detect bundler
+    let runtime_without_bundler = ButlerRuntime::discover_and_compose_with_current_dir(
+        sandbox.root().to_path_buf(),
+        Some("3.3.0".to_string()),
+        None,
+        true,
+        bundler_sandbox.root().to_path_buf(),
+    )?;
+    assert!(
+        runtime_without_bundler.bundler_runtime().is_none(),
+        "Bundler should NOT be detected when skip_bundler=true"
+    );
 
     Ok(())
 }
@@ -316,64 +286,56 @@ fn test_bundler_isolation_excludes_user_gems() -> Result<(), Box<dyn std::error:
     let project_dir = bundler_sandbox.add_bundler_project("isolated-app", true)?;
     let _bundler_runtime = rb_core::BundlerRuntime::new(&project_dir, ruby.version.clone());
 
-    // Scope to ensure proper cleanup ordering
-    {
-        // Change to project directory with RAII guard for automatic cleanup
-        let _dir_guard = DirGuard::new()?;
-        _dir_guard.change_to(&project_dir)?;
+    // Discover runtime WITH bundler context
+    let runtime_with_bundler = ButlerRuntime::discover_and_compose_with_current_dir(
+        ruby_sandbox.root().to_path_buf(),
+        None,
+        None,
+        false, // don't skip bundler
+        project_dir.clone(),
+    )?;
 
-        // Discover runtime WITH bundler context
-        let runtime_with_bundler = ButlerRuntime::discover_and_compose_with_gem_base(
-            ruby_sandbox.root().to_path_buf(),
-            None,
-            None,
-            false, // don't skip bundler
-        )?;
+    // CRITICAL: When bundler context is present, gem_runtime should be None (isolation)
+    assert!(
+        runtime_with_bundler.gem_runtime().is_none(),
+        "User gem runtime should NOT be available in bundler context (isolation)"
+    );
 
-        // CRITICAL: When bundler context is present, gem_runtime should be None (isolation)
-        assert!(
-            runtime_with_bundler.gem_runtime().is_none(),
-            "User gem runtime should NOT be available in bundler context (isolation)"
-        );
+    // Bundler runtime SHOULD be present
+    assert!(
+        runtime_with_bundler.bundler_runtime().is_some(),
+        "Bundler runtime should be detected"
+    );
 
-        // Bundler runtime SHOULD be present
-        assert!(
-            runtime_with_bundler.bundler_runtime().is_some(),
-            "Bundler runtime should be detected"
-        );
+    // bin_dirs should NOT include user gem bin (only bundler bin + ruby bin)
+    let bin_dirs = runtime_with_bundler.bin_dirs();
+    let has_bundler_bin = bin_dirs
+        .iter()
+        .any(|p| p.to_string_lossy().contains("bundler"));
+    let has_user_gem_bin = bin_dirs
+        .iter()
+        .any(|p| p.to_string_lossy().contains(".gem") && !p.to_string_lossy().contains("bundler"));
 
-        // bin_dirs should NOT include user gem bin (only bundler bin + ruby bin)
-        let bin_dirs = runtime_with_bundler.bin_dirs();
-        let has_bundler_bin = bin_dirs
-            .iter()
-            .any(|p| p.to_string_lossy().contains("bundler"));
-        let has_user_gem_bin = bin_dirs.iter().any(|p| {
-            p.to_string_lossy().contains(".gem") && !p.to_string_lossy().contains("bundler")
-        });
+    assert!(has_bundler_bin, "Should have bundler bin directory");
+    assert!(
+        !has_user_gem_bin,
+        "Should NOT have user gem bin directory (isolation)"
+    );
 
-        assert!(has_bundler_bin, "Should have bundler bin directory");
-        assert!(
-            !has_user_gem_bin,
-            "Should NOT have user gem bin directory (isolation)"
-        );
+    // gem_dirs should NOT include user gem home (only bundler gems + ruby lib)
+    let gem_dirs = runtime_with_bundler.gem_dirs();
+    let has_bundler_gems = gem_dirs
+        .iter()
+        .any(|p| p.to_string_lossy().contains("bundler"));
+    let has_user_gems = gem_dirs
+        .iter()
+        .any(|p| p.to_string_lossy().contains(".gem") && !p.to_string_lossy().contains("bundler"));
 
-        // gem_dirs should NOT include user gem home (only bundler gems + ruby lib)
-        let gem_dirs = runtime_with_bundler.gem_dirs();
-        let has_bundler_gems = gem_dirs
-            .iter()
-            .any(|p| p.to_string_lossy().contains("bundler"));
-        let has_user_gems = gem_dirs.iter().any(|p| {
-            p.to_string_lossy().contains(".gem") && !p.to_string_lossy().contains("bundler")
-        });
-
-        assert!(has_bundler_gems, "Should have bundler gem directory");
-        assert!(
-            !has_user_gems,
-            "Should NOT have user gem directory (isolation)"
-        );
-
-        // DirGuard drops here, restoring directory before sandboxes are dropped
-    }
+    assert!(has_bundler_gems, "Should have bundler gem directory");
+    assert!(
+        !has_user_gems,
+        "Should NOT have user gem directory (isolation)"
+    );
 
     Ok(())
 }
@@ -403,58 +365,50 @@ fn test_no_bundler_flag_restores_user_gems() -> Result<(), Box<dyn std::error::E
     // Create bundler project
     let project_dir = bundler_sandbox.add_bundler_project("user-gems-app", true)?;
 
-    // Scope to ensure proper cleanup ordering
-    {
-        // Change to project directory with RAII guard for automatic cleanup
-        let _dir_guard = DirGuard::new()?;
-        _dir_guard.change_to(&project_dir)?;
+    // Discover runtime WITH --no-bundler flag
+    let runtime_no_bundler = ButlerRuntime::discover_and_compose_with_current_dir(
+        ruby_sandbox.root().to_path_buf(),
+        None,
+        None,
+        true, // skip bundler (--no-bundler)
+        project_dir.clone(),
+    )?;
 
-        // Discover runtime WITH --no-bundler flag
-        let runtime_no_bundler = ButlerRuntime::discover_and_compose_with_gem_base(
-            ruby_sandbox.root().to_path_buf(),
-            None,
-            None,
-            true, // skip bundler (--no-bundler)
-        )?;
+    // Bundler should NOT be detected
+    assert!(
+        runtime_no_bundler.bundler_runtime().is_none(),
+        "Bundler should be skipped with --no-bundler flag"
+    );
 
-        // Bundler should NOT be detected
-        assert!(
-            runtime_no_bundler.bundler_runtime().is_none(),
-            "Bundler should be skipped with --no-bundler flag"
-        );
+    // User gem runtime SHOULD be available now
+    assert!(
+        runtime_no_bundler.gem_runtime().is_some(),
+        "User gem runtime should be available with --no-bundler"
+    );
 
-        // User gem runtime SHOULD be available now
-        assert!(
-            runtime_no_bundler.gem_runtime().is_some(),
-            "User gem runtime should be available with --no-bundler"
-        );
+    // bin_dirs should include user gem bin (NOT bundler bin)
+    let bin_dirs = runtime_no_bundler.bin_dirs();
+    let has_bundler_bin = bin_dirs
+        .iter()
+        .any(|p| p.to_string_lossy().contains("bundler"));
+    let has_user_gem_bin = bin_dirs
+        .iter()
+        .any(|p| p.to_string_lossy().contains(".gem"));
 
-        // bin_dirs should include user gem bin (NOT bundler bin)
-        let bin_dirs = runtime_no_bundler.bin_dirs();
-        let has_bundler_bin = bin_dirs
-            .iter()
-            .any(|p| p.to_string_lossy().contains("bundler"));
-        let has_user_gem_bin = bin_dirs
-            .iter()
-            .any(|p| p.to_string_lossy().contains(".gem"));
+    assert!(!has_bundler_bin, "Should NOT have bundler bin directory");
+    assert!(has_user_gem_bin, "Should have user gem bin directory");
 
-        assert!(!has_bundler_bin, "Should NOT have bundler bin directory");
-        assert!(has_user_gem_bin, "Should have user gem bin directory");
+    // gem_dirs should include user gem home (NOT bundler gems)
+    let gem_dirs = runtime_no_bundler.gem_dirs();
+    let has_bundler_gems = gem_dirs
+        .iter()
+        .any(|p| p.to_string_lossy().contains("bundler"));
+    let has_user_gems = gem_dirs
+        .iter()
+        .any(|p| p.to_string_lossy().contains(".gem"));
 
-        // gem_dirs should include user gem home (NOT bundler gems)
-        let gem_dirs = runtime_no_bundler.gem_dirs();
-        let has_bundler_gems = gem_dirs
-            .iter()
-            .any(|p| p.to_string_lossy().contains("bundler"));
-        let has_user_gems = gem_dirs
-            .iter()
-            .any(|p| p.to_string_lossy().contains(".gem"));
-
-        assert!(!has_bundler_gems, "Should NOT have bundler gem directory");
-        assert!(has_user_gems, "Should have user gem directory");
-
-        // DirGuard drops here, restoring directory before sandboxes are dropped
-    }
+    assert!(!has_bundler_gems, "Should NOT have bundler gem directory");
+    assert!(has_user_gems, "Should have user gem directory");
 
     Ok(())
 }
@@ -484,38 +438,42 @@ fn test_bundler_bin_paths_include_ruby_version() -> Result<(), Box<dyn std::erro
     // Create bundler project
     let project_dir = bundler_sandbox.add_bundler_project("versioned-bins", true)?;
 
-    // Scope to ensure proper cleanup ordering
-    {
-        // Change to project directory with RAII guard for automatic cleanup
-        let _dir_guard = DirGuard::new()?;
-        _dir_guard.change_to(&project_dir)?;
+    // Add .ruby-version file so bundler knows which Ruby to use
+    std::fs::write(project_dir.join(".ruby-version"), "3.3.7")?;
 
-        // Discover runtime with bundler
-        let runtime = ButlerRuntime::discover_and_compose_with_gem_base(
-            ruby_sandbox.root().to_path_buf(),
-            None,
-            None,
-            false,
-        )?;
+    // Create the ruby-minor-versioned bundler bin directory (uses X.Y.0)
+    let bundler_ruby_bin = project_dir
+        .join(".rb")
+        .join("vendor")
+        .join("bundler")
+        .join("ruby")
+        .join("3.3.0")
+        .join("bin");
+    std::fs::create_dir_all(&bundler_ruby_bin)?;
 
-        // Check that bundler bin path includes ruby version
-        let bin_dirs = runtime.bin_dirs();
-        let bundler_bin = bin_dirs
-            .iter()
-            .find(|p| p.to_string_lossy().contains("bundler"))
-            .expect("Should have bundler bin directory");
+    // Discover runtime with bundler
+    let runtime = ButlerRuntime::discover_and_compose_with_current_dir(
+        ruby_sandbox.root().to_path_buf(),
+        None,
+        None,
+        false,
+        project_dir.clone(),
+    )?;
 
-        // Should be: .rb/vendor/bundler/ruby/3.3.7/bin
-        let path_str = bundler_bin.to_string_lossy();
-        assert!(
-            path_str.contains("ruby") && path_str.contains("3.3.7") && path_str.contains("bin"),
-            "Bundler bin should include Ruby version path: got {}",
-            bundler_bin.display()
-        );
+    // Check that bundler bin path includes ruby version
+    let bin_dirs = runtime.bin_dirs();
+    let bundler_bin = bin_dirs
+        .iter()
+        .find(|p| p.to_string_lossy().contains("bundler"))
+        .expect("Should have bundler bin directory");
 
-        // DirGuard drops here, restoring directory before sandboxes are dropped
-    }
+    // Should be: .rb/vendor/bundler/ruby/3.3.0/bin
+    let path_str = bundler_bin.to_string_lossy();
+    assert!(
+        path_str.contains("ruby") && path_str.contains("3.3.0") && path_str.contains("bin"),
+        "Bundler bin should include Ruby version path: got {}",
+        bundler_bin.display()
+    );
 
-    // DirGuard automatically restores directory on drop
     Ok(())
 }

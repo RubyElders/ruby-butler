@@ -1,6 +1,20 @@
 use log::debug;
 use std::path::PathBuf;
 
+/// Trait for reading environment variables - allows mocking in tests
+pub trait EnvReader {
+    fn var(&self, key: &str) -> Result<String, std::env::VarError>;
+}
+
+/// Production implementation using std::env
+pub struct StdEnvReader;
+
+impl EnvReader for StdEnvReader {
+    fn var(&self, key: &str) -> Result<String, std::env::VarError> {
+        std::env::var(key)
+    }
+}
+
 /// Locate the configuration file following XDG Base Directory specification
 ///
 /// Supports both rb.kdl and rb.toml (preferring .kdl)
@@ -13,6 +27,14 @@ use std::path::PathBuf;
 /// 5. %APPDATA%/rb/rb.kdl or rb.toml (Windows)
 /// 6. ~/.rb.kdl or ~/.rb.toml (cross-platform fallback)
 pub fn locate_config_file(override_path: Option<PathBuf>) -> Option<PathBuf> {
+    locate_config_file_with_env(override_path, &StdEnvReader)
+}
+
+/// Internal function that accepts an environment reader for testing
+fn locate_config_file_with_env(
+    override_path: Option<PathBuf>,
+    env: &dyn EnvReader,
+) -> Option<PathBuf> {
     debug!("Searching for configuration file...");
 
     // 1. Check for explicit override first
@@ -25,7 +47,7 @@ pub fn locate_config_file(override_path: Option<PathBuf>) -> Option<PathBuf> {
     }
 
     // 2. Check RB_CONFIG environment variable
-    if let Ok(rb_config) = std::env::var("RB_CONFIG") {
+    if let Ok(rb_config) = env.var("RB_CONFIG") {
         let config_path = PathBuf::from(rb_config);
         debug!("  Checking RB_CONFIG env var: {}", config_path.display());
         if config_path.exists() {
@@ -35,7 +57,7 @@ pub fn locate_config_file(override_path: Option<PathBuf>) -> Option<PathBuf> {
     }
 
     // 3. Try XDG_CONFIG_HOME (Unix/Linux)
-    if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME") {
+    if let Ok(xdg_config) = env.var("XDG_CONFIG_HOME") {
         let base_path = PathBuf::from(xdg_config).join("rb");
         // Try .kdl first, then .toml
         for ext in &["rb.kdl", "rb.toml"] {
@@ -98,6 +120,34 @@ pub fn locate_config_file(override_path: Option<PathBuf>) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+
+    /// Mock environment reader for testing without global state mutation
+    struct MockEnvReader {
+        vars: HashMap<String, String>,
+    }
+
+    impl MockEnvReader {
+        fn new() -> Self {
+            Self {
+                vars: HashMap::new(),
+            }
+        }
+
+        fn with_var(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+            self.vars.insert(key.into(), value.into());
+            self
+        }
+    }
+
+    impl EnvReader for MockEnvReader {
+        fn var(&self, key: &str) -> Result<String, std::env::VarError> {
+            self.vars
+                .get(key)
+                .cloned()
+                .ok_or(std::env::VarError::NotPresent)
+        }
+    }
 
     #[test]
     fn test_locate_config_file_returns_option() {
@@ -127,24 +177,44 @@ mod tests {
     fn test_locate_config_file_with_env_var() {
         use std::fs;
         let temp_dir = std::env::temp_dir();
-        let config_path = temp_dir.join("test_rb_env.toml");
+        let config_path = temp_dir.join("test_rb_env_mock.toml");
 
         // Create a temporary config file
         fs::write(&config_path, "# test config").expect("Failed to write test config");
 
-        // Set environment variable (unsafe but required for testing)
-        unsafe {
-            std::env::set_var("RB_CONFIG", &config_path);
-        }
+        // Use mock environment - no global state mutation!
+        let mock_env =
+            MockEnvReader::new().with_var("RB_CONFIG", config_path.to_string_lossy().to_string());
 
         // Should return the env var path
-        let result = locate_config_file(None);
+        let result = locate_config_file_with_env(None, &mock_env);
         assert_eq!(result, Some(config_path.clone()));
 
         // Cleanup
-        unsafe {
-            std::env::remove_var("RB_CONFIG");
-        }
         let _ = fs::remove_file(&config_path);
+    }
+
+    #[test]
+    fn test_locate_config_file_with_xdg_config_home() {
+        use std::fs;
+        let temp_dir = std::env::temp_dir();
+        let xdg_base = temp_dir.join("test_xdg_config");
+        let rb_dir = xdg_base.join("rb");
+        let config_path = rb_dir.join("rb.toml");
+
+        // Create directory structure
+        fs::create_dir_all(&rb_dir).expect("Failed to create test directory");
+        fs::write(&config_path, "# test config").expect("Failed to write test config");
+
+        // Use mock environment
+        let mock_env = MockEnvReader::new()
+            .with_var("XDG_CONFIG_HOME", xdg_base.to_string_lossy().to_string());
+
+        // Should return the XDG config path
+        let result = locate_config_file_with_env(None, &mock_env);
+        assert_eq!(result, Some(config_path.clone()));
+
+        // Cleanup
+        let _ = fs::remove_dir_all(&xdg_base);
     }
 }

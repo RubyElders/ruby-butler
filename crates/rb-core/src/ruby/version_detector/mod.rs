@@ -26,7 +26,7 @@
 //! # Usage
 //!
 //! For standard Ruby projects:
-//! ```rust,ignore
+//! ```text
 //! use rb_core::ruby::CompositeDetector;
 //!
 //! let detector = CompositeDetector::standard();
@@ -36,7 +36,7 @@
 //! ```
 //!
 //! For bundler-managed projects:
-//! ```rust,ignore
+//! ```text
 //! let detector = CompositeDetector::bundler();
 //! let version = detector.detect(bundler_root);
 //! ```
@@ -46,7 +46,7 @@
 //! To add support for new version sources (e.g., `.tool-versions` for asdf):
 //!
 //! 1. Implement the `RubyVersionDetector` trait:
-//!    ```rust,ignore
+//!    ```text
 //!    pub struct ToolVersionsDetector;
 //!    impl RubyVersionDetector for ToolVersionsDetector {
 //!        fn detect(&self, context: &Path) -> Option<Version> {
@@ -57,7 +57,7 @@
 //!    ```
 //!
 //! 2. Add to the detector chain:
-//!    ```rust,ignore
+//!    ```text
 //!    CompositeDetector {
 //!        detectors: vec![
 //!            Box::new(RubyVersionFileDetector),
@@ -66,8 +66,6 @@
 //!        ]
 //!    }
 //!    ```
-//!
-//! See `tool_versions.rs` for a complete example implementation.
 
 use log::debug;
 use semver::Version;

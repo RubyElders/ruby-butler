@@ -6,9 +6,12 @@ use std::env::consts::EXE_SUFFIX;
 use std::path::{Path, PathBuf};
 
 pub mod version_detector;
+pub mod version_ext;
+
 pub use version_detector::{
     CompositeDetector, GemfileDetector, RubyVersionDetector, RubyVersionFileDetector,
 };
+pub use version_ext::RubyVersionExt;
 
 /// Errors that can occur during Ruby discovery
 #[derive(Debug, Clone)]
