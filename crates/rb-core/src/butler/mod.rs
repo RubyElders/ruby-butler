@@ -219,43 +219,33 @@ impl ButlerRuntime {
         let bundler_runtime =
             bundler_root.map(|root| BundlerRuntime::new(root, selected_ruby.version.clone()));
 
-        // Step 6: Create gem runtime (using custom base directory if provided)
-        // IMPORTANT: Custom gem base (-G flag) takes precedence over bundler isolation
-        let gem_runtime = if let Some(ref custom_gem_base) = gem_base_dir {
-            debug!(
-                "Using custom gem base directory (overrides bundler isolation): {}",
-                custom_gem_base.display()
-            );
-            Some(selected_ruby.gem_runtime_for_base(custom_gem_base))
-        } else if bundler_runtime.is_some() {
-            debug!(
-                "Bundler context detected - user gems will NOT be available (bundler isolation)"
-            );
-            None
-        } else {
-            match selected_ruby.infer_gem_runtime() {
-                Ok(gem_runtime) => {
-                    debug!(
-                        "Successfully inferred gem runtime: {}",
-                        gem_runtime.gem_home.display()
-                    );
-                    Some(gem_runtime)
-                }
-                Err(e) => {
-                    debug!("Failed to infer gem runtime: {}", e);
-                    None
-                }
-            }
-        };
+        // Step 6: Detect and compose gem path configuration
+        // Uses detector pattern to determine appropriate gem directories
+        use crate::gems::gem_path_detector::{CompositeGemPathDetector, GemPathContext};
+
+        let gem_detector = CompositeGemPathDetector::standard();
+        let gem_context =
+            GemPathContext::new(&current_dir, &selected_ruby, gem_base_dir.as_deref())
+                .with_bundler(bundler_runtime.is_some());
+
+        let gem_path_config = gem_detector.detect(&gem_context);
+        debug!(
+            "Detected gem path with {} directories",
+            gem_path_config.gem_dirs().len()
+        );
+
+        // Create primary gem runtime from detected configuration
+        let gem_runtime = gem_path_config.gem_home().map(|gem_home| {
+            GemRuntime::for_base_dir(
+                gem_home.parent().unwrap_or(gem_home),
+                &selected_ruby.version,
+            )
+        });
 
         info!(
-            "Environment composition complete: Ruby {}, Gem runtime: {}, Bundler: {}",
+            "Environment composition complete: Ruby {}, Gem directories: {}, Bundler: {}",
             selected_ruby.version,
-            if gem_runtime.is_some() {
-                "available"
-            } else {
-                "unavailable (bundler isolation)"
-            },
+            gem_path_config.gem_dirs().len(),
             if bundler_runtime.is_some() {
                 "detected"
             } else {
