@@ -41,9 +41,9 @@ Describe "Ruby Butler Help System"
     Context "when no arguments are provided"
       It "gracefully displays help with appropriate exit code"
         When run rb
-        The status should equal 2
-        The stderr should include "Usage"
-        The stderr should include "Commands"
+        The status should equal 0
+        The output should include "Usage"
+        The output should include "Commands"
       End
     End
   End
