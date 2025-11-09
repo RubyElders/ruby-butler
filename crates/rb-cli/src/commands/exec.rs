@@ -237,8 +237,17 @@ mod tests {
 
         // Test that standard variables are present
         assert!(env_vars.contains_key("PATH"));
-        assert!(env_vars.contains_key("GEM_HOME"));
-        assert!(env_vars.contains_key("GEM_PATH"));
+
+        // IMPORTANT: When bundler context is detected, GEM_HOME and GEM_PATH should NOT be set
+        // This is bundler isolation - only bundled gems are available
+        assert!(
+            !env_vars.contains_key("GEM_HOME"),
+            "GEM_HOME should NOT be set in bundler context (isolation)"
+        );
+        assert!(
+            !env_vars.contains_key("GEM_PATH"),
+            "GEM_PATH should NOT be set in bundler context (isolation)"
+        );
 
         // Test that bundler variables are set when bundler project is detected
         assert!(env_vars.contains_key("BUNDLE_GEMFILE"));
