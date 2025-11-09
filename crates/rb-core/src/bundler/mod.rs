@@ -1,5 +1,6 @@
 use crate::butler::Command;
 use crate::butler::runtime_provider::RuntimeProvider;
+use crate::ruby::RubyVersionExt;
 use log::debug;
 use semver::Version;
 use std::path::{Path, PathBuf};
@@ -40,14 +41,12 @@ impl BundlerRuntime {
         self.app_config_dir().join("vendor").join("bundler")
     }
 
-    /// Returns the ruby-specific vendor directory (.rb/vendor/bundler/ruby/X.Y.Z)
-    /// This requires a Ruby version to be detected
+    /// Returns the ruby-specific vendor directory (.rb/vendor/bundler/ruby/X.Y.0)
+    /// Uses Ruby ABI version (major.minor.0) for compatibility grouping
     pub fn ruby_vendor_dir(&self, ruby_version: &Version) -> PathBuf {
-        let version_str = format!(
-            "{}.{}.{}",
-            ruby_version.major, ruby_version.minor, ruby_version.patch
-        );
-        self.vendor_dir().join("ruby").join(version_str)
+        self.vendor_dir()
+            .join("ruby")
+            .join(ruby_version.ruby_abi_version())
     }
 
     /// Detect Ruby version from .ruby-version file or Gemfile ruby declaration
@@ -58,7 +57,7 @@ impl BundlerRuntime {
     }
 
     /// Returns the bin directory where bundler-installed executables live
-    /// Path: .rb/vendor/bundler/ruby/X.Y.Z/bin
+    /// Path: .rb/vendor/bundler/ruby/X.Y.0/bin
     pub fn bin_dir(&self) -> PathBuf {
         let bin_dir = self.ruby_vendor_dir(&self.ruby_version).join("bin");
         debug!("Bundler bin directory: {}", bin_dir.display());
@@ -419,8 +418,8 @@ mod tests {
     fn bin_dir_is_vendor_bin() {
         // When no ruby/X.Y.Z structure exists, falls back to vendor/bundler/bin
         let br = bundler_rt("/home/user/project");
-        // bin_dir should include Ruby version: .rb/vendor/bundler/ruby/3.3.7/bin
-        let expected = Path::new("/home/user/project/.rb/vendor/bundler/ruby/3.3.7/bin");
+        // bin_dir should include Ruby minor version: .rb/vendor/bundler/ruby/3.3.0/bin
+        let expected = Path::new("/home/user/project/.rb/vendor/bundler/ruby/3.3.0/bin");
         assert_eq!(br.bin_dir(), expected);
     }
 
@@ -462,10 +461,10 @@ mod tests {
         // Should be configured since we created vendor structure
         assert!(br.is_configured());
 
-        // bin_dir should include Ruby version path
-        let expected_bin = br.vendor_dir().join("ruby").join("3.3.7").join("bin");
-        // gem_dir should be the Ruby-specific vendor directory
-        let expected_gem = br.vendor_dir().join("ruby").join("3.3.7");
+        // bin_dir should include Ruby minor version path (X.Y.0)
+        let expected_bin = br.vendor_dir().join("ruby").join("3.3.0").join("bin");
+        // gem_dir should be the Ruby-minor-specific vendor directory
+        let expected_gem = br.vendor_dir().join("ruby").join("3.3.0");
 
         assert_eq!(
             <BundlerRuntime as RuntimeProvider>::bin_dir(&br),

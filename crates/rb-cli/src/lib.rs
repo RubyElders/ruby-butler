@@ -269,7 +269,21 @@ mod tests {
                 .expect("Failed to set permissions");
         }
 
-        let result = create_ruby_context(Some(sandbox.root().to_path_buf()), None);
+        // Create gem directories so gem runtime is inferred
+        let gem_base = sandbox.gem_base_dir();
+        let gem_dir = gem_base.join("3.2.5");
+        std::fs::create_dir_all(&gem_dir).expect("Failed to create gem dir");
+
+        // Use the internal method that accepts current_dir to avoid global state
+        use rb_core::butler::ButlerRuntime;
+        let result = ButlerRuntime::discover_and_compose_with_current_dir(
+            sandbox.root().to_path_buf(),
+            None,
+            None,
+            false,
+            sandbox.root().to_path_buf(), // Current dir = sandbox root
+        )
+        .expect("Failed to create ButlerRuntime");
 
         // Should successfully create a ButlerRuntime
         let current_path = std::env::var("PATH").ok();
