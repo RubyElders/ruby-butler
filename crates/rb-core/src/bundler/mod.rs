@@ -244,7 +244,7 @@ impl BundlerRuntime {
         );
 
         let status = Command::new("bundle")
-            .args(["config", "path", "--local"])
+            .args(["config", "set", "path", "--local"])
             .arg(self.vendor_dir().to_string_lossy().as_ref())
             .current_dir(&self.root)
             .status_with_context(butler_runtime);
