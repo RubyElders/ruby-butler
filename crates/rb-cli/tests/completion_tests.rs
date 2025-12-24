@@ -11,7 +11,8 @@ fn capture_completions(
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
 
     if let Some(dir) = rubies_dir {
-        cmd.arg("--rubies-dir").arg(dir);
+        // Set RB_RUBIES_DIR environment variable (preferred method)
+        cmd.env("RB_RUBIES_DIR", &dir);
     }
 
     cmd.arg("__bash_complete").arg(line).arg(cursor_pos);
@@ -169,7 +170,13 @@ fn test_binstubs_completion_from_bundler() {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
-    // Create a temporary directory with bundler binstubs in versioned ruby directory
+    // Create Ruby sandbox with Ruby installation
+    let sandbox = RubySandbox::new().expect("Failed to create sandbox");
+    sandbox
+        .add_ruby_dir("3.3.0")
+        .expect("Failed to create ruby");
+
+    // Create a temporary work directory with bundler binstubs
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 
     // Create Gemfile (required for bundler detection)
@@ -208,9 +215,13 @@ fn test_binstubs_completion_from_bundler() {
     fs::set_permissions(&rake_exe, fs::Permissions::from_mode(0o755))
         .expect("Failed to set permissions");
 
-    // Run completion from the temp directory
+    // Run completion from the temp directory with rubies-dir pointing to sandbox
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
-    cmd.arg("__bash_complete").arg("rb exec ").arg("8");
+    cmd.arg("__bash_complete")
+        .arg("rb exec ")
+        .arg("8")
+        .arg("--rubies-dir")
+        .arg(sandbox.root());
     cmd.current_dir(temp_dir.path());
 
     let output = cmd.output().expect("Failed to execute rb");
@@ -234,7 +245,7 @@ fn test_binstubs_completion_from_bundler() {
     );
 
     // Note: Ruby bin executables (gem, bundle, ruby, etc.) would also be suggested
-    // if rubies_dir was provided and Ruby installation exists
+    // since we now have a Ruby installation
 }
 
 #[test]
@@ -273,14 +284,14 @@ fn test_binstubs_with_ruby_executables_in_bundler() {
     )
     .expect("Failed to create Gemfile");
 
-    // Create bundler binstubs
+    // Create bundler binstubs (use ABI version 3.4.0, not 3.4.5)
     let binstubs_dir = work_dir
         .path()
         .join(".rb")
         .join("vendor")
         .join("bundler")
         .join("ruby")
-        .join(ruby_version)
+        .join("3.4.0") // ABI version, not full version
         .join("bin");
     fs::create_dir_all(&binstubs_dir).expect("Failed to create binstubs directory");
 
@@ -323,6 +334,12 @@ fn test_binstubs_completion_with_prefix() {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
+    // Create Ruby sandbox
+    let sandbox = RubySandbox::new().expect("Failed to create sandbox");
+    sandbox
+        .add_ruby_dir("3.3.0")
+        .expect("Failed to create ruby");
+
     // Create a temporary directory with bundler binstubs in versioned ruby directory
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 
@@ -358,7 +375,11 @@ fn test_binstubs_completion_with_prefix() {
 
     // Run completion with prefix "r"
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
-    cmd.arg("__bash_complete").arg("rb exec r").arg("9");
+    cmd.arg("__bash_complete")
+        .arg("rb exec r")
+        .arg("9")
+        .arg("--rubies-dir")
+        .arg(sandbox.root());
     cmd.current_dir(temp_dir.path());
 
     let output = cmd.output().expect("Failed to execute rb");
@@ -381,6 +402,12 @@ fn test_binstubs_completion_with_x_alias() {
     use std::fs;
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
+
+    // Create Ruby sandbox
+    let sandbox = RubySandbox::new().expect("Failed to create sandbox");
+    sandbox
+        .add_ruby_dir("3.3.0")
+        .expect("Failed to create ruby");
 
     // Create a temporary directory with bundler binstubs in versioned ruby directory
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
@@ -411,7 +438,11 @@ fn test_binstubs_completion_with_x_alias() {
 
     // Run completion using 'x' alias
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
-    cmd.arg("__bash_complete").arg("rb x ").arg("5");
+    cmd.arg("__bash_complete")
+        .arg("rb x ")
+        .arg("5")
+        .arg("--rubies-dir")
+        .arg(sandbox.root());
     cmd.current_dir(temp_dir.path());
 
     let output = cmd.output().expect("Failed to execute rb");
@@ -944,6 +975,12 @@ fn test_binstubs_with_no_bundler_flag() {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
+    // Create Ruby sandbox
+    let sandbox = RubySandbox::new().expect("Failed to create sandbox");
+    sandbox
+        .add_ruby_dir("3.3.0")
+        .expect("Failed to create ruby");
+
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 
     // Create Gemfile (to simulate bundler project)
@@ -974,7 +1011,11 @@ fn test_binstubs_with_no_bundler_flag() {
 
     // Run completion WITHOUT -B flag - should show bundler binstubs
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
-    cmd.arg("__bash_complete").arg("rb x b").arg("6");
+    cmd.env("RB_RUBIES_DIR", sandbox.root())
+        .current_dir(temp_dir.path())
+        .arg("__bash_complete")
+        .arg("rb x b")
+        .arg("6");
     cmd.current_dir(temp_dir.path());
 
     let output = cmd.output().expect("Failed to execute rb");
@@ -982,8 +1023,12 @@ fn test_binstubs_with_no_bundler_flag() {
 
     // Run completion WITH -B flag - should NOT show bundler binstubs
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
-    cmd.arg("__bash_complete").arg("rb -B x b").arg("9");
-    cmd.current_dir(temp_dir.path());
+    cmd.env("RB_RUBIES_DIR", sandbox.root())
+        .current_dir(temp_dir.path())
+        .arg("-B") // Pass -B as real CLI arg to create ButlerRuntime without bundler
+        .arg("__bash_complete")
+        .arg("rb -B x b")
+        .arg("9");
 
     let output = cmd.output().expect("Failed to execute rb");
     let completions_with_flag = String::from_utf8(output.stdout).expect("Invalid UTF-8 output");

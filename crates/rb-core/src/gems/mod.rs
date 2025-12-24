@@ -46,8 +46,35 @@ impl RuntimeProvider for GemRuntime {
     fn bin_dir(&self) -> Option<PathBuf> {
         Some(self.gem_bin.clone())
     }
+
     fn gem_dir(&self) -> Option<PathBuf> {
         Some(self.gem_home.clone())
+    }
+
+    fn compose_version_detector(&self) -> crate::ruby::CompositeDetector {
+        use crate::ruby::version_detector::{GemfileDetector, RubyVersionFileDetector};
+
+        // Gem environment: same as Ruby (check .ruby-version first, then Gemfile)
+        crate::ruby::CompositeDetector::new(vec![
+            Box::new(RubyVersionFileDetector),
+            Box::new(GemfileDetector),
+        ])
+    }
+
+    fn compose_gem_path_detector(
+        &self,
+    ) -> crate::gems::gem_path_detector::CompositeGemPathDetector {
+        use crate::gems::gem_path_detector::{CustomGemBaseDetector, UserGemsDetector};
+
+        // Gem environment (non-bundler): standard priority
+        // 1. Custom gem base (RB_GEM_BASE override)
+        // 2. User gems (always available fallback)
+        //
+        // BundlerIsolationDetector is intentionally excluded - only used in BundlerRuntime
+        crate::gems::gem_path_detector::CompositeGemPathDetector::new(vec![
+            Box::new(CustomGemBaseDetector),
+            Box::new(UserGemsDetector),
+        ])
     }
 }
 

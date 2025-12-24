@@ -53,12 +53,10 @@ fn main() {
 
     let cli = Cli::parse();
 
-    if let Some(Commands::BashComplete { line, point }) = &cli.command {
-        rb_cli::completion::generate_completions(line, point, cli.config.rubies_dir.clone());
-        return;
+    // Skip logging for bash completion (must be silent)
+    if !matches!(cli.command, Some(Commands::BashComplete { .. })) {
+        init_logger(cli.effective_log_level());
     }
-
-    init_logger(cli.effective_log_level());
 
     // Merge config file defaults with CLI arguments
     let cli = match cli.with_config_defaults() {
@@ -101,54 +99,72 @@ fn main() {
         return;
     }
 
-    // Handle sync command differently since it doesn't use ButlerRuntime in the same way
-    if let Commands::Sync = command {
-        if let Err(e) = sync_command(
-            cli.config.rubies_dir.clone(),
-            cli.config.ruby_version.clone(),
-            cli.config.gem_home.clone(),
-            cli.config.no_bundler.unwrap_or(false),
-        ) {
-            eprintln!("Sync failed: {}", e);
-            std::process::exit(1);
-        }
-        return;
-    }
-
     // Resolve search directory for Ruby installations
-    let rubies_dir = resolve_search_dir(cli.config.rubies_dir);
+    let rubies_dir = resolve_search_dir(cli.config.rubies_dir.clone());
 
     // Perform comprehensive environment discovery once
+    let is_completion = matches!(command, Commands::BashComplete { .. });
+
     let butler_runtime = match ButlerRuntime::discover_and_compose_with_gem_base(
-        rubies_dir,
-        cli.config.ruby_version,
-        cli.config.gem_home,
+        rubies_dir.clone(),
+        cli.config.ruby_version.clone(),
+        cli.config.gem_home.clone(),
         cli.config.no_bundler.unwrap_or(false),
     ) {
         Ok(runtime) => runtime,
-        Err(e) => match e {
-            ButlerError::RubiesDirectoryNotFound(path) => {
-                eprintln!("🎩 My sincerest apologies, but the designated Ruby estate directory");
-                eprintln!(
-                    "   '{}' appears to be absent from your system.",
-                    path.display()
-                );
-                eprintln!();
-                eprintln!("Without access to a properly established Ruby estate, I'm afraid");
-                eprintln!(
-                    "there's precious little this humble Butler can accomplish on your behalf."
-                );
-                eprintln!();
-                eprintln!("May I suggest installing Ruby using ruby-install or a similar");
-                eprintln!("distinguished tool to establish your Ruby installations at the");
-                eprintln!("expected location, then we shall proceed with appropriate ceremony.");
-                std::process::exit(1);
+        Err(e) => {
+            if is_completion {
+                // Completion: exit silently with no suggestions when no Ruby found
+                std::process::exit(0);
+            } else {
+                // Interactive commands: show helpful error with search details
+                match e {
+                    ButlerError::RubiesDirectoryNotFound(path) => {
+                        eprintln!(
+                            "The designated Ruby estate directory appears to be absent from your system."
+                        );
+                        eprintln!();
+                        eprintln!("Searched in:");
+                        eprintln!("  • {}", path.display());
+
+                        // Show why this path was used
+                        if let Some(ref config_rubies) = cli.config.rubies_dir {
+                            eprintln!("    (from config: {})", config_rubies.display());
+                        } else {
+                            eprintln!("    (default location)");
+                        }
+
+                        if let Some(ref requested_version) = cli.config.ruby_version {
+                            eprintln!();
+                            eprintln!("Requested version: {}", requested_version);
+                        }
+
+                        eprintln!();
+                        eprintln!(
+                            "May I suggest installing Ruby using ruby-install or a similar distinguished tool?"
+                        );
+                        std::process::exit(1);
+                    }
+                    ButlerError::NoSuitableRuby(msg) => {
+                        eprintln!("No suitable Ruby installation found: {}", msg);
+                        eprintln!();
+                        eprintln!("Searched in: {}", rubies_dir.display());
+
+                        if let Some(ref requested_version) = cli.config.ruby_version {
+                            eprintln!("Requested version: {}", requested_version);
+                        }
+
+                        eprintln!();
+                        eprintln!("May I suggest installing a suitable Ruby version?");
+                        std::process::exit(1);
+                    }
+                    _ => {
+                        eprintln!("Ruby detection encountered an unexpected difficulty: {}", e);
+                        std::process::exit(1);
+                    }
+                }
             }
-            _ => {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
-        },
+        }
     };
 
     match command {
@@ -169,10 +185,14 @@ fn main() {
             unreachable!()
         }
         Commands::Sync => {
-            // Already handled above
-            unreachable!()
+            if let Err(e) = sync_command(butler_runtime) {
+                eprintln!("Sync failed: {}", e);
+                std::process::exit(1);
+            }
         }
         Commands::ShellIntegration { .. } => unreachable!(),
-        Commands::BashComplete { .. } => unreachable!(),
+        Commands::BashComplete { line, point } => {
+            rb_cli::completion::generate_completions(&line, &point, &butler_runtime);
+        }
     }
 }

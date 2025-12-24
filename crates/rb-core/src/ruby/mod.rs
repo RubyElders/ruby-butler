@@ -186,8 +186,34 @@ impl RuntimeProvider for RubyRuntime {
     fn bin_dir(&self) -> Option<PathBuf> {
         Some(self.bin_dir())
     }
+
     fn gem_dir(&self) -> Option<PathBuf> {
         Some(self.lib_dir())
+    }
+
+    fn compose_version_detector(&self) -> crate::ruby::CompositeDetector {
+        use crate::ruby::version_detector::{GemfileDetector, RubyVersionFileDetector};
+
+        // Ruby environment: check .ruby-version first, then Gemfile
+        crate::ruby::CompositeDetector::new(vec![
+            Box::new(RubyVersionFileDetector),
+            Box::new(GemfileDetector),
+        ])
+    }
+
+    fn compose_gem_path_detector(
+        &self,
+    ) -> crate::gems::gem_path_detector::CompositeGemPathDetector {
+        use crate::gems::gem_path_detector::{
+            BundlerIsolationDetector, CustomGemBaseDetector, UserGemsDetector,
+        };
+
+        // Ruby environment: custom gem base → bundler isolation → user gems
+        crate::gems::gem_path_detector::CompositeGemPathDetector::new(vec![
+            Box::new(CustomGemBaseDetector),
+            Box::new(BundlerIsolationDetector),
+            Box::new(UserGemsDetector),
+        ])
     }
 }
 

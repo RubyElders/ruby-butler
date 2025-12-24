@@ -27,9 +27,12 @@
 //!
 //! For standard Ruby projects:
 //! ```text
-//! use rb_core::ruby::CompositeDetector;
+//! use rb_core::ruby::version_detector::{CompositeDetector, GemfileDetector, RubyVersionFileDetector};
 //!
-//! let detector = CompositeDetector::standard();
+//! let detector = CompositeDetector::new(vec![
+//!     Box::new(RubyVersionFileDetector),
+//!     Box::new(GemfileDetector),
+//! ]);
 //! if let Some(version) = detector.detect(project_root) {
 //!     println!("Required Ruby: {}", version);
 //! }
@@ -37,7 +40,10 @@
 //!
 //! For bundler-managed projects:
 //! ```text
-//! let detector = CompositeDetector::bundler();
+//! let detector = CompositeDetector::new(vec![
+//!     Box::new(RubyVersionFileDetector),
+//!     Box::new(GemfileDetector),
+//! ]);
 //! let version = detector.detect(bundler_root);
 //! ```
 //!
@@ -100,30 +106,6 @@ impl CompositeDetector {
         Self { detectors }
     }
 
-    /// Create a standard detector chain for general Ruby projects
-    ///
-    /// Checks in order:
-    /// 1. .ruby-version file
-    /// 2. Gemfile ruby declaration
-    pub fn standard() -> Self {
-        Self::new(vec![
-            Box::new(ruby_version_file::RubyVersionFileDetector),
-            Box::new(gemfile::GemfileDetector),
-        ])
-    }
-
-    /// Create a bundler-aware detector chain
-    ///
-    /// Checks in order:
-    /// 1. .ruby-version file
-    /// 2. Gemfile ruby declaration
-    /// 3. (Future: .ruby-version in bundler vendor directory, etc.)
-    pub fn bundler() -> Self {
-        // For now, same as standard, but this is where we can add
-        // bundler-specific detectors in the future
-        Self::standard()
-    }
-
     /// Detect Ruby version using all configured detectors in order
     ///
     /// Returns the first version found, or None if no detector succeeds.
@@ -167,7 +149,10 @@ mod tests {
         let mut file = std::fs::File::create(&gemfile_path).unwrap();
         writeln!(file, "ruby '3.1.0'").unwrap();
 
-        let detector = CompositeDetector::standard();
+        let detector = CompositeDetector::new(vec![
+            Box::new(ruby_version_file::RubyVersionFileDetector),
+            Box::new(gemfile::GemfileDetector),
+        ]);
         let version = detector.detect(temp_dir.path()).unwrap();
 
         // .ruby-version should take precedence (first in chain)
@@ -181,31 +166,26 @@ mod tests {
         // Only create Gemfile (no .ruby-version)
         let gemfile_path = temp_dir.path().join("Gemfile");
         let mut file = std::fs::File::create(&gemfile_path).unwrap();
-        writeln!(file, "ruby '3.1.4'").unwrap();
+        writeln!(file, "ruby '2.7.8'").unwrap();
 
-        let detector = CompositeDetector::standard();
+        let detector = CompositeDetector::new(vec![
+            Box::new(ruby_version_file::RubyVersionFileDetector),
+            Box::new(gemfile::GemfileDetector),
+        ]);
         let version = detector.detect(temp_dir.path()).unwrap();
 
         // Should fall back to Gemfile
-        assert_eq!(version, Version::new(3, 1, 4));
+        assert_eq!(version, Version::new(2, 7, 8));
     }
 
     #[test]
     fn test_composite_detector_returns_none_when_nothing_found() {
         let temp_dir = TempDir::new().unwrap();
 
-        let detector = CompositeDetector::standard();
+        let detector = CompositeDetector::new(vec![
+            Box::new(ruby_version_file::RubyVersionFileDetector),
+            Box::new(gemfile::GemfileDetector),
+        ]);
         assert!(detector.detect(temp_dir.path()).is_none());
-    }
-
-    #[test]
-    fn test_bundler_detector_chain() {
-        let temp_dir = TempDir::new().unwrap();
-        std::fs::write(temp_dir.path().join(".ruby-version"), "3.3.0\n").unwrap();
-
-        let detector = CompositeDetector::bundler();
-        let version = detector.detect(temp_dir.path()).unwrap();
-
-        assert_eq!(version, Version::new(3, 3, 0));
     }
 }

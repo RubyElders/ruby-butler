@@ -10,8 +10,10 @@ Describe "Ruby Butler Exec Command - Completion Behavior"
       setup_test_project
       create_bundler_project "."
 
-      # Create bundler binstubs directory with versioned ruby path
-      BUNDLER_BIN="$TEST_PROJECT_DIR/.rb/vendor/bundler/ruby/3.3.0/bin"
+      # Create bundler binstubs directory with versioned ruby path using actual Ruby ABI
+      local ruby_abi
+      ruby_abi=$(get_ruby_abi_version "$LATEST_RUBY")
+      BUNDLER_BIN="$TEST_PROJECT_DIR/.rb/vendor/bundler/ruby/$ruby_abi/bin"
       mkdir -p "$BUNDLER_BIN"
 
       # Create bundler-specific binstubs
@@ -62,21 +64,21 @@ Describe "Ruby Butler Exec Command - Completion Behavior"
 
       It "skips bundler binstubs WITH -B flag"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb -B exec b" 12
+        When run rb -B __bash_complete "rb -B exec b" 12
         The status should equal 0
         The output should not include "bundler-tool"
       End
 
       It "skips bundler binstubs with --no-bundler flag"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb --no-bundler exec b" 22
+        When run rb --no-bundler __bash_complete "rb --no-bundler exec b" 22
         The status should equal 0
         The output should not include "bundler-tool"
       End
 
       It "skips bundler binstubs with -B and x alias"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb -B x b" 9
+        When run rb -B __bash_complete "rb -B x b" 9
         The status should equal 0
         The output should not include "bundler-tool"
       End
@@ -90,7 +92,7 @@ Describe "Ruby Butler Exec Command - Completion Behavior"
 
       It "skips rspec-bundler WITH -B flag"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb -B x r" 9
+        When run rb -B __bash_complete "rb -B x r" 9
         The status should equal 0
         The output should not include "rspec-bundler"
       End
@@ -99,14 +101,14 @@ Describe "Ruby Butler Exec Command - Completion Behavior"
     Context "with -B and -R flags combined"
       It "respects both -B and -R flags"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb -B -R $RUBIES_DIR x b" 27
+        When run rb -B -R /opt/rubies __bash_complete "rb -B -R /opt/rubies x b" 27
         The status should equal 0
         The output should not include "bundler-tool"
       End
 
       It "parses -R flag from command line"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb -R $RUBIES_DIR -B x b" 27
+        When run rb -R /opt/rubies -B __bash_complete "rb -R /opt/rubies -B x b" 27
         The status should equal 0
         The output should not include "bundler-tool"
       End
@@ -122,15 +124,18 @@ Describe "Ruby Butler Exec Command - Completion Behavior"
         cd "$TEST_PROJECT_DIR"
         When run rb __bash_complete "rb exec r" 9
         The status should equal 0
-        # Should complete with gem binstubs if any exist
-        # No bundler project detected, so uses gem runtime
+        # Should complete with gem binstubs from system (racc, rake, rbs, etc.)
+        The output should include "rake"
+        The output should not include "bundler-tool"
       End
 
       It "works with -B flag even without bundler"
         cd "$TEST_PROJECT_DIR"
         When run rb __bash_complete "rb -B exec r" 12
         The status should equal 0
-        # Should still work, just uses gem binstubs
+        # Should still work with gem binstubs, -B flag has no effect without Gemfile
+        The output should include "rake"
+        The output should not include "bundler-tool"
       End
     End
   End

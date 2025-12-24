@@ -7,6 +7,16 @@ LATEST_RUBY="3.4.5"
 OLDER_RUBY="3.2.4"
 RUBIES_DIR="/opt/rubies"
 
+# Set RB_RUBIES_DIR for all tests so they use Docker Ruby installations
+export RB_RUBIES_DIR="$RUBIES_DIR"
+
+# Get Ruby ABI version from full version (e.g., "3.4.5" -> "3.4.0")
+get_ruby_abi_version() {
+    local version="$1"
+    # Extract major.minor and append .0
+    echo "$version" | sed -E 's/^([0-9]+\.[0-9]+).*/\1.0/'
+}
+
 # Essential project creation for bundler testing with complete isolation
 create_bundler_project() {
     local project_dir="$1"

@@ -1,7 +1,6 @@
 pub mod commands;
 pub mod completion;
 pub mod config;
-pub mod discovery;
 
 use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::{Parser, Subcommand, ValueEnum};
@@ -200,6 +199,17 @@ pub fn create_ruby_context(
 /// Resolve the directory to search for Ruby installations
 pub fn resolve_search_dir(rubies_dir: Option<PathBuf>) -> PathBuf {
     rubies_dir.unwrap_or_else(|| {
+        // Check RB_RUBIES_DIR environment variable
+        if let Ok(env_dir) = std::env::var("RB_RUBIES_DIR") {
+            let path = PathBuf::from(env_dir);
+            debug!(
+                "Using rubies directory from RB_RUBIES_DIR: {}",
+                path.display()
+            );
+            return path;
+        }
+
+        // Fall back to default ~/.rubies
         let home_dir = home::home_dir().expect("Could not determine home directory");
         debug!("Using home directory: {}", home_dir.display());
         let rubies_dir = home_dir.join(DEFAULT_RUBIES_DIR);
