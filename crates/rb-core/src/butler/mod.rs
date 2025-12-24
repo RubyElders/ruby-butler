@@ -15,6 +15,54 @@ pub mod runtime_provider;
 pub use command::Command;
 pub use runtime_provider::RuntimeProvider;
 
+/// Helper to compose detectors based on environment context during early discovery phase.
+///
+/// This helper delegates to RuntimeProvider implementations to ensure detector composition
+/// logic remains centralized. It creates temporary runtime instances solely to extract
+/// their detector composition strategies.
+pub struct DetectorComposer;
+
+impl DetectorComposer {
+    /// Compose version detector for bundler environment by delegating to BundlerRuntime
+    pub fn version_detector_for_bundler() -> crate::ruby::CompositeDetector {
+        use crate::bundler::BundlerRuntime;
+        use semver::Version;
+        use std::path::PathBuf;
+
+        // Create temporary bundler runtime to extract its detector composition
+        let temp_runtime = BundlerRuntime::new(PathBuf::new(), Version::new(0, 0, 0));
+        temp_runtime.compose_version_detector()
+    }
+
+    /// Compose gem path detector for bundler environment by delegating to BundlerRuntime
+    ///
+    /// Use this when bundler is detected - excludes user gems to maintain bundle isolation
+    pub fn gem_path_detector_for_bundler()
+    -> crate::gems::gem_path_detector::CompositeGemPathDetector {
+        use crate::bundler::BundlerRuntime;
+        use semver::Version;
+        use std::path::PathBuf;
+
+        // Create temporary bundler runtime to extract its detector composition
+        let temp_runtime = BundlerRuntime::new(PathBuf::new(), Version::new(0, 0, 0));
+        temp_runtime.compose_gem_path_detector()
+    }
+
+    /// Compose gem path detector for standard (non-bundler) environment by delegating to GemRuntime
+    ///
+    /// Use this when bundler is NOT detected - includes user gems
+    pub fn gem_path_detector_standard() -> crate::gems::gem_path_detector::CompositeGemPathDetector
+    {
+        use crate::gems::GemRuntime;
+        use semver::Version;
+        use std::path::PathBuf;
+
+        // Create temporary gem runtime to extract its detector composition
+        let temp_runtime = GemRuntime::for_base_dir(&PathBuf::new(), &Version::new(0, 0, 0));
+        temp_runtime.compose_gem_path_detector()
+    }
+}
+
 /// Errors that can occur during ButlerRuntime operations
 #[derive(Debug, Clone)]
 pub enum ButlerError {
@@ -198,8 +246,7 @@ impl ButlerRuntime {
 
         // Step 3: Extract version requirements from project directory
         let required_ruby_version = if bundler_root.is_some() {
-            use crate::ruby::CompositeDetector;
-            let detector = CompositeDetector::bundler();
+            let detector = DetectorComposer::version_detector_for_bundler();
             detector.detect(&current_dir)
         } else {
             None
@@ -221,12 +268,19 @@ impl ButlerRuntime {
 
         // Step 6: Detect and compose gem path configuration
         // Uses detector pattern to determine appropriate gem directories
-        use crate::gems::gem_path_detector::{CompositeGemPathDetector, GemPathContext};
+        // Choose detector based on whether bundler is active
+        use crate::gems::gem_path_detector::GemPathContext;
 
-        let gem_detector = CompositeGemPathDetector::standard();
+        let gem_detector = if bundler_runtime.is_some() {
+            // Bundler detected: use bundler-specific composition (no user gems)
+            DetectorComposer::gem_path_detector_for_bundler()
+        } else {
+            // No bundler: use standard composition (includes user gems)
+            DetectorComposer::gem_path_detector_standard()
+        };
+
         let gem_context =
-            GemPathContext::new(&current_dir, &selected_ruby, gem_base_dir.as_deref())
-                .with_bundler(bundler_runtime.is_some());
+            GemPathContext::new(&current_dir, &selected_ruby, gem_base_dir.as_deref());
 
         let gem_path_config = gem_detector.detect(&gem_context);
         debug!(

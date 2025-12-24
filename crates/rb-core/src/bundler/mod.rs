@@ -51,8 +51,7 @@ impl BundlerRuntime {
 
     /// Detect Ruby version from .ruby-version file or Gemfile ruby declaration
     pub fn ruby_version(&self) -> Option<Version> {
-        use crate::ruby::CompositeDetector;
-        let detector = CompositeDetector::bundler();
+        let detector = self.compose_version_detector();
         detector.detect(&self.root)
     }
 
@@ -385,12 +384,42 @@ impl RuntimeProvider for BundlerRuntime {
             None
         }
     }
+
+    fn compose_version_detector(&self) -> crate::ruby::CompositeDetector {
+        use crate::ruby::version_detector::{GemfileDetector, RubyVersionFileDetector};
+
+        // Bundler environment: check .ruby-version first, then Gemfile
+        // Future: could add vendor/.ruby-version for bundler-specific version pinning
+        crate::ruby::CompositeDetector::new(vec![
+            Box::new(RubyVersionFileDetector),
+            Box::new(GemfileDetector),
+        ])
+    }
+
+    fn compose_gem_path_detector(
+        &self,
+    ) -> crate::gems::gem_path_detector::CompositeGemPathDetector {
+        use crate::gems::gem_path_detector::{BundlerIsolationDetector, CustomGemBaseDetector};
+
+        // Bundler environment: NO user gems detector
+        // Bundler manages its own isolation, so we only check for:
+        // 1. Custom gem base (RB_GEM_BASE override)
+        // 2. Bundler isolation (returns empty to let bundler handle everything)
+        //
+        // UserGemsDetector is intentionally excluded - bundler gems are isolated
+        // and user gems would pollute the bundle environment
+        crate::gems::gem_path_detector::CompositeGemPathDetector::new(vec![
+            Box::new(CustomGemBaseDetector),
+            Box::new(BundlerIsolationDetector),
+        ])
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use rb_tests::BundlerSandbox;
+    use std::fs;
     use std::io;
     use std::path::Path;
 
@@ -446,7 +475,7 @@ mod tests {
             .join("bin");
         fs::create_dir_all(&ruby_bin)?;
 
-        let br = BundlerRuntime::new(&project_root);
+        let br = BundlerRuntime::new(&project_root, Version::new(3, 3, 0));
         assert_eq!(br.bin_dir(), ruby_bin);
 
         Ok(())

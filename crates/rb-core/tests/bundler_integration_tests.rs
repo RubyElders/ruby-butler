@@ -185,7 +185,12 @@ gem 'rackup'
     let bundler_root = result.unwrap();
 
     use rb_core::ruby::CompositeDetector;
-    let detector = CompositeDetector::bundler();
+    use rb_core::ruby::version_detector::{GemfileDetector, RubyVersionFileDetector};
+
+    let detector = CompositeDetector::new(vec![
+        Box::new(RubyVersionFileDetector),
+        Box::new(GemfileDetector),
+    ]);
     assert_eq!(
         detector.detect(&bundler_root),
         Some(Version::parse("3.3.1").unwrap())

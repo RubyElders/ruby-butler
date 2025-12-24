@@ -303,6 +303,31 @@ impl RuntimeProvider for ProjectRuntime {
         // Project runtime doesn't add a gem directory
         None
     }
+
+    fn compose_version_detector(&self) -> crate::ruby::CompositeDetector {
+        use crate::ruby::version_detector::{GemfileDetector, RubyVersionFileDetector};
+
+        // Project environment: check .ruby-version first, then Gemfile
+        crate::ruby::CompositeDetector::new(vec![
+            Box::new(RubyVersionFileDetector),
+            Box::new(GemfileDetector),
+        ])
+    }
+
+    fn compose_gem_path_detector(
+        &self,
+    ) -> crate::gems::gem_path_detector::CompositeGemPathDetector {
+        use crate::gems::gem_path_detector::{
+            BundlerIsolationDetector, CustomGemBaseDetector, UserGemsDetector,
+        };
+
+        // Project environment: standard priority
+        crate::gems::gem_path_detector::CompositeGemPathDetector::new(vec![
+            Box::new(CustomGemBaseDetector),
+            Box::new(BundlerIsolationDetector),
+            Box::new(UserGemsDetector),
+        ])
+    }
 }
 
 #[cfg(test)]

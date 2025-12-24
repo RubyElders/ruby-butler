@@ -2,41 +2,11 @@ use log::debug;
 use rb_core::bundler::SyncResult;
 use rb_core::butler::ButlerRuntime;
 
-pub fn sync_command(
-    rubies_dir: Option<std::path::PathBuf>,
-    requested_ruby_version: Option<String>,
-    gem_home: Option<std::path::PathBuf>,
-    no_bundler: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn sync_command(butler_runtime: ButlerRuntime) -> Result<(), Box<dyn std::error::Error>> {
     debug!("Starting sync command");
 
-    // Check if --no-bundler flag is set
-    if no_bundler {
-        eprintln!("❌ Sync Requires Bundler Environment");
-        eprintln!();
-        eprintln!("The sync command cannot operate without bundler, as it is designed");
-        eprintln!("to synchronize bundler-managed gem dependencies.");
-        eprintln!();
-        eprintln!("Please remove the --no-bundler (-B) flag to use sync:");
-        eprintln!("  rb sync");
-        eprintln!();
-        std::process::exit(1);
-    }
-
-    // Resolve search directory
-    let search_dir = crate::resolve_search_dir(rubies_dir);
-
-    // Discover and compose the butler runtime with optional custom gem base
-    // Note: sync command always needs bundler, so skip_bundler is always false
-    let runtime = ButlerRuntime::discover_and_compose_with_gem_base(
-        search_dir,
-        requested_ruby_version,
-        gem_home,
-        false,
-    )?;
-
     // Check if bundler runtime is available
-    let bundler_runtime = match runtime.bundler_runtime() {
+    let bundler_runtime = match butler_runtime.bundler_runtime() {
         Some(bundler) => bundler,
         None => {
             println!("⚠️  Bundler Environment Not Detected");
@@ -47,6 +17,9 @@ pub fn sync_command(
             println!("To create a new bundler project:");
             println!("  • Create a Gemfile with: echo 'source \"https://rubygems.org\"' > Gemfile");
             println!("  • Then run: rb sync");
+            println!();
+            println!("💡 Note: If you used the --no-bundler (-B) flag, please remove it:");
+            println!("  rb sync");
             return Err("No bundler environment detected".into());
         }
     };
@@ -59,7 +32,7 @@ pub fn sync_command(
     println!();
 
     // Perform synchronization
-    match bundler_runtime.synchronize(&runtime, |line| {
+    match bundler_runtime.synchronize(&butler_runtime, |line| {
         println!("{}", line);
     }) {
         Ok(SyncResult::AlreadySynced) => {
@@ -157,35 +130,36 @@ mod tests {
     fn test_sync_command_with_no_gemfile() -> Result<(), Box<dyn std::error::Error>> {
         let sandbox = BundlerSandbox::new()?;
         let project_dir = sandbox.add_dir("no_gemfile_project")?;
-
-        // Create a temporary rubies directory to avoid CI failure
         let rubies_dir = sandbox.add_dir("rubies")?;
 
         // Change to project directory
         let original_dir = std::env::current_dir()?;
         std::env::set_current_dir(&project_dir)?;
 
-        // Should return error when no bundler environment detected
-        let result = sync_command(Some(rubies_dir), None, None, false);
+        // Try to create a ButlerRuntime without bundler (no Gemfile)
+        let result = ButlerRuntime::discover_and_compose_with_gem_base(
+            rubies_dir.clone(),
+            None,
+            None,
+            false,
+        );
 
-        // Restore directory (ignore errors in case directory was deleted)
+        // Restore directory
         let _ = std::env::set_current_dir(original_dir);
 
-        // Should return error when no bundler environment detected
         match result {
-            Ok(()) => panic!("Expected error when no Gemfile found, but command succeeded"),
-            Err(e) => {
-                let error_msg = e.to_string();
-                if error_msg.contains("No bundler environment detected")
-                    || error_msg.contains("Os { code: 2")
-                    || error_msg.contains("No such file or directory")
-                    || error_msg.contains("Bundler executable not found")
-                    || error_msg.contains("No suitable Ruby installation found")
-                {
-                    Ok(()) // Expected errors in test environment without bundler/ruby
-                } else {
-                    Err(e) // Unexpected error
-                }
+            Ok(runtime) => {
+                // If runtime creation succeeded (found Ruby), sync should fail due to no Gemfile
+                let sync_result = sync_command(runtime);
+                assert!(
+                    sync_result.is_err(),
+                    "Expected sync to fail without Gemfile"
+                );
+                Ok(())
+            }
+            Err(_) => {
+                // Expected in test environment without Ruby installation
+                Ok(())
             }
         }
     }

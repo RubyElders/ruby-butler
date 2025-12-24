@@ -27,9 +27,16 @@
 //!
 //! For standard Ruby projects:
 //! ```text
-//! use rb_core::gems::CompositeGemPathDetector;
+//! use rb_core::gems::gem_path_detector::{
+//!     CompositeGemPathDetector, CustomGemBaseDetector,
+//!     BundlerIsolationDetector, UserGemsDetector,
+//! };
 //!
-//! let detector = CompositeGemPathDetector::standard(&ruby_runtime);
+//! let detector = CompositeGemPathDetector::new(vec![
+//!     Box::new(CustomGemBaseDetector),
+//!     Box::new(BundlerIsolationDetector),
+//!     Box::new(UserGemsDetector),
+//! ]);
 //! if let Some(gem_path) = detector.detect(context) {
 //!     println!("Gem directories: {:?}", gem_path.gem_dirs());
 //! }
@@ -89,7 +96,7 @@ impl GemPathConfig {
     }
 }
 
-/// Context for gem path detection
+/// Context information for gem path detection
 #[derive(Debug)]
 pub struct GemPathContext<'a> {
     /// Current working directory
@@ -98,8 +105,6 @@ pub struct GemPathContext<'a> {
     pub ruby_runtime: &'a RubyRuntime,
     /// Custom gem base directory (from -G flag)
     pub custom_gem_base: Option<&'a Path>,
-    /// Whether bundler runtime was detected (None if skip_bundler flag set)
-    pub bundler_detected: bool,
 }
 
 impl<'a> GemPathContext<'a> {
@@ -113,14 +118,7 @@ impl<'a> GemPathContext<'a> {
             current_dir,
             ruby_runtime,
             custom_gem_base,
-            bundler_detected: false,
         }
-    }
-
-    /// Create a context with bundler detection info
-    pub fn with_bundler(mut self, bundler_detected: bool) -> Self {
-        self.bundler_detected = bundler_detected;
-        self
     }
 }
 
@@ -145,20 +143,6 @@ impl CompositeGemPathDetector {
     /// Create a new composite detector with the given strategies
     pub fn new(detectors: Vec<Box<dyn GemPathDetector>>) -> Self {
         Self { detectors }
-    }
-
-    /// Create a standard detector chain
-    ///
-    /// Priority order:
-    /// 1. Custom gem base (explicit user override via -G flag)
-    /// 2. Bundler isolation (when in bundler project, no user gems)
-    /// 3. User gems (standard Ruby + user gem directories)
-    pub fn standard() -> Self {
-        Self::new(vec![
-            Box::new(CustomGemBaseDetector),
-            Box::new(BundlerIsolationDetector),
-            Box::new(UserGemsDetector),
-        ])
     }
 
     /// Detect gem path configuration using all configured detectors in priority order
@@ -242,7 +226,11 @@ mod tests {
             Some(Path::new("/custom/gems")),
         );
 
-        let detector = CompositeGemPathDetector::standard();
+        let detector = CompositeGemPathDetector::new(vec![
+            Box::new(CustomGemBaseDetector),
+            Box::new(BundlerIsolationDetector),
+            Box::new(UserGemsDetector),
+        ]);
         let config = detector.detect(&context);
 
         // Should get custom gem base (highest priority)
@@ -260,10 +248,30 @@ mod tests {
         let ruby = create_test_ruby();
         let context = GemPathContext::new(Path::new("/project"), &ruby, None);
 
-        let detector = CompositeGemPathDetector::standard();
+        // Test standard (non-bundler) composition
+        let detector = CompositeGemPathDetector::new(vec![
+            Box::new(CustomGemBaseDetector),
+            Box::new(UserGemsDetector),
+        ]);
         let config = detector.detect(&context);
 
-        // Without custom gem base or bundler, should fall to user gems
+        // Without custom gem base, should fall through to user gems
         assert!(!config.gem_dirs().is_empty());
+    }
+
+    #[test]
+    fn test_bundler_composition_returns_empty() {
+        let ruby = create_test_ruby();
+        let context = GemPathContext::new(Path::new("/project"), &ruby, None);
+
+        // Test bundler composition (includes BundlerIsolationDetector)
+        let detector = CompositeGemPathDetector::new(vec![
+            Box::new(CustomGemBaseDetector),
+            Box::new(BundlerIsolationDetector),
+        ]);
+        let config = detector.detect(&context);
+
+        // BundlerIsolationDetector always returns empty config (bundler isolation)
+        assert_eq!(config.gem_dirs().len(), 0);
     }
 }

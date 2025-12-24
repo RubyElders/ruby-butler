@@ -16,7 +16,7 @@ pub struct RbConfig {
         short = 'R',
         long = "rubies-dir",
         global = true,
-        help = "Designate the directory containing your Ruby installations (default: ~/.rubies)"
+        help = "Designate the directory containing your Ruby installations (default: RB_RUBIES_DIR or ~/.rubies)"
     )]
     #[serde(rename = "rubies-dir", skip_serializing_if = "Option::is_none")]
     pub rubies_dir: Option<PathBuf>,
