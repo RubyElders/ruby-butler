@@ -2,6 +2,9 @@
 # Run this script once before running Pester tests
 # Compiles Ruby Butler and sets up environment variables for testing
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
+param()
+
 Write-Host "Ruby Butler Test Setup" -ForegroundColor Cyan
 Write-Host "=====================" -ForegroundColor Cyan
 

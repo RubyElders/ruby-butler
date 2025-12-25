@@ -45,7 +45,7 @@ Describe "Ruby Butler - Gem Command Execution Integration" {
     
     Context "Gem Query Commands" {
         It "Executes gem which bundler command successfully" {
-            $Output = & $Script:RbPath x gem which bundler 2>&1
+            & $Script:RbPath x gem which bundler 2>&1 | Out-Null
             # gem which might not work for bundler, but should not fail with error
             $LASTEXITCODE | Should -BeIn @(0, 1)
         }
