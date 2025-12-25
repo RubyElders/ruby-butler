@@ -12,7 +12,7 @@ env:
 
 jobs:
   lint:
-    name: Lint
+    name: Lint (Rust)
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -42,6 +42,16 @@ jobs:
 
     - name: Check documentation
       run: cargo doc --no-deps --document-private-items --all-features
+
+  lint-powershell:
+    name: Lint (PowerShell)
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run PSScriptAnalyzer
+      run: .\tests\Lint.ps1
+      shell: pwsh
 
   lint-shell-format:
     name: Shell Script Formatting

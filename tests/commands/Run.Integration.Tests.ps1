@@ -248,7 +248,7 @@ Describe "Ruby Butler - Run Command (rb run)" {
         It "Returns non-zero exit code when no project file exists" {
             Push-Location $Script:ProjectNoConfig
             try {
-                $Output = & $Script:RbPath run 2>&1
+                & $Script:RbPath run 2>&1 | Out-Null
                 $LASTEXITCODE | Should -Not -Be 0
             } finally {
                 Pop-Location
@@ -340,7 +340,7 @@ Describe "Ruby Butler - Run Command (rb run)" {
         It "Returns non-zero exit code for non-existent script" {
             Push-Location $Script:ProjectWithScripts
             try {
-                $Output = & $Script:RbPath run nonexistent 2>&1
+                & $Script:RbPath run nonexistent 2>&1 | Out-Null
                 $LASTEXITCODE | Should -Not -Be 0
             } finally {
                 Pop-Location
@@ -448,8 +448,7 @@ Describe "Ruby Butler - Run Command (rb run)" {
                 $Output = & $Script:RbPath run 2>&1
                 $LASTEXITCODE | Should -Be 0
                 # Should go straight from title to Usage section
-                $OutputText = $Output -join "`n"
-                $OutputText | Should -Match "Run Project Scripts[\s\r\n]+Usage:"
+                ($Output -join "`n") | Should -Match "Run Project Scripts[\s\r\n]+Usage:"
             } finally {
                 Pop-Location
             }
@@ -471,9 +470,8 @@ Describe "Ruby Butler - Run Command (rb run)" {
         It "Works with very verbose flag" {
             Push-Location $Script:ProjectWithScripts
             try {
-                $Output = & $Script:RbPath -V run 2>&1
+                (& $Script:RbPath -V run 2>&1 | Out-String) | Should -Match "Run Project Scripts"
                 $LASTEXITCODE | Should -Be 0
-                ($Output -join "`n") | Should -Match "Run Project Scripts"
             } finally {
                 Pop-Location
             }
@@ -494,7 +492,7 @@ Describe "Ruby Butler - Run Command Edge Cases" {
         It "Handles script names with hyphens" {
             Push-Location $Script:ProjectWithScripts
             try {
-                $Output = & $Script:RbPath run gem-version 2>&1
+                & $Script:RbPath run gem-version 2>&1 | Out-Null
                 $LASTEXITCODE | Should -Be 0
             } finally {
                 Pop-Location
@@ -766,7 +764,7 @@ fail = "ruby -e \"exit 42\""
             
             Push-Location $FailProject
             try {
-                $Output = & $Script:RbPath run fail 2>&1
+                & $Script:RbPath run fail 2>&1 | Out-Null
                 # Should exit with the command's exit code
                 $LASTEXITCODE | Should -Be 42
             } finally {

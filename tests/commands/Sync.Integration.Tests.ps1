@@ -144,7 +144,7 @@ gem 'rake'
 "@ | Set-Content -Path (Join-Path $TestSubDir "Gemfile")
                 
                 # Sync again
-                $Output = & $Script:RbPath sync 2>&1
+                & $Script:RbPath sync 2>&1 | Out-Null
                 $LASTEXITCODE | Should -Be 0
                 
                 # Verify Gemfile.lock still exists and bundler is removed
