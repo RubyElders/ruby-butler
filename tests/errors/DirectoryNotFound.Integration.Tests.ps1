@@ -10,28 +10,24 @@ BeforeAll {
 
 Describe "Ruby Butler - Directory Not Found Error Handling" {
     Context "Nonexistent Directory Error Messages" {
-        It "Shows gentleman's butler error message for relative path" {
+        It "Shows error message for relative path" {
             $NonexistentDir = "completely_nonexistent_test_directory_12345"
             
             $Output = & $Script:RbPath -R $NonexistentDir rt 2>&1
             $LASTEXITCODE | Should -Be 1
             
-            ($Output -join " ") | Should -Match "sincerest apologies.*Ruby estate directory"
-            ($Output -join " ") | Should -Match "appears to be absent from your system"
-            ($Output -join " ") | Should -Match "humble Butler.*accomplish.*behalf"
-            ($Output -join " ") | Should -Match "ruby-install.*distinguished tool"
-            ($Output -join " ") | Should -Match "appropriate ceremony"
+            ($Output -join " ") | Should -Match "Ruby installation directory not found"
+            ($Output -join " ") | Should -Match $NonexistentDir
         }
         
-        It "Shows gentleman's butler error message for absolute path" {
+        It "Shows error message for absolute path" {
             $NonexistentDir = "C:\completely_nonexistent_test_directory_12345"
             
             $Output = & $Script:RbPath -R $NonexistentDir environment 2>&1
             $LASTEXITCODE | Should -Be 1
             
-            ($Output -join " ") | Should -Match "sincerest apologies"
+            ($Output -join " ") | Should -Match "Ruby installation directory not found"
             ($Output -join " ") | Should -Match "completely_nonexistent_test_directory_12345"
-            ($Output -join " ") | Should -Match "Ruby estate directory.*absent"
         }
         
         It "Shows directory path clearly in error message" {
@@ -48,35 +44,28 @@ Describe "Ruby Butler - Directory Not Found Error Handling" {
             $LASTEXITCODE | Should -Be 1
         }
         
-        It "Maintains butler tone across different commands" {
+        It "Maintains consistent error across different commands" {
             $TestCommands = @("runtime", "rt", "environment", "env")
             
             foreach ($Command in $TestCommands) {
                 $Output = & $Script:RbPath -R "nonexistent_$Command" $Command 2>&1
                 $LASTEXITCODE | Should -Be 1
-                ($Output -join " ") | Should -Match "sincerest apologies"
-                ($Output -join " ") | Should -Match "humble Butler"
+                ($Output -join " ") | Should -Match "Ruby installation directory not found"
             }
         }
     }
     
     Context "Error Message Content Verification" {
-        It "Contains all required butler language elements" {
+        It "Contains helpful guidance" {
             $Output = & $Script:RbPath -R "test_content_dir" rt 2>&1
             $LASTEXITCODE | Should -Be 1
             
             $OutputText = $Output -join " "
             
-            # Check for sophisticated language
-            $OutputText | Should -Match "sincerest apologies"
-            $OutputText | Should -Match "humble Butler"
-            $OutputText | Should -Match "distinguished tool"
-            $OutputText | Should -Match "appropriate ceremony"
-            $OutputText | Should -Match "Ruby estate"
-            
             # Check for helpful guidance
-            $OutputText | Should -Match "ruby-install"
-            $OutputText | Should -Match "establish.*Ruby installations"
+            $OutputText | Should -Match "Ruby installation directory not found"
+            $OutputText | Should -Match "verify the path exists"
+            $OutputText | Should -Match "RB_RUBIES_DIR"
         }
         
         It "Displays the exact directory path provided" {

@@ -87,6 +87,7 @@ fn test_ruby_version_completion_with_prefix() {
 }
 
 #[test]
+#[cfg(unix)]
 fn test_tilde_expansion_in_rubies_dir_short_flag() {
     // Create a Ruby sandbox in a known location within home directory
     let home_dir = std::env::var("HOME").expect("HOME not set");
@@ -133,6 +134,7 @@ fn test_tilde_expansion_in_rubies_dir_short_flag() {
 }
 
 #[test]
+#[cfg(unix)]
 fn test_tilde_expansion_in_rubies_dir_long_flag() {
     // Create a Ruby sandbox in a known location within home directory
     let home_dir = std::env::var("HOME").expect("HOME not set");
@@ -170,6 +172,7 @@ fn test_tilde_expansion_in_rubies_dir_long_flag() {
 }
 
 #[test]
+#[cfg(unix)]
 fn test_tilde_only_expands_to_home() {
     // Create a Ruby sandbox in a known location within home directory
     let home_dir = std::env::var("HOME").expect("HOME not set");
