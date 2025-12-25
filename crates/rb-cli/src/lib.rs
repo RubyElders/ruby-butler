@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod completion;
 pub mod config;
+pub mod error_display;
 
 use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::{Parser, Subcommand, ValueEnum};
