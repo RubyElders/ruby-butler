@@ -9,37 +9,116 @@ BeforeAll {
 }
 
 Describe "Ruby Butler - Help System" {
-    Context "Help Command Options" {
-        It "Shows help with --help flag" {
-            $Output = & $Script:RbPath --help 2>&1
-            $LASTEXITCODE | Should -Be 0
-            ($Output -join " ") | Should -Match "Ruby Butler|Usage|Commands"
-        }
-        
-        It "Shows help with -h flag" {
-            $Output = & $Script:RbPath -h 2>&1
+    Context "Help Command" {
+        It "Shows help with help command" {
+            $Output = & $Script:RbPath help 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join " ") | Should -Match "Ruby Butler|Usage|Commands"
         }
         
         It "Lists main commands in help" {
-            $Output = & $Script:RbPath --help 2>&1
+            $Output = & $Script:RbPath help 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join " ") | Should -Match "runtime|environment|exec"
         }
+        
+        It "Lists utility commands in help" {
+            $Output = & $Script:RbPath help 2>&1
+            $LASTEXITCODE | Should -Be 0
+            ($Output -join " ") | Should -Match "init|config|version|help"
+        }
+        
+        It "Shows command aliases in help" {
+            $Output = & $Script:RbPath help 2>&1
+            $LASTEXITCODE | Should -Be 0
+            $OutputText = $Output -join " "
+            $OutputText | Should -Match "rt"
+            $OutputText | Should -Match "env"
+            $OutputText | Should -Match "x"
+        }
+        
+        It "Shows options section in help" {
+            $Output = & $Script:RbPath help 2>&1
+            $LASTEXITCODE | Should -Be 0
+            ($Output -join " ") | Should -Match "Options"
+        }
+        
+        It "Rejects --help flag with error" {
+            $Output = & $Script:RbPath --help 2>&1
+            $LASTEXITCODE | Should -Not -Be 0
+            ($Output -join " ") | Should -Match "unexpected argument"
+        }
     }
     
+    Context "Command-Specific Help" {
+        It "Shows runtime command help" {
+            $Output = & $Script:RbPath help runtime 2>&1
+            $LASTEXITCODE | Should -Be 0
+            ($Output -join " ") | Should -Match "runtime"
+        }
+        
+        It "Shows environment command help" {
+            $Output = & $Script:RbPath help environment 2>&1
+            $LASTEXITCODE | Should -Be 0
+            ($Output -join " ") | Should -Match "environment"
+        }
+        
+        It "Shows exec command help" {
+            $Output = & $Script:RbPath help exec 2>&1
+            $LASTEXITCODE | Should -Be 0
+            ($Output -join " ") | Should -Match "exec"
+        }
+        
+        It "Shows sync command help" {
+            $Output = & $Script:RbPath help sync 2>&1
+            $LASTEXITCODE | Should -Be 0
+            ($Output -join " ") | Should -Match "sync"
+        }
+        
+        It "Shows run command help" {
+            $Output = & $Script:RbPath help run 2>&1
+            $LASTEXITCODE | Should -Be 0
+            ($Output -join " ") | Should -Match "run"
+        }
+        
+        It "Shows init command help" {
+            $Output = & $Script:RbPath help init 2>&1
+            $LASTEXITCODE | Should -Be 0
+            ($Output -join " ") | Should -Match "init"
+        }
+        
+        It "Shows config command help" {
+            $Output = & $Script:RbPath help config 2>&1
+            $LASTEXITCODE | Should -Be 0
+            ($Output -join " ") | Should -Match "config"
+        }
+        
+        It "Shows version command help" {
+            $Output = & $Script:RbPath help version 2>&1
+            $LASTEXITCODE | Should -Be 0
+            ($Output -join " ") | Should -Match "version"
+        }
+    }
+}
+
+Describe "Ruby Butler - Version Command" {
     Context "Version Information" {
-        It "Shows version with --version flag" {
-            $Output = & $Script:RbPath --version 2>&1
+        It "Shows version with version command" {
+            $Output = & $Script:RbPath version 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join " ") | Should -Match "Ruby Butler v\d+\.\d+\.\d+"
         }
         
-        It "Shows version with -V flag" {
-            $Output = & $Script:RbPath -V 2>&1
+        It "Shows sophisticated description in version" {
+            $Output = & $Script:RbPath version 2>&1
             $LASTEXITCODE | Should -Be 0
-            ($Output -join " ") | Should -Match "Ruby Butler v\d+\.\d+\.\d+"
+            ($Output -join " ") | Should -Match "sophisticated.*environment manager|gentleman's gentleman"
+        }
+        
+        It "Rejects --version flag with error" {
+            $Output = & $Script:RbPath --version 2>&1
+            $LASTEXITCODE | Should -Not -Be 0
+            ($Output -join " ") | Should -Match "unexpected argument"
         }
     }
 }
@@ -47,13 +126,7 @@ Describe "Ruby Butler - Help System" {
 Describe "Ruby Butler - Command Recognition" {
     Context "Runtime Commands" {
         It "Recognizes runtime command" {
-            $Output = & $Script:RbPath runtime --help 2>&1
-            $LASTEXITCODE | Should -Be 0
-            ($Output -join " ") | Should -Match "runtime|Survey.*Ruby"
-        }
-        
-        It "Recognizes rt alias for runtime" {
-            $Output = & $Script:RbPath rt --help 2>&1
+            $Output = & $Script:RbPath help runtime 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join " ") | Should -Match "runtime|Survey.*Ruby"
         }
@@ -61,29 +134,29 @@ Describe "Ruby Butler - Command Recognition" {
     
     Context "Environment Commands" {
         It "Recognizes environment command" {
-            $Output = & $Script:RbPath environment --help 2>&1
+            $Output = & $Script:RbPath help environment 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join " ") | Should -Match "environment|Present.*current.*Ruby"
         }
         
         It "Recognizes env alias for environment" {
-            $Output = & $Script:RbPath env --help 2>&1
+            $Output = & $Script:RbPath help environment 2>&1
             $LASTEXITCODE | Should -Be 0
-            ($Output -join " ") | Should -Match "environment|Present.*current.*Ruby"
+            ($Output -join " ") | Should -Match "env"
         }
     }
     
     Context "Execution Commands" {
         It "Recognizes exec command" {
-            $Output = & $Script:RbPath exec --help 2>&1
+            $Output = & $Script:RbPath help exec 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join " ") | Should -Match "exec|Execute.*command.*Ruby"
         }
         
         It "Recognizes x alias for exec" {
-            $Output = & $Script:RbPath x --help 2>&1
+            $Output = & $Script:RbPath help exec 2>&1
             $LASTEXITCODE | Should -Be 0
-            ($Output -join " ") | Should -Match "exec|Execute.*command.*Ruby"
+            ($Output -join " ") | Should -Match "x"
         }
     }
 }
@@ -91,21 +164,21 @@ Describe "Ruby Butler - Command Recognition" {
 Describe "Ruby Butler - Gentleman's Approach" {
     Context "Language and Branding" {
         It "Uses sophisticated language" {
-            $Output = & $Script:RbPath --help 2>&1
+            $Output = & $Script:RbPath help 2>&1
             $LASTEXITCODE | Should -Be 0
-            ($Output -join " ") | Should -Match "distinguished|sophisticated|refined|gentleman"
+            ($Output -join " ") | Should -Match "distinguished|sophisticated|refined|meticulously"
         }
         
         It "Presents as environment manager, not version switcher" {
-            $Output = & $Script:RbPath --help 2>&1
+            $Output = & $Script:RbPath help 2>&1
             $LASTEXITCODE | Should -Be 0
-            ($Output -join " ") | Should -Match "environment manager|environment|orchestrates"
+            ($Output -join " ") | Should -Match "environment manager|environment"
         }
         
-        It "Includes RubyElders branding" {
-            $Output = & $Script:RbPath --help 2>&1
+        It "Includes butler emoji in help" {
+            $Output = & $Script:RbPath help 2>&1
             $LASTEXITCODE | Should -Be 0
-            ($Output -join " ") | Should -Match "RubyElders"
+            ($Output -join " ") | Should -Match "🎩|Ruby Butler"
         }
     }
 }

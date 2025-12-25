@@ -317,8 +317,8 @@ local = "echo local"
             ($Output -join "`n") | Should -Match "Project"
         }
         
-        It "Works with -vv very verbose flag" {
-            $Output = & $Script:RbPath -vv -P $Script:ValidProjectFile env 2>&1
+        It "Works with -V very verbose flag" {
+            $Output = & $Script:RbPath -V -P $Script:ValidProjectFile env 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join "`n") | Should -Match "DEBUG|INFO"
             ($Output -join "`n") | Should -Match "Project"

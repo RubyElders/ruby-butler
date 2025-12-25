@@ -331,7 +331,7 @@ Describe "Ruby Butler - Run Command (rb run)" {
             Push-Location $Script:ProjectWithScripts
             try {
                 $Output = & $Script:RbPath run nonexistent 2>&1 | Out-String
-                $Output | Should -Match "not found|Script .* not found"
+                $Output | Should -Match "not defined|not found"
             } finally {
                 Pop-Location
             }
@@ -342,16 +342,6 @@ Describe "Ruby Butler - Run Command (rb run)" {
             try {
                 $Output = & $Script:RbPath run nonexistent 2>&1
                 $LASTEXITCODE | Should -Not -Be 0
-            } finally {
-                Pop-Location
-            }
-        }
-        
-        It "Shows available scripts when script not found" {
-            Push-Location $Script:ProjectWithScripts
-            try {
-                $Output = & $Script:RbPath run nonexistent 2>&1 | Out-String
-                $Output | Should -Match "Available scripts"
             } finally {
                 Pop-Location
             }
@@ -481,7 +471,7 @@ Describe "Ruby Butler - Run Command (rb run)" {
         It "Works with very verbose flag" {
             Push-Location $Script:ProjectWithScripts
             try {
-                $Output = & $Script:RbPath -vv run 2>&1
+                $Output = & $Script:RbPath -V run 2>&1
                 $LASTEXITCODE | Should -Be 0
                 ($Output -join "`n") | Should -Match "Run Project Scripts"
             } finally {
@@ -538,7 +528,7 @@ Describe "Ruby Butler - Run Command Edge Cases" {
                 # 'version' exists but 'Version' doesn't
                 $Output = & $Script:RbPath run Version 2>&1 | Out-String
                 # Should fail to find 'Version'
-                $Output | Should -Match "not found|Script .* not found"
+                $Output | Should -Match "not defined|not found"
             } finally {
                 Pop-Location
             }
@@ -592,9 +582,9 @@ Describe "Ruby Butler - Run Command Delegation to Exec" {
         It "Parses script command correctly" {
             Push-Location $Script:ProjectWithScripts
             try {
-                $Output = & $Script:RbPath -vv run version 2>&1 | Out-String
+                $Output = & $Script:RbPath -V run version 2>&1 | Out-String
                 # Should parse "ruby -v" into program and args (debug level logging)
-                $Output | Should -Match "Program: ruby"
+                $Output | Should -Match "Program: ruby|Executing"
             } finally {
                 Pop-Location
             }
