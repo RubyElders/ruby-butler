@@ -1,6 +1,10 @@
 use clap::Parser;
 use colored::Colorize;
 use rb_cli::config::TrackedConfig;
+use rb_cli::error_display::{
+    error_exit_code, format_command_not_found, format_general_error, format_no_suitable_ruby,
+    format_rubies_dir_not_found,
+};
 use rb_cli::{
     Cli, Commands, Shell, config_command, environment_command, exec_command, init_command,
     init_logger, run_command, runtime_command, shell_integration_command, sync_command,
@@ -16,70 +20,24 @@ struct CommandContext {
 
 /// Centralized error handler that transforms technical errors into friendly messages
 fn handle_command_error(error: ButlerError, context: &CommandContext) -> ! {
-    match error {
+    let message = match &error {
         ButlerError::NoSuitableRuby(_) => {
             let rubies_dir = context.config.rubies_dir.get();
-            eprintln!(
-                "The designated Ruby estate directory appears to be absent from your system."
-            );
-            eprintln!();
-            eprintln!("Searched in:");
-            eprintln!(
-                "  • {} (from {})",
-                rubies_dir.display(),
-                context.config.rubies_dir.source
-            );
+            let source = context.config.rubies_dir.source.to_string();
+            let version_info = context
+                .config
+                .ruby_version
+                .as_ref()
+                .map(|v| (v.get().clone(), v.source.to_string()));
+            format_no_suitable_ruby(rubies_dir, source, version_info)
+        }
+        ButlerError::CommandNotFound(command) => format_command_not_found(command),
+        ButlerError::RubiesDirectoryNotFound(path) => format_rubies_dir_not_found(path),
+        ButlerError::General(msg) => format_general_error(msg),
+    };
 
-            if let Some(ref requested_version) = context.config.ruby_version {
-                eprintln!();
-                eprintln!(
-                    "Requested version: {} (from {})",
-                    requested_version.get(),
-                    requested_version.source
-                );
-            }
-
-            eprintln!();
-            eprintln!(
-                "May I suggest installing Ruby using ruby-install or a similar distinguished tool?"
-            );
-            std::process::exit(1);
-        }
-        ButlerError::CommandNotFound(command) => {
-            eprintln!(
-                "🎩 My sincerest apologies, but the command '{}' appears to be",
-                command.bright_yellow()
-            );
-            eprintln!("   entirely absent from your distinguished Ruby environment.");
-            eprintln!();
-            eprintln!("This humble Butler has meticulously searched through all");
-            eprintln!("available paths and gem installations, yet the requested");
-            eprintln!("command remains elusive.");
-            eprintln!();
-            eprintln!("Might I suggest:");
-            eprintln!("  • Verifying the command name is spelled correctly");
-            eprintln!(
-                "  • Installing the appropriate gem: {}",
-                format!("gem install {}", command).cyan()
-            );
-            eprintln!(
-                "  • Checking if bundler management is required: {}",
-                "bundle install".cyan()
-            );
-            std::process::exit(127);
-        }
-        ButlerError::RubiesDirectoryNotFound(path) => {
-            eprintln!("Ruby installation directory not found: {}", path.display());
-            eprintln!();
-            eprintln!("Please verify the path exists or specify a different location");
-            eprintln!("using the -R flag or RB_RUBIES_DIR environment variable.");
-            std::process::exit(1);
-        }
-        ButlerError::General(msg) => {
-            eprintln!("❌ {}", msg);
-            std::process::exit(1);
-        }
-    }
+    eprintln!("{}", message);
+    std::process::exit(error_exit_code(&error));
 }
 
 /// Create ButlerRuntime lazily and execute command with it
