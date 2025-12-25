@@ -110,8 +110,8 @@ impl std::error::Error for ButlerError {}
 /// and bundler projects with distinguished precision.
 #[derive(Debug, Clone)]
 pub struct ButlerRuntime {
-    // Core runtime components
-    ruby_runtime: RubyRuntime,
+    // Core runtime components - all optional now
+    ruby_runtime: Option<RubyRuntime>,
     gem_runtime: Option<GemRuntime>,
     bundler_runtime: Option<BundlerRuntime>,
 
@@ -146,8 +146,26 @@ impl ButlerRuntime {
         let rubies_dir = PathBuf::from(".");
 
         Self {
-            ruby_runtime,
+            ruby_runtime: Some(ruby_runtime),
             gem_runtime,
+            bundler_runtime: None,
+            rubies_dir,
+            current_dir,
+            ruby_installations: vec![],
+            requested_ruby_version: None,
+            required_ruby_version: None,
+            gem_base_dir: None,
+        }
+    }
+
+    /// Create an empty ButlerRuntime when no Ruby installations are found
+    /// This allows the runtime to exist even without Ruby, with methods failing when features are accessed
+    pub fn empty(rubies_dir: PathBuf, current_dir: PathBuf) -> Self {
+        debug!("Creating empty ButlerRuntime (no Ruby installations found)");
+
+        Self {
+            ruby_runtime: None,
+            gem_runtime: None,
             bundler_runtime: None,
             rubies_dir,
             current_dir,
@@ -207,17 +225,26 @@ impl ButlerRuntime {
 
         // Step 1: Discover Ruby installations
         debug!("Discovering Ruby installations");
-        let ruby_installations =
-            RubyRuntimeDetector::discover(&rubies_dir).map_err(|e| match e {
-                RubyDiscoveryError::DirectoryNotFound(path) => {
-                    ButlerError::RubiesDirectoryNotFound(path)
-                }
-                RubyDiscoveryError::IoError(msg) => {
-                    ButlerError::General(format!("Failed to discover Ruby installations: {}", msg))
-                }
-            })?;
+        let ruby_installations = match RubyRuntimeDetector::discover(&rubies_dir) {
+            Ok(installations) => installations,
+            Err(RubyDiscoveryError::DirectoryNotFound(path)) => {
+                // If the rubies directory doesn't exist, return a proper error
+                return Err(ButlerError::RubiesDirectoryNotFound(path));
+            }
+            Err(e) => {
+                // Other errors (like I/O errors) return empty list to gracefully degrade
+                debug!("Ruby discovery failed: {:?}", e);
+                vec![]
+            }
+        };
 
         info!("Found {} Ruby installations", ruby_installations.len());
+
+        // If no Ruby installations found, return empty runtime
+        if ruby_installations.is_empty() {
+            debug!("No Ruby installations found, returning empty runtime");
+            return Ok(Self::empty(rubies_dir, current_dir));
+        }
 
         // Step 2: Detect bundler environment (skip if requested)
         let bundler_root = if skip_bundler {
@@ -257,10 +284,21 @@ impl ButlerRuntime {
             &ruby_installations,
             &requested_ruby_version,
             &required_ruby_version,
-        )
-        .ok_or_else(|| {
-            ButlerError::NoSuitableRuby("No suitable Ruby installation found".to_string())
-        })?;
+        );
+
+        // If no Ruby selected, handle appropriately
+        let Some(selected_ruby) = selected_ruby else {
+            // If a specific version was requested but not found, return error
+            if let Some(requested) = &requested_ruby_version {
+                return Err(ButlerError::NoSuitableRuby(format!(
+                    "Requested Ruby version {} not found",
+                    requested
+                )));
+            }
+            // Otherwise return empty runtime
+            debug!("No suitable Ruby selected, returning empty runtime");
+            return Ok(Self::empty(rubies_dir, current_dir));
+        };
 
         // Step 5: Create bundler runtime with selected Ruby version (if bundler detected)
         let bundler_runtime =
@@ -308,7 +346,7 @@ impl ButlerRuntime {
         );
 
         Ok(Self {
-            ruby_runtime: selected_ruby,
+            ruby_runtime: Some(selected_ruby),
             gem_runtime,
             bundler_runtime,
             rubies_dir,
@@ -335,17 +373,6 @@ impl ButlerRuntime {
             match Version::parse(requested) {
                 Ok(req_version) => {
                     let found = rubies.iter().find(|r| r.version == req_version).cloned();
-
-                    if found.is_none() {
-                        println!(
-                            "{}",
-                            format!(
-                                "Requested Ruby version {} not found in available installations",
-                                requested
-                            )
-                            .yellow()
-                        );
-                    }
                     return found;
                 }
                 Err(e) => {
@@ -396,8 +423,12 @@ impl ButlerRuntime {
         self.requested_ruby_version.as_deref()
     }
 
-    pub fn selected_ruby(&self) -> &RubyRuntime {
-        &self.ruby_runtime
+    pub fn selected_ruby(&self) -> Result<&RubyRuntime, ButlerError> {
+        self.ruby_runtime.as_ref().ok_or_else(|| {
+            ButlerError::NoSuitableRuby(
+                "No Ruby installation available. Please install Ruby first.".to_string(),
+            )
+        })
     }
 
     pub fn bundler_runtime(&self) -> Option<&BundlerRuntime> {
@@ -497,10 +528,14 @@ impl ButlerRuntime {
             debug!("Skipping user gem bin directory (bundler isolation)");
         }
 
-        // Ruby runtime bin dir always included
-        let ruby_bin = self.ruby_runtime.bin_dir();
-        debug!("Adding ruby bin directory to PATH: {}", ruby_bin.display());
-        dirs.push(ruby_bin);
+        // Ruby runtime bin dir always included (if Ruby available)
+        if let Some(ref ruby_runtime) = self.ruby_runtime {
+            let ruby_bin = ruby_runtime.bin_dir();
+            debug!("Adding ruby bin directory to PATH: {}", ruby_bin.display());
+            dirs.push(ruby_bin);
+        } else {
+            debug!("No Ruby runtime available, skipping ruby bin directory");
+        }
 
         debug!("Total bin directories: {}", dirs.len());
         dirs
@@ -542,10 +577,14 @@ impl ButlerRuntime {
             debug!("Skipping user gem home (bundler isolation)");
         }
 
-        // Ruby runtime lib dir always included
-        let ruby_lib = self.ruby_runtime.lib_dir();
-        debug!("Adding ruby lib directory for gems: {}", ruby_lib.display());
-        dirs.push(ruby_lib);
+        // Ruby runtime lib dir always included (if Ruby available)
+        if let Some(ref ruby_runtime) = self.ruby_runtime {
+            let ruby_lib = ruby_runtime.lib_dir();
+            debug!("Adding ruby lib directory for gems: {}", ruby_lib.display());
+            dirs.push(ruby_lib);
+        } else {
+            debug!("No Ruby runtime available, skipping ruby lib directory");
+        }
 
         debug!("Total gem directories: {}", dirs.len());
         dirs

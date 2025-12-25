@@ -126,5 +126,23 @@ Describe "Ruby Butler Init Command"
         The output should include "ruby"
       End
     End
+
+    Context "environment variable support"
+      It "respects RB_RUBIES_DIR environment variable"
+        cd "$TEST_INIT_DIR"
+        export RB_RUBIES_DIR="$RUBIES_DIR"
+        When run rb init
+        The status should equal 0
+        The output should include "Splendid"
+      End
+
+      It "works with RB_WORK_DIR to init in different directory"
+        export RB_WORK_DIR="$TEST_INIT_DIR"
+        When run rb init
+        The status should equal 0
+        The output should include "Splendid"
+        The file "$TEST_INIT_DIR/rbproject.toml" should be exist
+      End
+    End
   End
 End

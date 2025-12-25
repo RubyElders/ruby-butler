@@ -49,7 +49,9 @@ fn test_create_ruby_context_integration() {
     assert!(butler_runtime.has_ruby_environment());
 
     // Verify the runtime
-    let runtime = butler_runtime.selected_ruby();
+    let runtime = butler_runtime
+        .selected_ruby()
+        .expect("Should have selected Ruby");
     assert_eq!(runtime.version, Version::parse("3.2.5").unwrap());
     assert!(runtime.root.exists());
 

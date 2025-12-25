@@ -1,3 +1,4 @@
+pub mod config;
 pub mod environment;
 pub mod exec;
 pub mod init;
@@ -6,6 +7,7 @@ pub mod runtime;
 pub mod shell_integration;
 pub mod sync;
 
+pub use config::config_command;
 pub use environment::environment_command;
 pub use exec::exec_command;
 pub use init::init_command;
