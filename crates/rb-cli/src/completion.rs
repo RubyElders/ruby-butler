@@ -23,11 +23,27 @@ fn get_completion_behavior(command: &str) -> CompletionBehavior {
     }
 }
 
+/// Expand tilde (~) to home directory in paths
+fn expand_tilde(path: &str) -> PathBuf {
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home) = std::env::var_os("HOME") {
+            let mut expanded = PathBuf::from(home);
+            expanded.push(stripped);
+            return expanded;
+        }
+    } else if path == "~"
+        && let Some(home) = std::env::var_os("HOME")
+    {
+        return PathBuf::from(home);
+    }
+    PathBuf::from(path)
+}
+
 /// Extract rubies_dir from command line words if -R or --rubies-dir flag is present
 fn extract_rubies_dir_from_line(words: &[&str]) -> Option<PathBuf> {
     for i in 0..words.len() {
         if (words[i] == "-R" || words[i] == "--rubies-dir") && i + 1 < words.len() {
-            return Some(PathBuf::from(words[i + 1]));
+            return Some(expand_tilde(words[i + 1]));
         }
     }
     None
@@ -37,7 +53,7 @@ fn extract_rubies_dir_from_line(words: &[&str]) -> Option<PathBuf> {
 pub fn generate_completions(
     line: &str,
     cursor_pos: &str,
-    butler_runtime: &rb_core::butler::ButlerRuntime,
+    butler_runtime: Option<&rb_core::butler::ButlerRuntime>,
 ) {
     let cursor: usize = cursor_pos.parse().unwrap_or(line.len());
     let line = &line[..cursor.min(line.len())];
@@ -134,9 +150,12 @@ pub fn generate_completions(
             }
         }
         CompletionBehavior::Binstubs => {
-            if args_after_command == 0 {
-                suggest_binstubs(current_word, butler_runtime);
+            if args_after_command == 0
+                && let Some(runtime) = butler_runtime
+            {
+                suggest_binstubs(current_word, runtime);
             }
+            // If no runtime available, just don't suggest binstubs (no Ruby found)
         }
         CompletionBehavior::DefaultOnly => {}
     }

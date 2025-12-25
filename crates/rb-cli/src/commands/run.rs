@@ -1,12 +1,15 @@
 use colored::*;
 use log::{debug, info, warn};
-use rb_core::butler::ButlerRuntime;
+use rb_core::butler::{ButlerError, ButlerRuntime};
 use rb_core::project::{ProjectRuntime, RbprojectDetector};
 use std::path::PathBuf;
 
 use super::exec::exec_command;
 
-fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<PathBuf>) {
+fn list_available_scripts(
+    butler_runtime: ButlerRuntime,
+    project_file: Option<PathBuf>,
+) -> Result<(), ButlerError> {
     info!("Listing available project scripts");
 
     // Detect or load project runtime
@@ -20,14 +23,11 @@ fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<Pa
         match ProjectRuntime::from_file(&path) {
             Ok(project) => Some(project),
             Err(e) => {
-                eprintln!("{}", "❌ Selection Failed".red().bold());
-                eprintln!();
-                eprintln!("The specified project configuration could not be loaded:");
-                eprintln!("  File: {}", path.display().to_string().bright_black());
-                eprintln!("  Error: {}", e.to_string().bright_black());
-                eprintln!();
-                eprintln!("Please verify the file exists and contains valid TOML configuration.");
-                std::process::exit(1);
+                return Err(ButlerError::General(format!(
+                    "The specified project configuration could not be loaded from {}:\n{}",
+                    path.display(),
+                    e
+                )));
             }
         }
     } else {
@@ -53,33 +53,9 @@ fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<Pa
     let project = match project_runtime {
         Some(p) => p,
         None => {
-            eprintln!("{}", "❌ No Project Configuration".red().bold());
-            eprintln!();
-            eprintln!("No project configuration detected in the current directory hierarchy.");
-            eprintln!();
-            eprintln!("To define project scripts, create one of these files (in priority order):");
-            eprintln!(
-                "  {} {} {} {}",
-                "gem.kdl".cyan(),
-                "gem.toml".cyan(),
-                "rbproject.kdl".cyan(),
-                "rbproject.toml".cyan()
-            );
-            eprintln!();
-            eprintln!("  {}", "[scripts]".bright_black());
-            eprintln!("  {} = {}", "test".cyan(), "\"rspec\"".bright_black());
-            eprintln!(
-                "  {} = {{ command = {}, description = {} }}",
-                "lint".cyan(),
-                "\"rubocop\"".bright_black(),
-                "\"Check code quality\"".bright_black()
-            );
-            eprintln!();
-            eprintln!(
-                "Or specify a custom location: {} -P path/to/gem.kdl run",
-                "rb".green().bold()
-            );
-            std::process::exit(1);
+            return Err(ButlerError::General(
+                "No project configuration detected in the current directory hierarchy.\n\nTo define project scripts, create one of these files (in priority order):\n  gem.kdl, gem.toml, rbproject.kdl, rbproject.toml\n\nOr specify a custom location: rb -P path/to/gem.kdl run".to_string()
+            ));
         }
     };
 
@@ -172,6 +148,8 @@ fn list_available_scripts(butler_runtime: ButlerRuntime, project_file: Option<Pa
             script_count.to_string().bright_black()
         );
     }
+
+    Ok(())
 }
 
 pub fn run_command(
@@ -179,11 +157,10 @@ pub fn run_command(
     script_name: Option<String>,
     args: Vec<String>,
     project_file: Option<PathBuf>,
-) {
+) -> Result<(), ButlerError> {
     // If no script name provided, list available scripts
     if script_name.is_none() {
-        list_available_scripts(butler_runtime, project_file);
-        return;
+        return list_available_scripts(butler_runtime, project_file);
     }
 
     let script_name = script_name.unwrap();
@@ -203,14 +180,11 @@ pub fn run_command(
         match ProjectRuntime::from_file(&path) {
             Ok(project) => Some(project),
             Err(e) => {
-                eprintln!("{}", "❌ Selection Failed".red().bold());
-                eprintln!();
-                eprintln!("The specified project configuration could not be loaded:");
-                eprintln!("  File: {}", path.display().to_string().bright_black());
-                eprintln!("  Error: {}", e.to_string().bright_black());
-                eprintln!();
-                eprintln!("Please verify the file exists and contains valid TOML configuration.");
-                std::process::exit(1);
+                return Err(ButlerError::General(format!(
+                    "The specified project configuration could not be loaded from {}:\n{}",
+                    path.display(),
+                    e
+                )));
             }
         }
     } else {
@@ -236,90 +210,19 @@ pub fn run_command(
     let project = match project_runtime {
         Some(p) => p,
         None => {
-            eprintln!("{}", "❌ Selection Failed".red().bold());
-            eprintln!();
-            eprintln!("No project configuration detected in the current directory hierarchy.");
-            eprintln!();
-            eprintln!(
-                "To use project scripts, please create one of these files with script definitions:"
-            );
-            eprintln!(
-                "  {} {} {} {} {}",
-                "rbproject.toml".cyan(),
-                "rb.toml".cyan(),
-                "rb.kdl".cyan(),
-                "gem.toml".cyan(),
-                "gem.kdl".cyan()
-            );
-            eprintln!();
-            eprintln!("  {}", "[scripts]".bright_black());
-            eprintln!("  {} = {}", "test".cyan(), "\"rspec\"".bright_black());
-            eprintln!(
-                "  {} = {{ command = {}, description = {} }}",
-                "lint".cyan(),
-                "\"rubocop\"".bright_black(),
-                "\"Check code quality\"".bright_black()
-            );
-            eprintln!();
-            eprintln!(
-                "Or specify a custom location with: {} -P path/to/rb.toml run {}",
-                "rb".green().bold(),
-                script_name.cyan()
-            );
-            std::process::exit(1);
+            return Err(ButlerError::General(format!(
+                "No project configuration detected in the current directory hierarchy.\n\nTo use project scripts, create one of these files: rbproject.toml, rb.toml, rb.kdl, gem.toml, gem.kdl\n\nOr specify a custom location with: rb -P path/to/rb.toml run {}",
+                script_name
+            )));
         }
     };
 
     // Look up the script
     if !project.has_script(&script_name) {
-        eprintln!("{}", "❌ Script Not Found".red().bold());
-        eprintln!();
-        eprintln!(
-            "The script '{}' is not defined in your project configuration.",
-            script_name.cyan().bold()
-        );
-        eprintln!();
-
-        let available_scripts = project.script_names();
-        if available_scripts.is_empty() {
-            eprintln!(
-                "No scripts are currently defined in {}.",
-                project
-                    .rbproject_path()
-                    .display()
-                    .to_string()
-                    .bright_black()
-            );
-        } else {
-            eprintln!(
-                "Available scripts from {}:",
-                project
-                    .rbproject_path()
-                    .display()
-                    .to_string()
-                    .bright_black()
-            );
-            eprintln!();
-            for name in available_scripts {
-                let script = project.get_script(name).unwrap();
-                let command = script.command();
-                eprintln!(
-                    "  {} {} {}",
-                    name.cyan().bold(),
-                    "→".bright_black(),
-                    command.bright_black()
-                );
-                if let Some(description) = script.description() {
-                    eprintln!("    {}", description.bright_black().italic());
-                }
-            }
-        }
-        eprintln!();
-        eprintln!(
-            "Run {} to see all available scripts.",
-            "rb env".green().bold()
-        );
-        std::process::exit(1);
+        return Err(ButlerError::General(format!(
+            "The script '{}' is not defined in your project configuration",
+            script_name
+        )));
     }
 
     // Get the script command
@@ -331,13 +234,10 @@ pub fn run_command(
     let command_parts = parse_command(command_str);
 
     if command_parts.is_empty() {
-        eprintln!("{}", "❌ Invalid Script".red().bold());
-        eprintln!();
-        eprintln!(
-            "The script '{}' has an empty command.",
-            script_name.cyan().bold()
-        );
-        std::process::exit(1);
+        return Err(ButlerError::General(format!(
+            "The script '{}' has an empty command",
+            script_name
+        )));
     }
 
     // Build the full argument list: parsed command parts + user-provided args
@@ -351,7 +251,7 @@ pub fn run_command(
     // - Bundler environment synchronization
     // - Proper environment composition
     // - Command validation and error handling
-    exec_command(butler_runtime, full_args);
+    exec_command(butler_runtime, full_args)
 }
 
 /// Parse a command string into program and arguments

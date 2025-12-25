@@ -1,26 +1,17 @@
 use log::debug;
 use rb_core::bundler::SyncResult;
-use rb_core::butler::ButlerRuntime;
+use rb_core::butler::{ButlerError, ButlerRuntime};
 
-pub fn sync_command(butler_runtime: ButlerRuntime) -> Result<(), Box<dyn std::error::Error>> {
+pub fn sync_command(butler_runtime: ButlerRuntime) -> Result<(), ButlerError> {
     debug!("Starting sync command");
 
     // Check if bundler runtime is available
     let bundler_runtime = match butler_runtime.bundler_runtime() {
         Some(bundler) => bundler,
         None => {
-            println!("⚠️  Bundler Environment Not Detected");
-            println!();
-            println!("No Gemfile found in the current directory or its ancestors.");
-            println!("The sync command requires a bundler-managed project to operate.");
-            println!();
-            println!("To create a new bundler project:");
-            println!("  • Create a Gemfile with: echo 'source \"https://rubygems.org\"' > Gemfile");
-            println!("  • Then run: rb sync");
-            println!();
-            println!("💡 Note: If you used the --no-bundler (-B) flag, please remove it:");
-            println!("  rb sync");
-            return Err("No bundler environment detected".into());
+            return Err(ButlerError::General(
+                "Bundler environment not detected.\n\nNo Gemfile found in the current directory or its ancestors.\nThe sync command requires a bundler-managed project to operate.\n\nTo create a new bundler project, create a Gemfile with: echo 'source \"https://rubygems.org\"' > Gemfile".to_string()
+            ));
         }
     };
 
@@ -114,7 +105,7 @@ pub fn sync_command(butler_runtime: ButlerRuntime) -> Result<(), Box<dyn std::er
             println!("🔍 For detailed error information, run:");
             println!("  rb exec bundle install --verbose");
 
-            return Err(e.into());
+            return Err(ButlerError::General(e.to_string()));
         }
     }
 

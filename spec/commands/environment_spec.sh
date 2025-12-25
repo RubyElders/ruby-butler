@@ -48,8 +48,8 @@ Describe "Ruby Butler Environment System"
       It "handles non-existent Ruby version gracefully"
         When run rb -R "$RUBIES_DIR" -r "9.9.9" environment
         The status should not equal 0
-        The stderr should include "No suitable Ruby installation found"
-        The stdout should include "Requested Ruby version 9.9.9 not found"
+        The stderr should include "Requested version: 9.9.9"
+        The stderr should include "The designated Ruby estate directory appears to be absent"
       End
     End
 
@@ -69,13 +69,57 @@ Describe "Ruby Butler Environment System"
       It "handles non-existent rubies directory gracefully"
         When run rb -R "/non/existent/path" environment
         The status should not equal 0
-        The stderr should include "appears to be absent from your system"
+        The stderr should include "Ruby installation directory not found"
       End
 
       It "combines rubies directory with specific Ruby version"
         When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" environment
         The status should equal 0
         The output should include "$LATEST_RUBY"
+      End
+    End
+
+    Context "environment variable support"
+      It "respects RB_RUBIES_DIR environment variable"
+        export RB_RUBIES_DIR="$RUBIES_DIR"
+        When run rb environment
+        The status should equal 0
+        The output should include "Your Current Ruby Environment"
+      End
+
+      It "respects RB_RUBY_VERSION environment variable"
+        export RB_RUBY_VERSION="$OLDER_RUBY"
+        When run rb -R "$RUBIES_DIR" environment
+        The status should equal 0
+        The output should include "$OLDER_RUBY"
+      End
+
+      It "respects RB_GEM_HOME environment variable"
+        export RB_GEM_HOME="/tmp/env-test-gems"
+        When run rb -R "$RUBIES_DIR" environment
+        The status should equal 0
+        The output should include "/tmp/env-test-gems"
+      End
+
+      It "respects RB_NO_BUNDLER environment variable"
+        export RB_NO_BUNDLER=true
+        When run rb -R "$RUBIES_DIR" environment
+        The status should equal 0
+        The output should include "Your Current Ruby Environment"
+      End
+
+      It "allows CLI flags to override RB_RUBY_VERSION"
+        export RB_RUBY_VERSION="$OLDER_RUBY"
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" environment
+        The status should equal 0
+        The output should include "$LATEST_RUBY"
+      End
+
+      It "allows CLI flags to override RB_RUBIES_DIR"
+        export RB_RUBIES_DIR="/nonexistent"
+        When run rb -R "$RUBIES_DIR" environment
+        The status should equal 0
+        The output should include "Your Current Ruby Environment"
       End
     End
 

@@ -19,7 +19,7 @@ name = "rb"
 path = "src/bin/rb.rs"
 
 [dependencies]
-clap = { version = "4.0", features = ["derive", "color", "help", "usage"] }
+clap = { version = "4.0", features = ["derive", "color", "help", "usage", "env"] }
 clap_complete = "4.0"
 rb-core = { path = "../rb-core" }
 home = "0.5"

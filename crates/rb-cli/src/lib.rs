@@ -40,30 +40,52 @@ impl From<LogLevel> for log::LevelFilter {
     long_about = "🎩 Ruby Butler\n\nA sophisticated Ruby environment manager that orchestrates your Ruby installations\nand gem collections with the refined precision of a proper gentleman's gentleman.\n\nNot merely a version switcher, but your devoted aide in curating Ruby environments\nwith the elegance and attention to detail befitting a distinguished developer.\n\n                        At your service,\n                        RubyElders.com"
 )]
 #[command(author = "RubyElders.com")]
-#[command(version)]
-#[command(propagate_version = true)]
+#[command(disable_help_flag = true)]
+#[command(disable_help_subcommand = true)]
+#[command(disable_version_flag = true)]
 #[command(styles = STYLES)]
+#[command(next_help_heading = "Commands")]
 pub struct Cli {
-    /// Specify verbosity for diagnostic output (increases with each use)
+    /// Enable informational diagnostic output
     #[arg(
-        long,
-        value_enum,
-        default_value = "none",
+        short = 'v',
+        long = "verbose",
         global = true,
-        help = "Specify verbosity for diagnostic output"
+        help = "Enable informational diagnostic output (same as --log-level=info)",
+        env = "RB_VERBOSE",
+        action = clap::ArgAction::SetTrue
     )]
-    pub log_level: LogLevel,
+    pub verbose: bool,
 
-    /// Enhance verbosity gradually (-v for details, -vv for comprehensive diagnostics)
-    #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count, global = true, help = "Enhance verbosity gradually (-v for details, -vv for comprehensive diagnostics)")]
-    pub verbose: u8,
+    /// Enable comprehensive diagnostic output
+    #[arg(
+        short = 'V',
+        long = "very-verbose",
+        global = true,
+        help = "Enable comprehensive diagnostic output (same as --log-level=debug)",
+        env = "RB_VERY_VERBOSE",
+        action = clap::ArgAction::SetTrue
+    )]
+    pub very_verbose: bool,
+
+    /// Specify verbosity for diagnostic output explicitly
+    #[arg(
+        short = 'L',
+        long = "log-level",
+        value_enum,
+        global = true,
+        help = "Specify verbosity for diagnostic output explicitly",
+        env = "RB_LOG_LEVEL"
+    )]
+    pub log_level: Option<LogLevel>,
 
     /// Specify custom configuration file location
     #[arg(
         short = 'c',
         long = "config",
         global = true,
-        help = "Specify custom configuration file location (overrides RB_CONFIG env var and default locations)"
+        help = "Specify custom configuration file location",
+        env = "RB_CONFIG"
     )]
     pub config_file: Option<std::path::PathBuf>,
 
@@ -72,7 +94,8 @@ pub struct Cli {
         short = 'P',
         long = "project",
         global = true,
-        help = "Specify custom rbproject.toml location (skips autodetection)"
+        help = "Specify custom rbproject.toml location (skips autodetection)",
+        env = "RB_PROJECT"
     )]
     pub project_file: Option<std::path::PathBuf>,
 
@@ -85,13 +108,15 @@ pub struct Cli {
 }
 
 impl Cli {
-    /// Get the effective log level, considering both --log-level and -v/-vv flags
-    /// The verbose flags take precedence over --log-level when specified
+    /// Get the effective log level, considering -v/-V flags and --log-level
+    /// Priority: -V > -v > --log-level > default (none)
     pub fn effective_log_level(&self) -> LogLevel {
-        match self.verbose {
-            0 => self.log_level.clone(), // Use explicit log level
-            1 => LogLevel::Info,         // -v
-            _ => LogLevel::Debug,        // -vv or more
+        if self.very_verbose {
+            LogLevel::Debug
+        } else if self.verbose {
+            LogLevel::Info
+        } else {
+            self.log_level.clone().unwrap_or(LogLevel::None)
         }
     }
 }
@@ -99,7 +124,7 @@ impl Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// 🔍 Survey your distinguished Ruby estate and present available environments
-    #[command(visible_alias = "rt")]
+    #[command(visible_alias = "rt", next_help_heading = "Runtime Commands")]
     Runtime,
 
     /// 🌍 Present your current Ruby environment with comprehensive details
@@ -139,10 +164,28 @@ pub enum Commands {
     },
 
     /// 📝 Initialize a new rbproject.toml in the current directory
-    #[command(about = "📝 Initialize a new rbproject.toml in the current directory")]
+    #[command(
+        about = "📝 Initialize a new rbproject.toml in the current directory",
+        next_help_heading = "Utility Commands"
+    )]
     Init,
-
-    /// 🔧 Generate shell integration (completions) for your distinguished shell
+    /// ⚙️  Display current configuration with sources
+    #[command(
+        about = "⚙️  Display current configuration with sources",
+        next_help_heading = "Utility Commands"
+    )]
+    Config,
+    /// � Display Ruby Butler version information
+    #[command(about = "📋 Display Ruby Butler version information")]
+    Version,
+    /// 📖 Display help information for Ruby Butler or specific commands
+    #[command(about = "📖 Display help information for Ruby Butler or specific commands")]
+    Help {
+        /// The command to get help for
+        #[arg(help = "Command to get help for (omit for general help)")]
+        command: Option<String>,
+    },
+    /// �🔧 Generate shell integration (completions) for your distinguished shell
     #[command(about = "🔧 Generate shell integration (completions)")]
     ShellIntegration {
         /// The shell to generate completions for (omit to see available integrations)
@@ -170,7 +213,7 @@ pub enum Shell {
 
 // Re-export for convenience
 pub use commands::{
-    environment_command, exec_command, init_command, run_command, runtime_command,
+    config_command, environment_command, exec_command, init_command, run_command, runtime_command,
     shell_integration_command, sync_command,
 };
 
@@ -229,6 +272,13 @@ impl Cli {
         self.config.merge_with(file_config);
         Ok(self)
     }
+
+    /// Merge CLI arguments with config file, returning both for tracked config
+    /// Returns (cli_with_merged_config, file_config) for source tracking
+    pub fn with_config_defaults_tracked(self) -> Result<(Self, config::RbConfig), ConfigError> {
+        let file_config = config::loader::load_config(self.config_file.clone())?;
+        Ok((self, file_config))
+    }
 }
 
 /// Initialize the logger with the specified log level
@@ -255,7 +305,21 @@ mod tests {
 
     #[test]
     fn test_resolve_search_dir_with_none() {
+        // Temporarily unset environment variable for this test
+        let original_env = std::env::var("RB_RUBIES_DIR").ok();
+        unsafe {
+            std::env::remove_var("RB_RUBIES_DIR");
+        }
+
         let result = resolve_search_dir(None);
+
+        // Restore original environment
+        if let Some(val) = original_env {
+            unsafe {
+                std::env::set_var("RB_RUBIES_DIR", val);
+            }
+        }
+
         // Should return home directory + .rubies
         assert!(result.ends_with(".rubies"));
         assert!(result.is_absolute());
@@ -305,10 +369,11 @@ mod tests {
 
     #[test]
     fn test_effective_log_level_with_verbose_flags() {
-        // Test with no verbose flags
+        // Test with log_level set
         let cli = Cli {
-            log_level: LogLevel::Info,
-            verbose: 0,
+            log_level: Some(LogLevel::Info),
+            verbose: false,
+            very_verbose: false,
             config_file: None,
             project_file: None,
             config: RbConfig::default(),
@@ -318,8 +383,9 @@ mod tests {
 
         // Test with -v flag (should override log_level to Info)
         let cli = Cli {
-            log_level: LogLevel::None,
-            verbose: 1,
+            log_level: Some(LogLevel::None),
+            verbose: true,
+            very_verbose: false,
             config_file: None,
             project_file: None,
             config: RbConfig::default(),
@@ -327,10 +393,11 @@ mod tests {
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
 
-        // Test with -vv flag (should override log_level to Debug)
+        // Test with -V flag (should override log_level to Debug)
         let cli = Cli {
-            log_level: LogLevel::None,
-            verbose: 2,
+            log_level: Some(LogLevel::None),
+            verbose: false,
+            very_verbose: true,
             config_file: None,
             project_file: None,
             config: RbConfig::default(),

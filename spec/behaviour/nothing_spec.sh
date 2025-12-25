@@ -7,7 +7,7 @@ Describe "Ruby Butler No Command Behavior"
     It "shows help message"
       When run rb
       The status should equal 0
-      The output should include "Usage: rb [OPTIONS] [COMMAND]"
+      The output should include "Usage: rb [OPTIONS] COMMAND [COMMAND_OPTIONS]"
     End
 
     It "displays all available commands"
@@ -58,24 +58,24 @@ Describe "Ruby Butler No Command Behavior"
       The output should include "Ruby environment manager"
     End
 
-    It "includes help option"
+    It "includes help command"
       When run rb
       The status should equal 0
-      The output should include "--help"
+      The output should include "help"
     End
 
-    It "includes version option"
+    It "includes version command"
       When run rb
       The status should equal 0
-      The output should include "--version"
+      The output should include "version"
     End
   End
 
-  Context "when run with --help flag"
-    It "shows the same help as no arguments"
-      When run rb --help
+  Context "when run with help command"
+    It "shows help information"
+      When run rb help
       The status should equal 0
-      The output should include "Usage: rb [OPTIONS] [COMMAND]"
+      The output should include "Usage: rb [OPTIONS] COMMAND [COMMAND_OPTIONS]"
       The output should include "Commands:"
     End
   End

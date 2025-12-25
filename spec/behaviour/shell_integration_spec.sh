@@ -49,22 +49,22 @@ Describe "Ruby Butler Shell Integration Display"
     End
   End
 
-  Context "when run with --help flag"
+  Context "when requesting help"
     It "shows help for shell-integration command"
-      When run rb shell-integration --help
+      When run rb help shell-integration
       The status should equal 0
       The output should include "Generate shell integration (completions)"
-      The output should include "Usage: rb shell-integration"
+      The output should include "Usage: shell-integration"
     End
 
     It "shows shell argument is optional"
-      When run rb shell-integration --help
+      When run rb help shell-integration
       The status should equal 0
       The output should include "[SHELL]"
     End
 
     It "lists bash as possible value"
-      When run rb shell-integration --help
+      When run rb help shell-integration
       The status should equal 0
       The output should include "possible values: bash"
     End

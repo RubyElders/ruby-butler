@@ -10,14 +10,14 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       It "gracefully presents usage guidance when no program specified"
         When run rb -R "$RUBIES_DIR" exec
         The status should not equal 0
-        The stderr should include "Request Incomplete: No program specified for execution"
+        The stderr should include "No program specified for execution"
         The stderr should include "Proper usage: rb exec <program>"
       End
 
       It "responds elegantly to 'x' alias"
         When run rb -R "$RUBIES_DIR" x
         The status should not equal 0
-        The stderr should include "Request Incomplete: No program specified for execution"
+        The stderr should include "No program specified for execution"
         The stderr should include "Proper usage: rb exec <program>"
       End
 
@@ -68,8 +68,8 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       It "handles non-existent Ruby version gracefully"
         When run rb -R "$RUBIES_DIR" -r "9.9.9" exec ruby -v
         The status should not equal 0
-        The stderr should include "No suitable Ruby installation found"
-        The stdout should include "Requested Ruby version 9.9.9 not found"
+        The stderr should include "Requested version: 9.9.9"
+        The stderr should include "The designated Ruby estate directory appears to be absent"
       End
     End
 
@@ -89,8 +89,7 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       It "handles non-existent rubies directory gracefully"
         When run rb -R "/non/existent/path" exec ruby -v
         The status should not equal 0
-        The stderr should include "designated Ruby estate directory"
-        The stderr should include "appears to be absent from your system"
+        The stderr should include "Ruby installation directory not found"
       End
 
       It "combines rubies directory with specific Ruby version"

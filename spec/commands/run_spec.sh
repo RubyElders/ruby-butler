@@ -162,7 +162,7 @@ test = "echo test"
 EOF
         When run rb -R "$RUBIES_DIR" run nonexistent
         The status should not equal 0
-        The stderr should include "Script Not Found"
+        The stderr should include "not defined in your project configuration"
         The stderr should include "nonexistent"
       End
 
@@ -175,7 +175,7 @@ tests = "echo tests"
 EOF
         When run rb -R "$RUBIES_DIR" run tset
         The status should not equal 0
-        The stderr should include "test"
+        The stderr should include "not defined in your project configuration"
       End
 
       It "handles empty scripts section gracefully"
@@ -224,6 +224,61 @@ EOF
         When run rb -R "$RUBIES_DIR" run bundle-version
         The status should equal 0
         The output should include "Bundler"
+      End
+    End
+
+    Context "environment variable support"
+      It "respects RB_RUBIES_DIR environment variable"
+        cd "$TEST_RUN_DIR"
+        cat > rbproject.toml << 'EOF'
+[scripts]
+test = "echo test"
+EOF
+        export RB_RUBIES_DIR="$RUBIES_DIR"
+        When run rb run
+        The status should equal 0
+        The output should include "test"
+      End
+
+      It "respects RB_RUBY_VERSION environment variable"
+        Skip if "Ruby not available" is_ruby_available
+        cd "$TEST_RUN_DIR"
+        cat > rbproject.toml << 'EOF'
+[scripts]
+version = "ruby -v"
+EOF
+        export RB_RUBY_VERSION="$OLDER_RUBY"
+        When run rb -R "$RUBIES_DIR" run version
+        The status should equal 0
+        The output should include "$OLDER_RUBY"
+      End
+
+      It "respects RB_PROJECT environment variable"
+        cd "$TEST_RUN_DIR"
+        cat > custom-project.toml << 'EOF'
+[scripts]
+custom = "echo custom"
+EOF
+        export RB_PROJECT="${TEST_RUN_DIR}/custom-project.toml"
+        When run rb -R "$RUBIES_DIR" run
+        The status should equal 0
+        The output should include "custom"
+      End
+
+      It "allows CLI flags to override environment variables"
+        cd "$TEST_RUN_DIR"
+        cat > env-project.toml << 'EOF'
+[scripts]
+env-script = "echo env"
+EOF
+        cat > cli-project.toml << 'EOF'
+[scripts]
+cli-script = "echo cli"
+EOF
+        export RB_PROJECT="${TEST_RUN_DIR}/env-project.toml"
+        When run rb -R "$RUBIES_DIR" -P cli-project.toml run
+        The status should equal 0
+        The output should include "cli-script"
       End
     End
   End

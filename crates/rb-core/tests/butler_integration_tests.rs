@@ -174,6 +174,7 @@ fn test_butler_runtime_discover_nonexistent_directory() {
 
     let result = ButlerRuntime::discover_and_compose(nonexistent_path.clone(), None);
 
+    // ButlerRuntime should fail with RubiesDirectoryNotFound when directory doesn't exist
     assert!(result.is_err());
     match result.unwrap_err() {
         ButlerError::RubiesDirectoryNotFound(path) => {
@@ -195,6 +196,7 @@ fn test_butler_runtime_discover_with_gem_base_nonexistent_directory() {
         false,
     );
 
+    // ButlerRuntime should fail with RubiesDirectoryNotFound when directory doesn't exist
     assert!(result.is_err());
     match result.unwrap_err() {
         ButlerError::RubiesDirectoryNotFound(path) => {

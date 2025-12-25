@@ -87,6 +87,140 @@ fn test_ruby_version_completion_with_prefix() {
 }
 
 #[test]
+fn test_tilde_expansion_in_rubies_dir_short_flag() {
+    // Create a Ruby sandbox in a known location within home directory
+    let home_dir = std::env::var("HOME").expect("HOME not set");
+    let test_dir = std::path::PathBuf::from(&home_dir).join(".rb-test-rubies");
+
+    // Clean up if exists
+    let _ = std::fs::remove_dir_all(&test_dir);
+
+    // Create test rubies directory
+    std::fs::create_dir_all(&test_dir).expect("Failed to create test dir");
+
+    // Create mock Ruby installations
+    let ruby_345 = test_dir.join("ruby-3.4.5").join("bin");
+    std::fs::create_dir_all(&ruby_345).expect("Failed to create ruby-3.4.5");
+    std::fs::File::create(ruby_345.join("ruby")).expect("Failed to create ruby executable");
+
+    let ruby_344 = test_dir.join("ruby-3.4.4").join("bin");
+    std::fs::create_dir_all(&ruby_344).expect("Failed to create ruby-3.4.4");
+    std::fs::File::create(ruby_344.join("ruby")).expect("Failed to create ruby executable");
+
+    // Test completion with tilde in path using -R flag
+    let cmd_line = "rb -R ~/.rb-test-rubies -r ";
+    let cursor_pos = "28";
+
+    let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
+    cmd.arg("__bash_complete").arg(cmd_line).arg(cursor_pos);
+
+    let output = cmd.output().expect("Failed to execute rb");
+    let completions = String::from_utf8(output.stdout).expect("Invalid UTF-8 output");
+
+    // Cleanup
+    let _ = std::fs::remove_dir_all(&test_dir);
+
+    assert!(
+        completions.contains("3.4.5"),
+        "Expected '3.4.5' in completions with tilde expansion, got: {}",
+        completions
+    );
+    assert!(
+        completions.contains("3.4.4"),
+        "Expected '3.4.4' in completions with tilde expansion, got: {}",
+        completions
+    );
+}
+
+#[test]
+fn test_tilde_expansion_in_rubies_dir_long_flag() {
+    // Create a Ruby sandbox in a known location within home directory
+    let home_dir = std::env::var("HOME").expect("HOME not set");
+    let test_dir = std::path::PathBuf::from(&home_dir).join(".rb-test-rubies-long");
+
+    // Clean up if exists
+    let _ = std::fs::remove_dir_all(&test_dir);
+
+    // Create test rubies directory
+    std::fs::create_dir_all(&test_dir).expect("Failed to create test dir");
+
+    // Create mock Ruby installation
+    let ruby_337 = test_dir.join("ruby-3.3.7").join("bin");
+    std::fs::create_dir_all(&ruby_337).expect("Failed to create ruby-3.3.7");
+    std::fs::File::create(ruby_337.join("ruby")).expect("Failed to create ruby executable");
+
+    // Test completion with tilde in path using --rubies-dir flag
+    let cmd_line = "rb --rubies-dir ~/.rb-test-rubies-long -r 3.3";
+    let cursor_pos = "48";
+
+    let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
+    cmd.arg("__bash_complete").arg(cmd_line).arg(cursor_pos);
+
+    let output = cmd.output().expect("Failed to execute rb");
+    let completions = String::from_utf8(output.stdout).expect("Invalid UTF-8 output");
+
+    // Cleanup
+    let _ = std::fs::remove_dir_all(&test_dir);
+
+    assert!(
+        completions.contains("3.3.7"),
+        "Expected '3.3.7' in completions with tilde expansion (long flag), got: {}",
+        completions
+    );
+}
+
+#[test]
+fn test_tilde_only_expands_to_home() {
+    // Create a Ruby sandbox in a known location within home directory
+    let home_dir = std::env::var("HOME").expect("HOME not set");
+    let test_dir = std::path::PathBuf::from(&home_dir).join(".rb-test-tilde-only");
+
+    // Clean up if exists
+    let _ = std::fs::remove_dir_all(&test_dir);
+
+    // Create test rubies directory
+    std::fs::create_dir_all(&test_dir).expect("Failed to create test dir");
+
+    // Create mock Ruby installation
+    let ruby_345 = test_dir.join("ruby-3.4.5").join("bin");
+    std::fs::create_dir_all(&ruby_345).expect("Failed to create ruby-3.4.5");
+    std::fs::File::create(ruby_345.join("ruby")).expect("Failed to create ruby executable");
+
+    // Test completion with just tilde (no trailing slash)
+    let cmd_line = format!("rb -R {}/.rb-test-tilde-only -r ", home_dir);
+    let cursor_pos = format!("{}", cmd_line.len());
+
+    let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
+    cmd.arg("__bash_complete").arg(&cmd_line).arg(&cursor_pos);
+
+    let output = cmd.output().expect("Failed to execute rb");
+    let completions_expanded = String::from_utf8(output.stdout).expect("Invalid UTF-8 output");
+
+    // Now test with tilde version
+    let cmd_line_tilde = "rb -R ~/.rb-test-tilde-only -r ";
+    let cursor_pos_tilde = "31";
+
+    let mut cmd_tilde = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
+    cmd_tilde
+        .arg("__bash_complete")
+        .arg(cmd_line_tilde)
+        .arg(cursor_pos_tilde);
+
+    let output_tilde = cmd_tilde.output().expect("Failed to execute rb");
+    let completions_tilde = String::from_utf8(output_tilde.stdout).expect("Invalid UTF-8 output");
+
+    // Cleanup
+    let _ = std::fs::remove_dir_all(&test_dir);
+
+    // Both should produce the same results
+    assert_eq!(
+        completions_expanded, completions_tilde,
+        "Tilde expansion should produce same results as full path"
+    );
+    assert!(completions_tilde.contains("3.4.5"));
+}
+
+#[test]
 fn test_script_completion_from_rbproject() {
     // Create a temporary directory with rbproject.toml
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
@@ -1049,4 +1183,82 @@ fn test_binstubs_with_no_bundler_flag() {
 
     // With -B: should include gem binstubs from system (if any starting with 'b')
     // Note: This may vary by system, but at least it shouldn't be empty if gems are installed
+}
+
+// Command-based interface tests (help and version as commands, not flags)
+
+#[test]
+fn test_help_command_appears_in_completions() {
+    let completions = capture_completions("rb ", "3", None);
+
+    assert!(
+        completions.contains("help"),
+        "Expected 'help' command in completions, got: {}",
+        completions
+    );
+}
+
+#[test]
+fn test_version_command_appears_in_completions() {
+    let completions = capture_completions("rb ", "3", None);
+
+    assert!(
+        completions.contains("version"),
+        "Expected 'version' command in completions, got: {}",
+        completions
+    );
+}
+
+#[test]
+fn test_help_flag_not_in_completions() {
+    let completions = capture_completions("rb -", "4", None);
+
+    // Check that neither -h nor --help appear as standalone completions
+    let lines: Vec<&str> = completions.lines().collect();
+    assert!(
+        !lines.contains(&"-h") && !lines.contains(&"--help"),
+        "Help flags should not appear in completions (command-based interface), got: {:?}",
+        lines
+    );
+}
+
+#[test]
+fn test_version_flag_not_in_completions() {
+    let completions = capture_completions("rb -", "4", None);
+
+    // Check that --version doesn't appear as flag (it's a command now)
+    // Note: -V is now --very-verbose, so it SHOULD appear
+    let lines: Vec<&str> = completions.lines().collect();
+    assert!(
+        !lines.contains(&"--version"),
+        "Version flag should not appear (command-based interface), got: {:?}",
+        lines
+    );
+    assert!(
+        lines.contains(&"-V") || completions.contains("--very-verbose"),
+        "Very verbose flag should appear in completions, got: {:?}",
+        lines
+    );
+}
+
+#[test]
+fn test_help_command_completion_with_prefix() {
+    let completions = capture_completions("rb h", "4", None);
+
+    assert!(
+        completions.contains("help"),
+        "Expected 'help' command when completing 'h' prefix, got: {}",
+        completions
+    );
+}
+
+#[test]
+fn test_version_command_completion_with_prefix() {
+    let completions = capture_completions("rb v", "4", None);
+
+    assert!(
+        completions.contains("version"),
+        "Expected 'version' command when completing 'v' prefix, got: {}",
+        completions
+    );
 }

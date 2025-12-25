@@ -28,9 +28,9 @@ Describe "Ruby Butler Configuration System"
 ruby-version = "3.2.0"
 rubies-dir = "/custom/rubies"
 EOF
-        When run rb --config test-config.toml --version
+        When run rb --config test-config.toml version
         The status should equal 0
-        The output should include "rb"
+        The output should include "Ruby Butler"
       End
 
       It "applies rubies-dir from config file"
@@ -38,13 +38,15 @@ EOF
         cat > test-config.toml << 'EOF'
 rubies-dir = "/nonexistent/custom/rubies"
 EOF
+        unset RB_RUBIES_DIR
         When run rb --config test-config.toml runtime
         The status should not equal 0
+        The stdout should equal ""
         The stderr should include "/nonexistent/custom/rubies"
       End
 
       It "shows --config option in help"
-        When run rb --help
+        When run rb help
         The status should equal 0
         The output should include "--config"
         The output should include "configuration file"
@@ -57,9 +59,9 @@ EOF
         cat > test-config.toml << 'EOF'
 ruby-version = "3.2.0"
 EOF
-        When run rb -c test-config.toml --version
+        When run rb -c test-config.toml version
         The status should equal 0
-        The output should include "rb"
+        The output should include "Ruby Butler"
       End
     End
   End
@@ -71,9 +73,11 @@ EOF
         cat > rb-env-config.toml << 'EOF'
 rubies-dir = "/env/var/rubies"
 EOF
+        unset RB_RUBIES_DIR
         export RB_CONFIG="${TEST_CONFIG_DIR}/rb-env-config.toml"
         When run rb runtime
         The status should not equal 0
+        The stdout should equal ""
         The stderr should include "/env/var/rubies"
       End
 
@@ -101,9 +105,11 @@ EOF
         cat > env-config.toml << 'EOF'
 rubies-dir = "/env/rubies"
 EOF
+        unset RB_RUBIES_DIR
         export RB_CONFIG="${TEST_CONFIG_DIR}/env-config.toml"
         When run rb --config cli-config.toml runtime
         The status should not equal 0
+        The stdout should equal ""
         The stderr should include "/cli/rubies"
       End
     End

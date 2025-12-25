@@ -1,18 +1,19 @@
 use colored::*;
 use log::{debug, info};
-use rb_core::butler::ButlerRuntime;
+use rb_core::butler::{ButlerError, ButlerRuntime};
 use rb_core::ruby::RubyType;
 use semver::Version;
 
-pub fn runtime_command(butler_runtime: &ButlerRuntime) {
+pub fn runtime_command(butler_runtime: &ButlerRuntime) -> Result<(), ButlerError> {
     info!(
         "Surveying Ruby installations in distinguished directory: {}",
         butler_runtime.rubies_dir().display()
     );
-    present_ruby_installations(butler_runtime);
+    present_ruby_installations(butler_runtime)?;
+    Ok(())
 }
 
-fn present_ruby_installations(butler_runtime: &ButlerRuntime) {
+fn present_ruby_installations(butler_runtime: &ButlerRuntime) -> Result<(), ButlerError> {
     let rubies_dir = butler_runtime.rubies_dir();
     let ruby_installations = butler_runtime.ruby_installations();
     let requested_ruby_version = butler_runtime.requested_ruby_version();
@@ -24,8 +25,9 @@ fn present_ruby_installations(butler_runtime: &ButlerRuntime) {
     debug!("Found {} Ruby installations", ruby_installations.len());
 
     if ruby_installations.is_empty() {
-        butler_runtime.display_no_ruby_error();
-        return;
+        return Err(ButlerError::NoSuitableRuby(
+            "No Ruby installations found".to_string(),
+        ));
     }
 
     // Collect all ruby display data first for proper alignment calculation
@@ -235,21 +237,10 @@ fn present_ruby_installations(butler_runtime: &ButlerRuntime) {
                 );
             }
             None => {
-                eprintln!(
-                    "{}: The requested Ruby version {} could not be located in your estate",
-                    "Selection Failed".red().bold(),
-                    version_str.cyan()
-                );
-                eprintln!(
-                    "Available versions in your collection: {}",
-                    ruby_installations
-                        .iter()
-                        .map(|r| r.version.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                        .bright_cyan()
-                );
-                std::process::exit(1);
+                return Err(ButlerError::NoSuitableRuby(format!(
+                    "The requested Ruby version {} could not be located",
+                    version_str
+                )));
             }
         }
     } else {
@@ -290,6 +281,8 @@ fn present_ruby_installations(butler_runtime: &ButlerRuntime) {
                 .dimmed()
         );
     }
+
+    Ok(())
 }
 
 fn ruby_type_as_str(ruby_type: &RubyType) -> &'static str {
@@ -315,6 +308,6 @@ mod tests {
             .expect("Failed to create butler runtime");
 
         // This test just verifies the function can be called without panicking
-        super::runtime_command(&butler_runtime);
+        let _ = super::runtime_command(&butler_runtime);
     }
 }

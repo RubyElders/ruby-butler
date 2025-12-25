@@ -81,7 +81,7 @@ EOF
       End
 
       It "shows --project option in help"
-        When run rb --help
+        When run rb help
         The status should equal 0
         The output should include "--project"
         The output should include "rbproject.toml"
@@ -118,7 +118,7 @@ EOF
         cd "$TEST_PROJECT_DIR"
         When run rb -R "$RUBIES_DIR" -P nonexistent.toml run
         The status should not equal 0
-        The stderr should include "Selection Failed"
+        The stderr should include "could not be loaded"
         The stderr should include "nonexistent.toml"
       End
     End
@@ -132,7 +132,7 @@ name = "Missing bracket"
 EOF
         When run rb -R "$RUBIES_DIR" -P invalid.toml run
         The status should not equal 0
-        The stderr should include "Selection Failed"
+        The stderr should include "could not be loaded"
       End
     End
   End
@@ -175,6 +175,40 @@ EOF
         The status should not equal 0
         The stderr should include "No project configuration"
         The stderr should include "rbproject.toml"
+      End
+    End
+
+    Context "environment variable support"
+      It "respects RB_PROJECT environment variable"
+        cd "$TEST_PROJECT_DIR"
+        cat > env-project.toml << 'EOF'
+[project]
+name = "Env Project"
+
+[scripts]
+env-test = "echo env-based project"
+EOF
+        export RB_PROJECT="${TEST_PROJECT_DIR}/env-project.toml"
+        When run rb -R "$RUBIES_DIR" run
+        The status should equal 0
+        The output should include "env-test"
+      End
+
+      It "allows --project flag to override RB_PROJECT"
+        cd "$TEST_PROJECT_DIR"
+        cat > env-project.toml << 'EOF'
+[scripts]
+env-script = "echo env"
+EOF
+        cat > cli-project.toml << 'EOF'
+[scripts]
+cli-script = "echo cli"
+EOF
+        export RB_PROJECT="${TEST_PROJECT_DIR}/env-project.toml"
+        When run rb -R "$RUBIES_DIR" -P cli-project.toml run
+        The status should equal 0
+        The output should include "cli-script"
+        The output should not include "env-script"
       End
     End
   End
