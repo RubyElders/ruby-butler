@@ -412,6 +412,7 @@ mod tests {
         let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
 
         // Test with no bundler environment
+        // Note: This test outputs to stdout - that's expected behavior
         present_environment_details(&ruby, Some(&gem_runtime), None, None, &butler);
 
         Ok(())
