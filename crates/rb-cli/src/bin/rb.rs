@@ -1,178 +1,90 @@
 use clap::Parser;
-use rb_cli::{
-    Cli, Commands, environment_command, exec_command, init_command, init_logger,
-    resolve_search_dir, run_command, runtime_command, shell_integration_command, sync_command,
+use rb_cli::config::TrackedConfig;
+use rb_cli::dispatch::dispatch_command;
+use rb_cli::error_display::{
+    error_exit_code, format_command_not_found, format_general_error, format_no_suitable_ruby,
+    format_rubies_dir_not_found,
 };
-use rb_core::butler::{ButlerError, ButlerRuntime};
+use rb_cli::help_formatter::print_custom_help;
+use rb_cli::runtime_helpers::CommandContext;
+use rb_cli::{Cli, Commands, init_logger};
+use rb_core::butler::ButlerError;
 
-fn build_version_info() -> String {
-    let version = env!("CARGO_PKG_VERSION");
-    let git_hash = option_env!("GIT_HASH").unwrap_or("unknown");
-    let profile = option_env!("BUILD_PROFILE").unwrap_or("unknown");
-
-    let mut parts = vec![format!("Ruby Butler v{}", version)];
-
-    // Add tag if available, otherwise add git hash
-    if let Some(tag) = option_env!("GIT_TAG") {
-        if !tag.is_empty() && tag != format!("v{}", version) {
-            parts.push(format!("({})", tag));
+/// Centralized error handler that transforms technical errors into friendly messages
+fn handle_command_error(error: ButlerError, context: &CommandContext) -> ! {
+    let message = match &error {
+        ButlerError::NoSuitableRuby(_) => {
+            let rubies_dir = context.config.rubies_dir.get();
+            let source = context.config.rubies_dir.source.to_string();
+            let version_info = context
+                .config
+                .ruby_version
+                .as_ref()
+                .map(|v| (v.get().clone(), v.source.to_string()));
+            format_no_suitable_ruby(rubies_dir, source, version_info)
         }
-    } else if git_hash != "unknown" {
-        parts.push(format!("({})", git_hash));
-    }
+        ButlerError::CommandNotFound(command) => format_command_not_found(command),
+        ButlerError::RubiesDirectoryNotFound(path) => format_rubies_dir_not_found(path),
+        ButlerError::General(msg) => format_general_error(msg),
+    };
 
-    // Add profile if debug
-    if profile == "debug" {
-        parts.push("[debug build]".to_string());
-    }
-
-    // Add dirty flag if present
-    if option_env!("GIT_DIRTY").is_some() {
-        parts.push("[modified]".to_string());
-    }
-
-    parts.push(
-        "\n\nA sophisticated Ruby environment manager with the refined precision".to_string(),
-    );
-    parts.push("of a proper gentleman's gentleman.\n".to_string());
-    parts.push("At your distinguished service, RubyElders.com".to_string());
-
-    parts.join(" ")
+    eprintln!("{}", message);
+    std::process::exit(error_exit_code(&error));
 }
 
 fn main() {
-    // Handle version request with custom formatting before parsing
-    // Only handle version if it's a direct flag, not part of exec command
-    let args: Vec<String> = std::env::args().collect();
-    let is_version_request = args.len() == 2 && (args[1] == "--version" || args[1] == "-V");
-
-    if is_version_request {
-        println!("{}", build_version_info());
-        return;
-    }
-
     let cli = Cli::parse();
 
-    if let Some(Commands::BashComplete { line, point }) = &cli.command {
-        rb_cli::completion::generate_completions(line, point, cli.config.rubies_dir.clone());
-        return;
+    // Skip logging for bash completion (must be silent)
+    if !matches!(cli.command, Some(Commands::BashComplete { .. })) {
+        init_logger(cli.effective_log_level());
     }
 
-    init_logger(cli.effective_log_level());
-
-    // Merge config file defaults with CLI arguments
-    let cli = match cli.with_config_defaults() {
-        Ok(cli) => cli,
+    // Merge config file defaults with CLI arguments (just data, no side effects)
+    let (cli_parsed, file_config) = match cli.with_config_defaults_tracked() {
+        Ok(result) => result,
         Err(e) => {
             eprintln!("Configuration error: {}", e);
             std::process::exit(1);
         }
     };
 
-    let Some(command) = cli.command else {
+    let Some(command) = cli_parsed.command else {
         use clap::CommandFactory;
-        let mut cmd = Cli::command();
-        let _ = cmd.print_help();
-        println!();
+        let cmd = Cli::command();
+        print_custom_help(&cmd);
         std::process::exit(0);
     };
 
-    if let Commands::Init = command {
-        let current_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-        if let Err(e) = init_command(&current_dir) {
-            eprintln!("{}", e);
+    // Create tracked config with sources
+    let tracked_config = TrackedConfig::from_merged(&cli_parsed.config, &file_config);
+
+    // Change working directory if specified
+    if !tracked_config.work_dir.source.is_default() {
+        let target_dir = tracked_config.work_dir.get();
+        if let Err(e) = std::env::set_current_dir(target_dir) {
+            eprintln!(
+                "Failed to change to directory '{}': {}",
+                target_dir.display(),
+                e
+            );
             std::process::exit(1);
         }
-        return;
+        use log::debug;
+        debug!("Changed working directory to: {}", target_dir.display());
     }
 
-    if let Commands::ShellIntegration { shell } = command {
-        match shell {
-            Some(s) => {
-                if let Err(e) = shell_integration_command(s) {
-                    eprintln!("Shell integration error: {}", e);
-                    std::process::exit(1);
-                }
-            }
-            None => {
-                rb_cli::commands::shell_integration::show_available_integrations();
-            }
-        }
-        return;
-    }
-
-    // Handle sync command differently since it doesn't use ButlerRuntime in the same way
-    if let Commands::Sync = command {
-        if let Err(e) = sync_command(
-            cli.config.rubies_dir.clone(),
-            cli.config.ruby_version.clone(),
-            cli.config.gem_home.clone(),
-            cli.config.no_bundler.unwrap_or(false),
-        ) {
-            eprintln!("Sync failed: {}", e);
-            std::process::exit(1);
-        }
-        return;
-    }
-
-    // Resolve search directory for Ruby installations
-    let rubies_dir = resolve_search_dir(cli.config.rubies_dir);
-
-    // Perform comprehensive environment discovery once
-    let butler_runtime = match ButlerRuntime::discover_and_compose_with_gem_base(
-        rubies_dir,
-        cli.config.ruby_version,
-        cli.config.gem_home,
-        cli.config.no_bundler.unwrap_or(false),
-    ) {
-        Ok(runtime) => runtime,
-        Err(e) => match e {
-            ButlerError::RubiesDirectoryNotFound(path) => {
-                eprintln!("🎩 My sincerest apologies, but the designated Ruby estate directory");
-                eprintln!(
-                    "   '{}' appears to be absent from your system.",
-                    path.display()
-                );
-                eprintln!();
-                eprintln!("Without access to a properly established Ruby estate, I'm afraid");
-                eprintln!(
-                    "there's precious little this humble Butler can accomplish on your behalf."
-                );
-                eprintln!();
-                eprintln!("May I suggest installing Ruby using ruby-install or a similar");
-                eprintln!("distinguished tool to establish your Ruby installations at the");
-                eprintln!("expected location, then we shall proceed with appropriate ceremony.");
-                std::process::exit(1);
-            }
-            _ => {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
-        },
+    // Create command context (just config data, no runtime discovery yet)
+    let mut context = CommandContext {
+        config: tracked_config,
+        project_file: cli_parsed.project_file.clone(),
     };
 
-    match command {
-        Commands::Runtime => {
-            runtime_command(&butler_runtime);
-        }
-        Commands::Environment => {
-            environment_command(&butler_runtime, cli.project_file);
-        }
-        Commands::Exec { args } => {
-            exec_command(butler_runtime, args);
-        }
-        Commands::Run { script, args } => {
-            run_command(butler_runtime, script, args, cli.project_file);
-        }
-        Commands::Init => {
-            // Already handled above
-            unreachable!()
-        }
-        Commands::Sync => {
-            // Already handled above
-            unreachable!()
-        }
-        Commands::ShellIntegration { .. } => unreachable!(),
-        Commands::BashComplete { .. } => unreachable!(),
+    // Dispatch to appropriate command handler
+    let result = dispatch_command(command, &mut context);
+
+    // Handle any errors with consistent, friendly messages
+    if let Err(e) = result {
+        handle_command_error(e, &context);
     }
 }

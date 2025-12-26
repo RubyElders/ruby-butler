@@ -7,8 +7,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 pub mod detector;
+pub mod template;
 
 pub use detector::RbprojectDetector;
+pub use template::create_default_project;
 
 /// Represents a script definition in rbproject.toml
 /// Supports both simple string format and detailed object format
@@ -302,6 +304,31 @@ impl RuntimeProvider for ProjectRuntime {
     fn gem_dir(&self) -> Option<PathBuf> {
         // Project runtime doesn't add a gem directory
         None
+    }
+
+    fn compose_version_detector(&self) -> crate::ruby::CompositeDetector {
+        use crate::ruby::version_detector::{GemfileDetector, RubyVersionFileDetector};
+
+        // Project environment: check .ruby-version first, then Gemfile
+        crate::ruby::CompositeDetector::new(vec![
+            Box::new(RubyVersionFileDetector),
+            Box::new(GemfileDetector),
+        ])
+    }
+
+    fn compose_gem_path_detector(
+        &self,
+    ) -> crate::gems::gem_path_detector::CompositeGemPathDetector {
+        use crate::gems::gem_path_detector::{
+            BundlerIsolationDetector, CustomGemBaseDetector, UserGemsDetector,
+        };
+
+        // Project environment: standard priority
+        crate::gems::gem_path_detector::CompositeGemPathDetector::new(vec![
+            Box::new(CustomGemBaseDetector),
+            Box::new(BundlerIsolationDetector),
+            Box::new(UserGemsDetector),
+        ])
     }
 }
 

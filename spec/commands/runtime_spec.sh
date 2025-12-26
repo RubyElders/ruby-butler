@@ -23,8 +23,8 @@ Describe "Ruby Butler Runtime System"
       It "gracefully handles non-existing paths"
         When run rb -R "/non/existing" runtime
         The status should not equal 0
-        The stderr should include "designated Ruby estate directory"
-        The stderr should include "appears to be absent from your system"
+        The stderr should include "Ruby installation directory not found"
+        The stderr should include "verify the path exists"
       End
 
       It "presents latest Ruby with appropriate precedence"
@@ -55,6 +55,36 @@ Describe "Ruby Butler Runtime System"
         When run rb -R "$RUBIES_DIR" rt
         The status should equal 0
         The output should include "Ruby Environment Survey"
+        The output should include "$LATEST_RUBY"
+      End
+    End
+
+    Context "environment variable support"
+      It "respects RB_RUBIES_DIR environment variable"
+        export RB_RUBIES_DIR="$RUBIES_DIR"
+        When run rb runtime
+        The status should equal 0
+        The output should include "$LATEST_RUBY"
+      End
+
+      It "respects RB_RUBY_VERSION environment variable"
+        export RB_RUBY_VERSION="$OLDER_RUBY"
+        When run rb -R "$RUBIES_DIR" runtime
+        The status should equal 0
+        The output should include "$OLDER_RUBY"
+      End
+
+      It "respects RB_GEM_HOME environment variable"
+        export RB_GEM_HOME="/tmp/test-gems"
+        When run rb -R "$RUBIES_DIR" runtime
+        The status should equal 0
+        The output should include "/tmp/test-gems"
+      End
+
+      It "allows CLI flags to override environment variables"
+        export RB_RUBY_VERSION="$OLDER_RUBY"
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" runtime
+        The status should equal 0
         The output should include "$LATEST_RUBY"
       End
     End

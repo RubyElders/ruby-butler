@@ -1,17 +1,23 @@
 use colored::*;
 use log::{debug, info, warn};
 use rb_core::bundler::BundlerRuntime;
-use rb_core::butler::ButlerRuntime;
+use rb_core::butler::{ButlerError, ButlerRuntime};
 use rb_core::project::{ProjectRuntime, RbprojectDetector};
 use rb_core::ruby::RubyType;
 use std::path::PathBuf;
 
-pub fn environment_command(butler_runtime: &ButlerRuntime, project_file: Option<PathBuf>) {
+pub fn environment_command(
+    butler_runtime: &ButlerRuntime,
+    project_file: Option<PathBuf>,
+) -> Result<(), ButlerError> {
     info!("Presenting current Ruby environment from the working directory");
-    present_current_environment(butler_runtime, project_file);
+    present_current_environment(butler_runtime, project_file)
 }
 
-fn present_current_environment(butler_runtime: &ButlerRuntime, project_file: Option<PathBuf>) {
+fn present_current_environment(
+    butler_runtime: &ButlerRuntime,
+    project_file: Option<PathBuf>,
+) -> Result<(), ButlerError> {
     println!("{}", "🌍 Your Current Ruby Environment".to_string().bold());
     println!();
 
@@ -23,7 +29,7 @@ fn present_current_environment(butler_runtime: &ButlerRuntime, project_file: Opt
     let bundler_runtime = butler_runtime.bundler_runtime();
 
     // Use Ruby selection from butler runtime
-    let ruby = butler_runtime.selected_ruby();
+    let ruby = butler_runtime.selected_ruby()?;
 
     // Get gem runtime from butler runtime
     let gem_runtime = butler_runtime.gem_runtime();
@@ -75,6 +81,8 @@ fn present_current_environment(butler_runtime: &ButlerRuntime, project_file: Opt
         project_runtime.as_ref(),
         butler_runtime,
     );
+
+    Ok(())
 }
 
 fn present_environment_details(
@@ -383,7 +391,7 @@ mod tests {
                 .expect("Failed to create butler runtime with test Ruby");
 
         // This will handle the environment presentation gracefully
-        environment_command(&butler_runtime, None);
+        let _ = environment_command(&butler_runtime, None);
     }
 
     #[test]
@@ -424,7 +432,7 @@ mod tests {
 
         let bundler_sandbox = BundlerSandbox::new()?;
         let project_dir = bundler_sandbox.add_bundler_project("test-app", true)?;
-        let bundler_runtime = BundlerRuntime::new(&project_dir);
+        let bundler_runtime = BundlerRuntime::new(&project_dir, ruby.version.clone());
 
         // Use sandboxed gem directory instead of real home directory
         let gem_runtime = GemRuntime::for_base_dir(&ruby_sandbox.gem_base_dir(), &ruby.version);

@@ -24,8 +24,7 @@ Describe 'rb sync command'
     It 'fails gracefully with appropriate message'
       When run rb -R "$RUBIES_DIR" sync
       The status should be failure
-      The output should include "Bundler Environment Not Detected"
-      The stderr should include "Sync failed"
+      The stderr should include "Bundler environment not detected"
     End
   End
 
@@ -36,8 +35,7 @@ Describe 'rb sync command'
       It 'fails gracefully with "s" alias when no proper bundler project'
         When run rb -R "$RUBIES_DIR" s
         The status should be failure
-        The output should include "Bundler Environment Not Detected"
-        The stderr should include "Sync failed"
+        The stderr should include "Bundler environment not detected"
       End
     End
 
@@ -99,6 +97,40 @@ EOF
       The path Gemfile.lock should be exist
       The contents of file Gemfile.lock should include "rake"
       The contents of file Gemfile.lock should not include "minitest"
+    End
+  End
+
+  Context 'environment variable support'
+    It 'respects RB_RUBIES_DIR environment variable'
+      create_bundler_project "."
+      export RB_RUBIES_DIR="$RUBIES_DIR"
+      When run rb sync
+      The status should be success
+      The output should include "Environment Successfully Synchronized"
+    End
+
+    It 'respects RB_RUBY_VERSION environment variable'
+      create_bundler_project "." "$OLDER_RUBY"
+      export RB_RUBY_VERSION="$OLDER_RUBY"
+      When run rb -R "$RUBIES_DIR" sync
+      The status should be success
+      The output should include "Synchronizing"
+    End
+
+    It 'respects RB_NO_BUNDLER environment variable (disables sync)'
+      create_bundler_project "."
+      export RB_NO_BUNDLER=true
+      When run rb -R "$RUBIES_DIR" sync
+      The status should be failure
+      The stderr should include "Bundler environment not detected"
+    End
+
+    It 'allows CLI flags to override environment variables'
+      create_bundler_project "." "$OLDER_RUBY"
+      export RB_RUBY_VERSION="$LATEST_RUBY"
+      When run rb -R "$RUBIES_DIR" -r "$OLDER_RUBY" sync
+      The status should be success
+      The output should include "Synchronizing"
     End
   End
 End

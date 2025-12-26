@@ -367,8 +367,10 @@ EOF
       # Create Gemfile to simulate bundler project
       echo "source 'https://rubygems.org'" > "$TEST_PROJECT_DIR/Gemfile"
 
-      # Create bundler binstubs directory with versioned ruby path
-      BUNDLER_BIN="$TEST_PROJECT_DIR/.rb/vendor/bundler/ruby/3.3.0/bin"
+      # Create bundler binstubs directory with versioned ruby path using actual Ruby ABI
+      local ruby_abi
+      ruby_abi=$(get_ruby_abi_version "$LATEST_RUBY")
+      BUNDLER_BIN="$TEST_PROJECT_DIR/.rb/vendor/bundler/ruby/$ruby_abi/bin"
       mkdir -p "$BUNDLER_BIN"
 
       # Create bundler-specific binstubs
@@ -412,28 +414,28 @@ EOF
     Context "with -B flag in bundler project"
       It "skips bundler binstubs when -B flag present"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb -B exec b" 12
+        When run rb -B __bash_complete "rb -B exec b" 12
         The status should equal 0
         The output should not include "bundler-tool"
       End
 
       It "skips bundler binstubs with --no-bundler flag"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb --no-bundler exec b" 22
+        When run rb --no-bundler __bash_complete "rb --no-bundler exec b" 22
         The status should equal 0
         The output should not include "bundler-tool"
       End
 
       It "skips bundler binstubs with -B and x alias"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb -B x b" 9
+        When run rb -B __bash_complete "rb -B x b" 9
         The status should equal 0
         The output should not include "bundler-tool"
       End
 
       It "uses gem binstubs instead of bundler binstubs with -B"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb -B x r" 9
+        When run rb -B __bash_complete "rb -B x r" 9
         The status should equal 0
         The output should not include "rspec-bundler"
         The output should not include "rails"
@@ -444,15 +446,15 @@ EOF
     Context "-B flag with -R flag combination"
       It "respects both -B and -R flags"
         cd "$TEST_PROJECT_DIR"
-        When run rb __bash_complete "rb -B -R $RUBIES_DIR x b" 20
+        When run rb -B -R "$RUBIES_DIR" __bash_complete "rb -B -R $RUBIES_DIR x b" 20
         The status should equal 0
         The output should not include "bundler-tool"
       End
 
       It "parses -R flag from command line for gem directory"
         cd "$TEST_PROJECT_DIR"
-        # The -R flag should be parsed from the completion string
-        When run rb __bash_complete "rb -R $RUBIES_DIR -B x " 23
+        # The -R flag should be passed as real CLI arg
+        When run rb -R "$RUBIES_DIR" -B __bash_complete "rb -R $RUBIES_DIR -B x " 23
         The status should equal 0
         # Should complete but not from bundler
         The output should not include "bundler-tool"

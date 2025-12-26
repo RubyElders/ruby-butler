@@ -23,24 +23,44 @@ fn get_completion_behavior(command: &str) -> CompletionBehavior {
     }
 }
 
+/// Expand tilde (~) to home directory in paths
+fn expand_tilde(path: &str) -> PathBuf {
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home) = std::env::var_os("HOME") {
+            let mut expanded = PathBuf::from(home);
+            expanded.push(stripped);
+            return expanded;
+        }
+    } else if path == "~"
+        && let Some(home) = std::env::var_os("HOME")
+    {
+        return PathBuf::from(home);
+    }
+    PathBuf::from(path)
+}
+
 /// Extract rubies_dir from command line words if -R or --rubies-dir flag is present
 fn extract_rubies_dir_from_line(words: &[&str]) -> Option<PathBuf> {
     for i in 0..words.len() {
         if (words[i] == "-R" || words[i] == "--rubies-dir") && i + 1 < words.len() {
-            return Some(PathBuf::from(words[i + 1]));
+            return Some(expand_tilde(words[i + 1]));
         }
     }
     None
 }
 
 /// Generate dynamic completions based on current line and cursor position
-pub fn generate_completions(line: &str, cursor_pos: &str, rubies_dir: Option<PathBuf>) {
+pub fn generate_completions(
+    line: &str,
+    cursor_pos: &str,
+    butler_runtime: Option<&rb_core::butler::ButlerRuntime>,
+) {
     let cursor: usize = cursor_pos.parse().unwrap_or(line.len());
     let line = &line[..cursor.min(line.len())];
 
     let words: Vec<&str> = line.split_whitespace().collect();
 
-    let no_bundler = words.iter().any(|w| *w == "-B" || *w == "--no-bundler");
+    let rubies_dir = None; // Not needed - ButlerRuntime already configured
 
     let rubies_dir = extract_rubies_dir_from_line(&words).or(rubies_dir);
 
@@ -130,9 +150,12 @@ pub fn generate_completions(line: &str, cursor_pos: &str, rubies_dir: Option<Pat
             }
         }
         CompletionBehavior::Binstubs => {
-            if args_after_command == 0 {
-                suggest_binstubs(current_word, no_bundler, rubies_dir.clone());
+            if args_after_command == 0
+                && let Some(runtime) = butler_runtime
+            {
+                suggest_binstubs(current_word, runtime);
             }
+            // If no runtime available, just don't suggest binstubs (no Ruby found)
         }
         CompletionBehavior::DefaultOnly => {}
     }
@@ -213,76 +236,21 @@ fn suggest_script_names(prefix: &str) {
     }
 }
 
-fn suggest_binstubs(prefix: &str, no_bundler: bool, rubies_dir: Option<PathBuf>) {
-    use rb_core::bundler::BundlerRuntimeDetector;
-    use rb_core::butler::ButlerRuntime;
+fn suggest_binstubs(prefix: &str, butler_runtime: &rb_core::butler::ButlerRuntime) {
     use std::collections::HashSet;
 
-    // Try to detect bundler runtime in current directory
-    let current_dir = std::env::current_dir().ok();
-    if let Some(dir) = current_dir {
-        let rubies_dir = rubies_dir.unwrap_or_else(|| crate::resolve_search_dir(None));
+    let mut suggested = HashSet::new();
 
-        // Check if we're in a bundler project (and not using -B flag)
-        let in_bundler_project = !no_bundler
-            && BundlerRuntimeDetector::discover(&dir)
-                .ok()
-                .flatten()
-                .map(|br| br.is_configured())
-                .unwrap_or(false);
-
-        if in_bundler_project {
-            // In bundler project: suggest both bundler binstubs AND ruby bin executables
-            let mut suggested = HashSet::new();
-
-            // First, bundler binstubs
-            if let Ok(Some(bundler_runtime)) = BundlerRuntimeDetector::discover(&dir)
-                && bundler_runtime.is_configured()
-            {
-                let bin_dir = bundler_runtime.bin_dir();
-                if bin_dir.exists() {
-                    collect_executables_from_dir(&bin_dir, prefix, &mut suggested);
-                }
-            }
-
-            // Then, Ruby bin executables (gem, bundle, ruby, irb, etc.)
-            if let Ok(rubies) = rb_core::ruby::RubyRuntimeDetector::discover(&rubies_dir)
-                && let Some(ruby) = rubies.into_iter().next()
-            {
-                let ruby_bin = ruby.bin_dir();
-                if ruby_bin.exists() {
-                    collect_executables_from_dir(&ruby_bin, prefix, &mut suggested);
-                }
-            }
-
-            // Print all unique suggestions
-            let mut items: Vec<_> = suggested.into_iter().collect();
-            items.sort();
-            for item in items {
-                println!("{}", item);
-            }
-        } else {
-            // Not in bundler project: suggest gem binstubs
-            if let Ok(rubies) = rb_core::ruby::RubyRuntimeDetector::discover(&rubies_dir)
-                && let Some(ruby) = rubies.into_iter().next()
-            {
-                // Compose butler runtime to get gem bin directory
-                if let Ok(butler) = ButlerRuntime::discover_and_compose_with_gem_base(
-                    rubies_dir,
-                    Some(ruby.version.to_string()),
-                    None,
-                    true, // skip_bundler=true
-                ) {
-                    // Use gem runtime bin directory if available
-                    if let Some(gem_runtime) = butler.gem_runtime() {
-                        let gem_bin_dir = &gem_runtime.gem_bin;
-                        if gem_bin_dir.exists() {
-                            suggest_executables_from_dir(gem_bin_dir, prefix);
-                        }
-                    }
-                }
-            }
+    for bin_dir in butler_runtime.bin_dirs() {
+        if bin_dir.exists() {
+            collect_executables_from_dir(&bin_dir, prefix, &mut suggested);
         }
+    }
+
+    let mut items: Vec<_> = suggested.into_iter().collect();
+    items.sort();
+    for item in items {
+        println!("{}", item);
     }
 }
 
@@ -300,21 +268,6 @@ fn collect_executables_from_dir(
                 && name.starts_with(prefix)
             {
                 collected.insert(name.to_string());
-            }
-        }
-    }
-}
-
-/// Helper function to suggest executables from a directory
-fn suggest_executables_from_dir(bin_dir: &std::path::Path, prefix: &str) {
-    if let Ok(entries) = std::fs::read_dir(bin_dir) {
-        for entry in entries.flatten() {
-            if let Ok(file_type) = entry.file_type()
-                && file_type.is_file()
-                && let Some(name) = entry.file_name().to_str()
-                && name.starts_with(prefix)
-            {
-                println!("{}", name);
             }
         }
     }

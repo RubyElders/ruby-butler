@@ -2,16 +2,11 @@ use colored::*;
 use log::{debug, info};
 use rb_core::butler::{ButlerError, ButlerRuntime, Command};
 
-pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
+pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<(), ButlerError> {
     if program_args.is_empty() {
-        eprintln!(
-            "{}: No program specified for execution",
-            "Request Incomplete".red().bold()
-        );
-        eprintln!("Proper usage: rb exec <program> [arguments...]");
-        eprintln!("For example: rb exec gem list");
-        eprintln!("             rb exec bundle install");
-        std::process::exit(1);
+        return Err(ButlerError::General(
+            "No program specified for execution.\nProper usage: rb exec <program> [arguments...]\nFor example: rb exec gem list\n             rb exec bundle install".to_string()
+        ));
     }
 
     // Extract the program and its accompanying arguments
@@ -50,12 +45,10 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
                         );
                     }
                     Err(e) => {
-                        eprintln!(
-                            "{}: Failed to prepare bundler environment: {}",
-                            "Synchronization Failed".red().bold(),
+                        return Err(ButlerError::General(format!(
+                            "Failed to prepare bundler environment: {}",
                             e
-                        );
-                        std::process::exit(1);
+                        )));
                     }
                 }
             }
@@ -89,43 +82,7 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) {
                 std::process::exit(1);
             }
         }
-        Err(ButlerError::CommandNotFound(command)) => {
-            eprintln!(
-                "🎩 My sincerest apologies, but the command '{}' appears to be",
-                command.bright_yellow()
-            );
-            eprintln!("   entirely absent from your distinguished Ruby environment.");
-            eprintln!();
-            eprintln!("This humble Butler has meticulously searched through all");
-            eprintln!("available paths and gem installations, yet the requested");
-            eprintln!("command remains elusive.");
-            eprintln!();
-            eprintln!("Might I suggest:");
-            eprintln!("  • Verifying the command name is spelled correctly");
-            eprintln!(
-                "  • Installing the appropriate gem: {}",
-                format!("gem install {}", command).cyan()
-            );
-            eprintln!(
-                "  • Checking if bundler management is required: {}",
-                "bundle install".cyan()
-            );
-            eprintln!();
-            eprintln!(
-                "For additional diagnostic information, please use the {} or {} flags.",
-                "-v".cyan(),
-                "-vv".cyan()
-            );
-            std::process::exit(127);
-        }
-        Err(e) => {
-            eprintln!(
-                "{}: Execution encountered difficulties: {}",
-                "Execution Failed".red().bold(),
-                e
-            );
-            std::process::exit(1);
-        }
+        Err(e) => Err(e),
     }
 }
 
@@ -237,8 +194,17 @@ mod tests {
 
         // Test that standard variables are present
         assert!(env_vars.contains_key("PATH"));
-        assert!(env_vars.contains_key("GEM_HOME"));
-        assert!(env_vars.contains_key("GEM_PATH"));
+
+        // IMPORTANT: When bundler context is detected, GEM_HOME and GEM_PATH should NOT be set
+        // This is bundler isolation - only bundled gems are available
+        assert!(
+            !env_vars.contains_key("GEM_HOME"),
+            "GEM_HOME should NOT be set in bundler context (isolation)"
+        );
+        assert!(
+            !env_vars.contains_key("GEM_PATH"),
+            "GEM_PATH should NOT be set in bundler context (isolation)"
+        );
 
         // Test that bundler variables are set when bundler project is detected
         assert!(env_vars.contains_key("BUNDLE_GEMFILE"));
