@@ -1,7 +1,6 @@
 use crate::bundler::{BundlerRuntime, BundlerRuntimeDetector};
 use crate::gems::GemRuntime;
 use crate::ruby::{RubyDiscoveryError, RubyRuntime, RubyRuntimeDetector};
-use colored::*;
 use home;
 use log::{debug, info};
 use semver::Version;
@@ -120,7 +119,6 @@ pub struct ButlerRuntime {
     current_dir: PathBuf,
     ruby_installations: Vec<RubyRuntime>,
     requested_ruby_version: Option<String>,
-    required_ruby_version: Option<Version>,
     gem_base_dir: Option<PathBuf>,
 }
 
@@ -153,7 +151,6 @@ impl ButlerRuntime {
             current_dir,
             ruby_installations: vec![],
             requested_ruby_version: None,
-            required_ruby_version: None,
             gem_base_dir: None,
         }
     }
@@ -171,7 +168,6 @@ impl ButlerRuntime {
             current_dir,
             ruby_installations: vec![],
             requested_ruby_version: None,
-            required_ruby_version: None,
             gem_base_dir: None,
         }
     }
@@ -353,7 +349,6 @@ impl ButlerRuntime {
             current_dir,
             ruby_installations,
             requested_ruby_version,
-            required_ruby_version,
             gem_base_dir,
         })
     }
@@ -375,11 +370,8 @@ impl ButlerRuntime {
                     let found = rubies.iter().find(|r| r.version == req_version).cloned();
                     return found;
                 }
-                Err(e) => {
-                    println!(
-                        "{}",
-                        format!("Invalid Ruby version format '{}': {}", requested, e).red()
-                    );
+                Err(_e) => {
+                    debug!("Invalid Ruby version format: {}", requested);
                     return None;
                 }
             }
@@ -393,10 +385,9 @@ impl ButlerRuntime {
             if let Some(ruby) = found {
                 return Some(ruby);
             } else {
-                println!("{}", format!("Required Ruby version {} (from bundler environment) not found in available installations", required_version).yellow());
-                println!(
-                    "{}",
-                    "   Falling back to latest available Ruby installation".bright_black()
+                debug!(
+                    "Required Ruby version {} not found, falling back to latest",
+                    required_version
                 );
                 // Fall through to latest selection
             }
@@ -450,43 +441,6 @@ impl ButlerRuntime {
     /// Check if we have a usable Ruby environment
     pub fn has_ruby_environment(&self) -> bool {
         true // We always have a selected ruby in ButlerRuntime
-    }
-
-    /// Display appropriate error messages for missing Ruby installations
-    pub fn display_no_ruby_error(&self) {
-        println!(
-            "{}",
-            "⚠️  No Ruby installations were found in your environment.".yellow()
-        );
-        println!();
-        println!(
-            "{}",
-            "Please ensure you have Ruby installed and available in the search directory.".dimmed()
-        );
-    }
-
-    pub fn display_no_suitable_ruby_error(&self) {
-        println!(
-            "{}",
-            "⚠️  No suitable Ruby version found for the requested criteria.".yellow()
-        );
-        println!();
-        if let Some(requested) = &self.requested_ruby_version {
-            println!(
-                "{}",
-                format!("Requested version: {}", requested).bright_blue()
-            );
-        }
-        if let Some(required) = &self.required_ruby_version {
-            println!(
-                "{}",
-                format!("Required version (from bundler): {}", required).bright_blue()
-            );
-        }
-        println!("{}", "Available versions:".bright_blue());
-        for ruby in &self.ruby_installations {
-            println!("  - {}", ruby.version.to_string().cyan());
-        }
     }
 
     /// Returns a list of bin directories from all active runtimes
