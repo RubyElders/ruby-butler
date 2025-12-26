@@ -41,3 +41,39 @@ pub fn version_command() -> Result<(), ButlerError> {
     println!("{}", build_version_info());
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_version_info_contains_version() {
+        let info = build_version_info();
+        let version = env!("CARGO_PKG_VERSION");
+        assert!(info.contains(&format!("v{}", version)));
+    }
+
+    #[test]
+    fn test_build_version_info_contains_butler_branding() {
+        let info = build_version_info();
+        assert!(info.contains("Ruby Butler"));
+        assert!(info.contains("RubyElders.com"));
+        assert!(info.contains("gentleman"));
+    }
+
+    #[test]
+    fn test_build_version_info_includes_git_hash_when_available() {
+        let info = build_version_info();
+        // Either shows tag, git hash, or neither (unknown)
+        // We just verify it doesn't panic and produces output
+        assert!(!info.is_empty());
+        assert!(info.len() > 50); // Should have substantial content
+    }
+
+    #[test]
+    fn test_version_command_returns_ok() {
+        // version_command always succeeds
+        let result = version_command();
+        assert!(result.is_ok());
+    }
+}
