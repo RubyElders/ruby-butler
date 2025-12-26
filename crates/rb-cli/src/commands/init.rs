@@ -1,34 +1,12 @@
-use std::fs;
+use rb_core::project::create_default_project;
 use std::path::Path;
-
-const DEFAULT_RBPROJECT_TOML: &str = r#"[project]
-name = "Butler project template"
-description = "Please fill in"
-
-[scripts]
-ruby-version = "ruby -v"
-"#;
 
 /// Initialize a new rbproject.toml in the current directory
 pub fn init_command(current_dir: &Path) -> Result<(), String> {
-    let project_file = current_dir.join("rbproject.toml");
+    // Delegate to rb-core for file creation
+    create_default_project(current_dir)?;
 
-    // Check if file already exists
-    if project_file.exists() {
-        return Err(
-            "🎩 My sincerest apologies, but an rbproject.toml file already graces\n\
-             this directory with its presence.\n\n\
-             This humble Butler cannot overwrite existing project configurations\n\
-             without explicit instruction, as such an action would be most improper.\n\n\
-             If you wish to recreate the file, kindly delete the existing one first."
-                .to_string(),
-        );
-    }
-
-    // Write the default template
-    fs::write(&project_file, DEFAULT_RBPROJECT_TOML)
-        .map_err(|e| format!("Failed to create rbproject.toml: {}", e))?;
-
+    // Present success message with ceremony
     println!("✨ Splendid! A new rbproject.toml has been created with appropriate ceremony.");
     println!();
     println!("📝 This template includes:");
@@ -85,8 +63,7 @@ mod tests {
         let result = init_command(&temp_dir);
         assert!(result.is_err());
         let error = result.unwrap_err();
-        assert!(error.contains("already graces"));
-        assert!(error.contains("this directory"));
+        assert!(error.contains("already exists"));
 
         // Cleanup
         fs::remove_dir_all(&temp_dir).ok();

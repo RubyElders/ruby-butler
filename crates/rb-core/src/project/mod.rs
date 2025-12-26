@@ -7,8 +7,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 pub mod detector;
+pub mod template;
 
 pub use detector::RbprojectDetector;
+pub use template::create_default_project;
 
 /// Represents a script definition in rbproject.toml
 /// Supports both simple string format and detailed object format
