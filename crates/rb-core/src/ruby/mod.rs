@@ -148,6 +148,20 @@ impl RubyRuntime {
         gem_runtime
     }
 
+    /// Returns bin directories for this Ruby installation
+    ///
+    /// Returns: [ruby_bin]
+    pub fn bin_dirs(&self) -> Vec<PathBuf> {
+        vec![self.bin_dir()]
+    }
+
+    /// Returns gem directories for this Ruby installation (system gems only)
+    ///
+    /// Returns: [lib_dir] (e.g., ~/.rubies/ruby-3.2.1/lib/ruby/gems/3.2.0)
+    pub fn gem_dirs(&self) -> Vec<PathBuf> {
+        vec![self.lib_dir()]
+    }
+
     /// Create a GemRuntime based on ~/.gem/ruby/version pattern
     ///
     /// This creates a GemRuntime pointing to ~/.gem/ruby/<full.version>

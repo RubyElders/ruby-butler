@@ -59,11 +59,12 @@ fn present_ruby_installations(butler_runtime: &ButlerRuntime) -> Result<(), Butl
                     gem_runtime.gem_home.display()
                 );
 
-                // Create ButlerRuntime with Ruby and Gem runtimes
-                let butler = ButlerRuntime::new(ruby.clone(), Some(gem_runtime.clone()));
+                // Compose paths from individual runtimes
+                let mut gem_dirs = gem_runtime.gem_dirs();
+                gem_dirs.extend(ruby.gem_dirs());
 
-                let gem_dirs = butler.gem_dirs();
-                let bin_dirs = butler.bin_dirs();
+                let mut bin_dirs = gem_runtime.bin_dirs();
+                bin_dirs.extend(ruby.bin_dirs());
 
                 ruby_display_data.push((
                     ruby_header,
@@ -80,7 +81,7 @@ fn present_ruby_installations(butler_runtime: &ButlerRuntime) -> Result<(), Butl
                 ));
 
                 debug!(
-                    "Composed ButlerRuntime for Ruby {}: {} bin dirs, {} gem dirs",
+                    "Composed paths for Ruby {}: {} bin dirs, {} gem dirs",
                     ruby.version,
                     bin_dirs.len(),
                     gem_dirs.len()
@@ -92,11 +93,9 @@ fn present_ruby_installations(butler_runtime: &ButlerRuntime) -> Result<(), Butl
                     ruby.version, e
                 );
 
-                // Create ButlerRuntime with Ruby only
-                let butler = ButlerRuntime::new(ruby.clone(), None);
-
-                let gem_dirs = butler.gem_dirs();
-                let bin_dirs = butler.bin_dirs();
+                // Use Ruby runtime only
+                let gem_dirs = ruby.gem_dirs();
+                let bin_dirs = ruby.bin_dirs();
 
                 ruby_display_data.push((
                     ruby_header,
