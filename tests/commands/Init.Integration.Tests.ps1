@@ -155,7 +155,7 @@ Describe "Ruby Butler - Init Command" {
             try {
                 $Output = & $Script:RbPath init 2>&1
                 $LASTEXITCODE | Should -Not -Be 0
-                ($Output -join " ") | Should -Match "delete the existing one first"
+                ($Output -join " ") | Should -Match "remove the existing file first"
             } finally {
                 Pop-Location
             }

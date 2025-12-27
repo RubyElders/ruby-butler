@@ -79,8 +79,10 @@ fn test_dispatch_creates_runtime_lazily() {
 
 #[test]
 fn test_context_preserves_config() {
-    let mut config = RbConfig::default();
-    config.rubies_dir = Some(PathBuf::from("/custom/rubies"));
+    let config = RbConfig {
+        rubies_dir: Some(PathBuf::from("/custom/rubies")),
+        ..Default::default()
+    };
 
     let mut context = CommandContext {
         config: TrackedConfig::from_merged(&config, &RbConfig::default()),
