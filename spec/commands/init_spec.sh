@@ -86,8 +86,7 @@ Describe "Ruby Butler Init Command"
         echo "existing content" > rbproject.toml
         When run rb init
         The status should not equal 0
-        The stderr should include "already graces"
-        The stderr should include "this directory"
+        The stderr should include "already graces this directory"
       End
 
       It "provides proper guidance for resolution"
@@ -95,7 +94,7 @@ Describe "Ruby Butler Init Command"
         echo "existing content" > rbproject.toml
         When run rb init
         The status should not equal 0
-        The stderr should include "delete the existing one first"
+        The stderr should include "kindly remove the existing file"
       End
 
       It "preserves existing file content"
@@ -103,7 +102,7 @@ Describe "Ruby Butler Init Command"
         echo "my precious content" > rbproject.toml
         When run rb init
         The status should not equal 0
-        The stderr should include "already graces"
+        The stderr should include "already graces this directory"
         The contents of file "rbproject.toml" should equal "my precious content"
       End
     End

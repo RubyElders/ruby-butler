@@ -137,7 +137,7 @@ Describe "Ruby Butler - Init Command" {
             try {
                 $Output = & $Script:RbPath init 2>&1
                 $LASTEXITCODE | Should -Not -Be 0
-                ($Output -join " ") | Should -Match "already graces"
+                ($Output -join " ") | Should -Match "already graces this directory"
                 ($Output -join " ") | Should -Match "this directory"
             } finally {
                 Pop-Location

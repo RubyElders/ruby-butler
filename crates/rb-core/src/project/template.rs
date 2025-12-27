@@ -38,9 +38,9 @@ pub fn create_default_project(current_dir: &Path) -> Result<(), String> {
 
     // Check if file already exists
     if project_file.exists() {
-        return Err("rbproject.toml file already exists in this directory.\n\
-             Cannot overwrite existing project configurations without explicit instruction.\n\
-             If you wish to recreate the file, please delete the existing one first."
+        return Err("A project configuration already graces this directory.\n\
+             Butler respectfully declines to overwrite existing arrangements.\n\
+             Should you wish to begin anew, kindly remove the existing file first."
             .to_string());
     }
 
