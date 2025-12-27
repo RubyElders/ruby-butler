@@ -91,7 +91,7 @@ mod tests {
         let result = create_default_project(&temp_dir);
         assert!(result.is_err());
         let error = result.unwrap_err();
-        assert!(error.contains("already exists"));
+        assert!(error.contains("already graces this directory"));
 
         // Cleanup
         fs::remove_dir_all(&temp_dir).ok();

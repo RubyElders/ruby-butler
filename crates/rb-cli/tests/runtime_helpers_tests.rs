@@ -61,8 +61,10 @@ fn test_command_context_initialization() {
 
 #[test]
 fn test_command_context_stores_config() {
-    let mut config = RbConfig::default();
-    config.rubies_dir = Some(PathBuf::from("/custom/path"));
+    let config = RbConfig {
+        rubies_dir: Some(PathBuf::from("/custom/path")),
+        ..Default::default()
+    };
 
     let context = CommandContext {
         config: TrackedConfig::from_merged(&config, &RbConfig::default()),

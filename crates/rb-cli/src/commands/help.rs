@@ -36,7 +36,6 @@ mod tests {
         // assert!(result.is_ok());
 
         // Instead just verify the function exists and compiles
-        assert!(true);
     }
 
     #[test]
@@ -47,6 +46,5 @@ mod tests {
         // assert!(result.is_ok());
 
         // Verify function compiles
-        assert!(true);
     }
 }
