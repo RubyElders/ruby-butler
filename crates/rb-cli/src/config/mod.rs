@@ -19,7 +19,8 @@ pub struct RbConfig {
         long = "rubies-dir",
         global = true,
         help = "Designate the directory containing your Ruby installations",
-        env = "RB_RUBIES_DIR"
+        env = "RB_RUBIES_DIR",
+        value_hint = clap::ValueHint::DirPath
     )]
     #[serde(rename = "rubies-dir", skip_serializing_if = "Option::is_none")]
     pub rubies_dir: Option<PathBuf>,
@@ -41,7 +42,8 @@ pub struct RbConfig {
         long = "gem-home",
         global = true,
         help = "Specify custom gem base directory for gem installations",
-        env = "RB_GEM_HOME"
+        env = "RB_GEM_HOME",
+        value_hint = clap::ValueHint::DirPath
     )]
     #[serde(rename = "gem-home", skip_serializing_if = "Option::is_none")]
     pub gem_home: Option<PathBuf>,
@@ -64,7 +66,8 @@ pub struct RbConfig {
         long = "work-dir",
         global = true,
         help = "Run as if started in the specified directory",
-        env = "RB_WORK_DIR"
+        env = "RB_WORK_DIR",
+        value_hint = clap::ValueHint::DirPath
     )]
     #[serde(rename = "work-dir", skip_serializing_if = "Option::is_none")]
     pub work_dir: Option<PathBuf>,

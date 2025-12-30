@@ -49,6 +49,156 @@ fn extract_rubies_dir_from_line(words: &[&str]) -> Option<PathBuf> {
     None
 }
 
+/// Suggest directories for completion
+fn suggest_directories(current: &str) {
+    let current_path = std::path::Path::new(current);
+
+    let (search_dir, prefix) = if current.is_empty() {
+        (std::path::PathBuf::from("."), "")
+    } else if current.ends_with('/') || current.ends_with(std::path::MAIN_SEPARATOR) {
+        (current_path.to_path_buf(), "")
+    } else {
+        match current_path.parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => {
+                let prefix = current_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("");
+                (parent.to_path_buf(), prefix)
+            }
+            _ => (std::path::PathBuf::from("."), current),
+        }
+    };
+
+    let Ok(entries) = std::fs::read_dir(&search_dir) else {
+        return;
+    };
+
+    let mut candidates = Vec::new();
+
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+
+        if !file_type.is_dir() {
+            continue;
+        }
+
+        let file_name = entry.file_name();
+        let Some(name) = file_name.to_str() else {
+            continue;
+        };
+
+        if name.starts_with('.') && !prefix.starts_with('.') {
+            continue;
+        }
+
+        if !name.starts_with(prefix) {
+            continue;
+        }
+
+        let candidate_path =
+            if current.ends_with('/') || current.ends_with(std::path::MAIN_SEPARATOR) {
+                format!("{}{}/", current, name)
+            } else if let Some(parent) = current_path.parent() {
+                if parent.as_os_str().is_empty() || parent == std::path::Path::new(".") {
+                    format!("{}/", name)
+                } else {
+                    format!("{}/{}/", parent.display(), name)
+                }
+            } else {
+                format!("{}/", name)
+            };
+
+        candidates.push(candidate_path);
+    }
+
+    candidates.sort();
+    for candidate in candidates {
+        println!("{}", candidate);
+    }
+}
+
+/// Suggest files and directories for completion  
+fn suggest_files(current: &str) {
+    let current_path = std::path::Path::new(current);
+
+    let (search_dir, prefix) = if current.is_empty() {
+        (std::path::PathBuf::from("."), "")
+    } else if current.ends_with('/') || current.ends_with(std::path::MAIN_SEPARATOR) {
+        (current_path.to_path_buf(), "")
+    } else {
+        match current_path.parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => {
+                let prefix = current_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("");
+                (parent.to_path_buf(), prefix)
+            }
+            _ => (std::path::PathBuf::from("."), current),
+        }
+    };
+
+    let Ok(entries) = std::fs::read_dir(&search_dir) else {
+        return;
+    };
+
+    let mut candidates = Vec::new();
+
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+
+        let file_name = entry.file_name();
+        let Some(name) = file_name.to_str() else {
+            continue;
+        };
+
+        if name.starts_with('.') && !prefix.starts_with('.') {
+            continue;
+        }
+
+        if !name.starts_with(prefix) {
+            continue;
+        }
+
+        let candidate_path =
+            if current.ends_with('/') || current.ends_with(std::path::MAIN_SEPARATOR) {
+                if file_type.is_dir() {
+                    format!("{}{}/", current, name)
+                } else {
+                    format!("{}{}", current, name)
+                }
+            } else if let Some(parent) = current_path.parent() {
+                if parent.as_os_str().is_empty() || parent == std::path::Path::new(".") {
+                    if file_type.is_dir() {
+                        format!("{}/", name)
+                    } else {
+                        name.to_string()
+                    }
+                } else if file_type.is_dir() {
+                    format!("{}/{}/", parent.display(), name)
+                } else {
+                    format!("{}/{}", parent.display(), name)
+                }
+            } else if file_type.is_dir() {
+                format!("{}/", name)
+            } else {
+                name.to_string()
+            };
+
+        candidates.push(candidate_path);
+    }
+
+    candidates.sort();
+    for candidate in candidates {
+        println!("{}", candidate);
+    }
+}
+
 /// Generate dynamic completions based on current line and cursor position
 pub fn generate_completions(
     line: &str,
@@ -81,6 +231,26 @@ pub fn generate_completions(
     if let Some(prev) = prev_word {
         if prev == "-r" || prev == "--ruby" {
             suggest_ruby_versions(rubies_dir, current_word);
+            return;
+        }
+        if prev == "-R" || prev == "--rubies-dir" {
+            suggest_directories(current_word);
+            return;
+        }
+        if prev == "-C" || prev == "--work-dir" {
+            suggest_directories(current_word);
+            return;
+        }
+        if prev == "-G" || prev == "--gem-home" {
+            suggest_directories(current_word);
+            return;
+        }
+        if prev == "-c" || prev == "--config" {
+            suggest_files(current_word);
+            return;
+        }
+        if prev == "-P" || prev == "--project" {
+            suggest_files(current_word);
             return;
         }
         if prev == "shell-integration" {

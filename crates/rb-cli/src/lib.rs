@@ -89,7 +89,8 @@ pub struct Cli {
         long = "config",
         global = true,
         help = "Specify custom configuration file location",
-        env = "RB_CONFIG"
+        env = "RB_CONFIG",
+        value_hint = clap::ValueHint::FilePath
     )]
     pub config_file: Option<std::path::PathBuf>,
 
@@ -99,7 +100,8 @@ pub struct Cli {
         long = "project",
         global = true,
         help = "Specify custom rbproject.toml location (skips autodetection)",
-        env = "RB_PROJECT"
+        env = "RB_PROJECT",
+        value_hint = clap::ValueHint::FilePath
     )]
     pub project_file: Option<std::path::PathBuf>,
 
