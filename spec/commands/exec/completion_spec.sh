@@ -11,7 +11,6 @@ Describe "Ruby Butler Exec Command - Completion Behavior"
       create_bundler_project "."
 
       # Create bundler binstubs directory with versioned ruby path using actual Ruby ABI
-      local ruby_abi
       ruby_abi=$(get_ruby_abi_version "$LATEST_RUBY")
       BUNDLER_BIN="$TEST_PROJECT_DIR/.rb/vendor/bundler/ruby/$ruby_abi/bin"
       mkdir -p "$BUNDLER_BIN"
