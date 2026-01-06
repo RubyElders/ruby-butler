@@ -20,11 +20,11 @@ Describe "Ruby Butler Init Command"
   BeforeEach 'setup'
   AfterEach 'cleanup'
 
-  Describe "rb init command"
+  Describe "rb new command"
     Context "when creating a new rbproject.toml"
       It "creates rbproject.toml in current directory"
         cd "$TEST_INIT_DIR"
-        When run rb init
+        When run rb new
         The status should equal 0
         The output should include "Splendid"
         The file "rbproject.toml" should be exist
@@ -32,7 +32,7 @@ Describe "Ruby Butler Init Command"
 
       It "displays success message with ceremony"
         cd "$TEST_INIT_DIR"
-        When run rb init
+        When run rb new
         The status should equal 0
         The output should include "Splendid!"
         The output should include "rbproject.toml has been created"
@@ -40,7 +40,7 @@ Describe "Ruby Butler Init Command"
 
       It "creates valid TOML file"
         cd "$TEST_INIT_DIR"
-        When run rb init
+        When run rb new
         The status should equal 0
         The output should include "Splendid"
         The contents of file "rbproject.toml" should include "[project]"
@@ -49,7 +49,7 @@ Describe "Ruby Butler Init Command"
 
       It "includes project metadata section"
         cd "$TEST_INIT_DIR"
-        When run rb init
+        When run rb new
         The status should equal 0
         The output should include "Splendid"
         The contents of file "rbproject.toml" should include 'name = "Butler project template"'
@@ -58,7 +58,7 @@ Describe "Ruby Butler Init Command"
 
       It "includes sample ruby-version script"
         cd "$TEST_INIT_DIR"
-        When run rb init
+        When run rb new
         The status should equal 0
         The output should include "Splendid"
         The contents of file "rbproject.toml" should include 'ruby-version = "ruby -v"'
@@ -66,7 +66,7 @@ Describe "Ruby Butler Init Command"
 
       It "provides helpful next steps"
         cd "$TEST_INIT_DIR"
-        When run rb init
+        When run rb new
         The status should equal 0
         The output should include "You may now"
         The output should include "rb run"
@@ -74,7 +74,7 @@ Describe "Ruby Butler Init Command"
 
       It "references example documentation"
         cd "$TEST_INIT_DIR"
-        When run rb init
+        When run rb new
         The status should equal 0
         The output should include "examples/rbproject.toml"
       End
@@ -84,7 +84,7 @@ Describe "Ruby Butler Init Command"
       It "gracefully refuses to overwrite existing file"
         cd "$TEST_INIT_DIR"
         echo "existing content" > rbproject.toml
-        When run rb init
+        When run rb new
         The status should not equal 0
         The stderr should include "already graces this directory"
       End
@@ -92,7 +92,7 @@ Describe "Ruby Butler Init Command"
       It "provides proper guidance for resolution"
         cd "$TEST_INIT_DIR"
         echo "existing content" > rbproject.toml
-        When run rb init
+        When run rb new
         The status should not equal 0
         The stderr should include "kindly remove the existing file"
       End
@@ -100,7 +100,7 @@ Describe "Ruby Butler Init Command"
       It "preserves existing file content"
         cd "$TEST_INIT_DIR"
         echo "my precious content" > rbproject.toml
-        When run rb init
+        When run rb new
         The status should not equal 0
         The stderr should include "already graces this directory"
         The contents of file "rbproject.toml" should equal "my precious content"
@@ -110,7 +110,7 @@ Describe "Ruby Butler Init Command"
     Context "working with generated rbproject.toml"
       It "can list scripts from generated file"
         cd "$TEST_INIT_DIR"
-        rb init >/dev/null 2>&1
+        rb new >/dev/null 2>&1
         When run rb -R "$RUBIES_DIR" run
         The status should equal 0
         The output should include "ruby-version"
@@ -119,7 +119,7 @@ Describe "Ruby Butler Init Command"
       It "can execute generated script"
         Skip if "Ruby not available" is_ruby_available
         cd "$TEST_INIT_DIR"
-        rb init >/dev/null 2>&1
+        rb new >/dev/null 2>&1
         When run rb -R "$RUBIES_DIR" run ruby-version
         The status should equal 0
         The output should include "ruby"
@@ -130,14 +130,14 @@ Describe "Ruby Butler Init Command"
       It "respects RB_RUBIES_DIR environment variable"
         cd "$TEST_INIT_DIR"
         export RB_RUBIES_DIR="$RUBIES_DIR"
-        When run rb init
+        When run rb new
         The status should equal 0
         The output should include "Splendid"
       End
 
       It "works with RB_WORK_DIR to init in different directory"
         export RB_WORK_DIR="$TEST_INIT_DIR"
-        When run rb init
+        When run rb new
         The status should equal 0
         The output should include "Splendid"
         The file "$TEST_INIT_DIR/rbproject.toml" should be exist

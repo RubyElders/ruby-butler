@@ -25,10 +25,10 @@ Describe "Ruby Butler Help System"
         The output should include "Options"
       End
 
-      It "mentions the distinguished runtime command"
+      It "mentions the distinguished info command"
         When run rb help
         The status should equal 0
-        The output should include "runtime"
+        The output should include "info"
       End
 
       It "references the sophisticated exec command"
@@ -51,16 +51,10 @@ Describe "Ruby Butler Help System"
     End
 
     Context "when requesting help for specific command"
-      It "shows runtime command help"
-        When run rb help runtime
+      It "shows info command help"
+        When run rb help info
         The status should equal 0
-        The output should include "runtime"
-      End
-
-      It "shows environment command help"
-        When run rb help environment
-        The status should equal 0
-        The output should include "environment"
+        The output should include "info"
       End
 
       It "shows exec command help"
@@ -81,16 +75,10 @@ Describe "Ruby Butler Help System"
         The output should include "run"
       End
 
-      It "shows init command help"
-        When run rb help init
+      It "shows new command help"
+        When run rb help new
         The status should equal 0
-        The output should include "init"
-      End
-
-      It "shows config command help"
-        When run rb help config
-        The status should equal 0
-        The output should include "config"
+        The output should include "new"
       End
 
       It "shows version command help"
@@ -109,7 +97,50 @@ Describe "Ruby Butler Help System"
         When run rb help
         The status should equal 0
         The output should include "Commands:"
+        The output should include "Diagnostic Commands:"
         The output should include "Utility Commands:"
+      End
+
+      It "shows all info subcommands under Diagnostic Commands"
+        When run rb help
+        The status should equal 0
+        The output should include "Diagnostic Commands:"
+        The output should include "info runtime"
+        The output should include "info env"
+        The output should include "info project"
+        The output should include "info config"
+      End
+
+      It "describes info runtime correctly"
+        When run rb help
+        The status should equal 0
+        The output should include "Detected Rubies"
+      End
+
+      It "describes info env correctly"
+        When run rb help
+        The status should equal 0
+        The output should include "environment"
+      End
+
+      It "shows utility commands in main help"
+        When run rb help
+        The status should equal 0
+        The output should include "new"
+        The output should include "version"
+        The output should include "help"
+        The output should include "shell-integration"
+      End
+
+      It "shows workflow commands with aliases"
+        When run rb help
+        The status should equal 0
+        The output should include "run"
+        The output should include "[aliases: r]"
+        The output should include "exec"
+        The output should include "[aliases: x]"
+        The output should include "sync"
+        The output should include "[aliases: s]"
       End
 
       It "reports error for nonexistent command"

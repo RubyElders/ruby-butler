@@ -1,5 +1,5 @@
 use crate::Shell;
-use crate::commands::{init_command, shell_integration_command};
+use crate::commands::{new_command, shell_integration_command};
 use crate::config::TrackedConfig;
 use rb_core::butler::{ButlerError, ButlerRuntime};
 use std::path::PathBuf;
@@ -39,10 +39,10 @@ where
     f(&butler_runtime)
 }
 
-/// Init command wrapper - no runtime needed
-pub fn init_command_wrapper() -> Result<(), ButlerError> {
+/// New command wrapper - no runtime needed
+pub fn new_command_wrapper() -> Result<(), ButlerError> {
     let current_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    init_command(&current_dir).map_err(ButlerError::General)
+    new_command(&current_dir).map_err(ButlerError::General)
 }
 
 /// Shell integration command wrapper - no runtime needed

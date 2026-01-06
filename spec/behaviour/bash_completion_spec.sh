@@ -10,28 +10,25 @@ Describe "Ruby Butler Bash Completion"
       It "suggests all commands when no prefix given"
         When run rb __bash_complete "rb " 3
         The status should equal 0
-        The output should include "runtime"
-        The output should include "rt"
-        The output should include "environment"
-        The output should include "env"
+        The output should include "info"
+        The output should include "i"
         The output should include "exec"
         The output should include "x"
         The output should include "sync"
         The output should include "s"
         The output should include "run"
         The output should include "r"
-        The output should include "init"
+        The output should include "new"
         The output should include "shell-integration"
       End
 
       It "filters commands by prefix 'ru'"
         When run rb __bash_complete "rb ru" 5
         The status should equal 0
-        The output should include "runtime"
         The output should include "run"
         The output should not include "exec"
         The output should not include "sync"
-        The output should not include "environment"
+        The output should not include "info"
       End
 
       It "filters commands by prefix 'e'"
@@ -39,9 +36,7 @@ Describe "Ruby Butler Bash Completion"
         The status should equal 0
         The output should include "exec"
         The output should include "x"
-        The output should include "environment"
-        The output should include "env"
-        The output should not include "runtime"
+        The output should not include "info"
         The output should not include "sync"
       End
 
@@ -50,7 +45,7 @@ Describe "Ruby Butler Bash Completion"
         The status should equal 0
         The output should include "shell-integration"
         The output should not include "sync"
-        The output should not include "runtime"
+        The output should not include "info"
       End
     End
 
@@ -206,7 +201,7 @@ EOF
       It "completes command after 'rb ' with space"
         When run rb __bash_complete "rb " 3
         The status should equal 0
-        The output should include "runtime"
+        The output should include "info"
         The output should include "exec"
       End
 
@@ -225,16 +220,16 @@ EOF
 
     Context "cursor position handling"
       It "uses cursor position for completion context"
-        When run rb __bash_complete "rb runtime --help" 3
+        When run rb __bash_complete "rb info runtime --help" 3
         The status should equal 0
-        The output should include "runtime"
+        The output should include "info"
       End
 
       It "completes at cursor position in middle of line"
         When run rb __bash_complete "rb ru --help" 5
         The status should equal 0
-        The output should include "runtime"
         The output should include "run"
+        The output should not include "info"
       End
     End
 
@@ -259,7 +254,7 @@ EOF
       End
 
       It "returns nothing after complete command"
-        When run rb __bash_complete "rb runtime " 11
+        When run rb __bash_complete "rb info runtime " 11
         The status should equal 0
         The output should be blank
       End
@@ -269,14 +264,15 @@ EOF
       It "handles line without trailing space for partial word"
         When run rb __bash_complete "rb run" 6
         The status should equal 0
-        The output should include "runtime"
         The output should include "run"
+        The output should not include "info"
       End
 
       It "handles multiple spaces between words"
-        When run rb __bash_complete "rb  runtime" 4
+        When run rb __bash_complete "rb  run" 4
         The status should equal 0
-        The output should include "runtime"
+        The output should include "info"
+        The output should include "run"
       End
     End
   End
@@ -331,7 +327,7 @@ EOF
         When run rb __bash_complete "rb " 3
         The status should equal 0
         # Just verify it completes without timeout
-        The output should include "runtime"
+        The output should include "info"
       End
 
       It "completes Ruby versions quickly even with many versions"
@@ -348,7 +344,7 @@ EOF
       It "completes commands after global flags"
         When run rb __bash_complete "rb -v " 6
         The status should equal 0
-        The output should include "runtime"
+        The output should include "info"
         The output should include "exec"
       End
 

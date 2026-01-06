@@ -9,7 +9,7 @@ Describe "Ruby Butler Environment Variables"
     Context "when RB_VERBOSE is set"
       It "enables informational logging"
         export RB_VERBOSE=true
-        When run rb -R "$RUBIES_DIR" runtime
+        When run rb -R "$RUBIES_DIR" info runtime
         The status should equal 0
         The output should include "Ruby Environment Survey"
         The stderr should include "[INFO ]"
@@ -27,7 +27,7 @@ Describe "Ruby Butler Environment Variables"
     Context "when RB_VERY_VERBOSE is set"
       It "enables comprehensive diagnostic logging"
         export RB_VERY_VERBOSE=true
-        When run rb -R "$RUBIES_DIR" runtime
+        When run rb -R "$RUBIES_DIR" info runtime
         The status should equal 0
         The output should include "Ruby Environment Survey"
         The stderr should include "[DEBUG]"
@@ -37,7 +37,7 @@ Describe "Ruby Butler Environment Variables"
     Context "when RB_LOG_LEVEL is set"
       It "respects explicit log level"
         export RB_LOG_LEVEL=info
-        When run rb -R "$RUBIES_DIR" runtime
+        When run rb -R "$RUBIES_DIR" info runtime
         The status should equal 0
         The output should include "Ruby Environment Survey"
         The stderr should include "[INFO ]"
@@ -45,7 +45,7 @@ Describe "Ruby Butler Environment Variables"
 
       It "accepts debug level"
         export RB_LOG_LEVEL=debug
-        When run rb -R "$RUBIES_DIR" runtime
+        When run rb -R "$RUBIES_DIR" info runtime
         The status should equal 0
         The output should include "Ruby Environment Survey"
         The stderr should include "[DEBUG]"
@@ -53,7 +53,7 @@ Describe "Ruby Butler Environment Variables"
 
       It "accepts none level for silence"
         export RB_LOG_LEVEL=none
-        When run rb -R "$RUBIES_DIR" runtime
+        When run rb -R "$RUBIES_DIR" info runtime
         The status should equal 0
         The stdout should include "Ruby Environment Survey"
         The stderr should not include "[INFO ]"
@@ -64,7 +64,7 @@ Describe "Ruby Butler Environment Variables"
     Context "verbose flag precedence"
       It "prioritizes -V over RB_VERBOSE"
         export RB_VERBOSE=true
-        When run rb -R "$RUBIES_DIR" -V runtime
+        When run rb -R "$RUBIES_DIR" -V info runtime
         The status should equal 0
         The output should include "Ruby Environment Survey"
         The stderr should include "[DEBUG]"
@@ -72,7 +72,7 @@ Describe "Ruby Butler Environment Variables"
 
       It "prioritizes -v over RB_LOG_LEVEL"
         export RB_LOG_LEVEL=none
-        When run rb -R "$RUBIES_DIR" -v runtime
+        When run rb -R "$RUBIES_DIR" -v info runtime
         The status should equal 0
         The output should include "Ruby Environment Survey"
         The stderr should include "[INFO ]"
@@ -84,14 +84,14 @@ Describe "Ruby Butler Environment Variables"
     Context "when RB_RUBIES_DIR is set"
       It "uses specified rubies directory"
         export RB_RUBIES_DIR="$RUBIES_DIR"
-        When run rb runtime
+        When run rb info runtime
         The status should equal 0
         The output should include "$LATEST_RUBY"
       End
 
       It "can be overridden by CLI flag"
         export RB_RUBIES_DIR="/nonexistent"
-        When run rb -R "$RUBIES_DIR" runtime
+        When run rb -R "$RUBIES_DIR" info runtime
         The status should equal 0
         The output should include "$LATEST_RUBY"
       End
@@ -100,14 +100,14 @@ Describe "Ruby Butler Environment Variables"
     Context "when RB_RUBY_VERSION is set"
       It "selects specified Ruby version"
         export RB_RUBY_VERSION="$OLDER_RUBY"
-        When run rb -R "$RUBIES_DIR" environment
+        When run rb -R "$RUBIES_DIR" info env
         The status should equal 0
         The output should include "$OLDER_RUBY"
       End
 
       It "can be overridden by CLI flag"
         export RB_RUBY_VERSION="$OLDER_RUBY"
-        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" environment
+        When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" info env
         The status should equal 0
         The output should include "$LATEST_RUBY"
         The output should not include "$OLDER_RUBY"
@@ -117,7 +117,7 @@ Describe "Ruby Butler Environment Variables"
     Context "when RB_GEM_HOME is set"
       It "uses specified gem home directory"
         export RB_GEM_HOME="/tmp/test-gems"
-        When run rb -R "$RUBIES_DIR" environment
+        When run rb -R "$RUBIES_DIR" info env
         The status should equal 0
         The output should include "/tmp/test-gems"
       End
@@ -126,7 +126,7 @@ Describe "Ruby Butler Environment Variables"
     Context "when RB_NO_BUNDLER is set"
       It "disables bundler integration"
         export RB_NO_BUNDLER=true
-        When run rb -R "$RUBIES_DIR" config
+        When run rb -R "$RUBIES_DIR" info config
         The status should equal 0
         The output should include "No Bundler: yes"
       End
@@ -138,7 +138,7 @@ Describe "Ruby Butler Environment Variables"
         echo "test-marker" > /tmp/rb-workdir-test/marker.txt
         export RB_WORK_DIR="/tmp/rb-workdir-test"
         export RB_RUBIES_DIR="$RUBIES_DIR"
-        When run rb init
+        When run rb new
         The status should equal 0
         The stdout should include "rbproject.toml has been created"
         The file "/tmp/rb-workdir-test/rbproject.toml" should be exist
@@ -153,7 +153,7 @@ rubies-dir = "/custom/from/config"
 EOF
         unset RB_RUBIES_DIR
         export RB_CONFIG="/tmp/rb-config-test/test.toml"
-        When run rb runtime
+        When run rb info runtime
         The status should not equal 0
         The stdout should equal ""
         The stderr should include "/custom/from/config"

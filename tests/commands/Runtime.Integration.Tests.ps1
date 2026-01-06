@@ -11,21 +11,22 @@ BeforeAll {
 Describe "Ruby Butler - Runtime Command Integration" {
     Context "Runtime Information Display" {
         It "Shows runtime information successfully" {
-            $Output = & $Script:RbPath runtime 2>&1
+            $Output = & $Script:RbPath info runtime 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join " ") | Should -Match "Ruby Environment Survey|Environment Ready|CRuby"
         }
         
         It "Shows runtime information with rt alias successfully" {
-            $Output = & $Script:RbPath rt 2>&1
+            $Output = & $Script:RbPath i runtime 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join " ") | Should -Match "Ruby Environment Survey|Environment Ready|CRuby"
         }
         
         It "Runtime shows Ruby version information" {
-            $Output = & $Script:RbPath runtime 2>&1
+            $Output = & $Script:RbPath info runtime 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join " ") | Should -Match "\d+\.\d+\.\d+"
         }
     }
 }
+

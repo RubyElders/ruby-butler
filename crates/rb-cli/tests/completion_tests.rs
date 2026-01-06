@@ -34,11 +34,12 @@ fn capture_completions(
 fn test_command_completion_empty_prefix() {
     let completions = capture_completions("rb ", "3", None);
 
-    assert!(completions.contains("runtime"));
-    assert!(completions.contains("rt"));
+    assert!(completions.contains("info"));
+    assert!(completions.contains("i"));
     assert!(completions.contains("run"));
     assert!(completions.contains("r"));
     assert!(completions.contains("exec"));
+    assert!(completions.contains("new"));
     assert!(completions.contains("shell-integration"));
 }
 
@@ -46,10 +47,10 @@ fn test_command_completion_empty_prefix() {
 fn test_command_completion_with_prefix() {
     let completions = capture_completions("rb ru", "5", None);
 
-    assert!(completions.contains("runtime"));
     assert!(completions.contains("run"));
     assert!(!completions.contains("exec"));
     assert!(!completions.contains("sync"));
+    assert!(!completions.contains("info"));
 }
 
 #[test]
@@ -633,26 +634,26 @@ fn test_completion_after_complete_command() {
 
 #[test]
 fn test_completion_with_partial_command_no_space() {
-    // "rb run" at cursor 6 should suggest "runtime" and "run"
+    // "rb run" at cursor 6 should suggest "run" (no longer runtime)
     let completions = capture_completions("rb run", "6", None);
-    assert!(
-        completions.contains("runtime"),
-        "Expected 'runtime' in completions, got: {}",
-        completions
-    );
     assert!(
         completions.contains("run"),
         "Expected 'run' in completions, got: {}",
+        completions
+    );
+    assert!(
+        !completions.contains("info"),
+        "Should not suggest 'info' for 'run' prefix, got: {}",
         completions
     );
 }
 
 #[test]
 fn test_cursor_position_in_middle() {
-    // "rb runtime --help" with cursor at position 3 should suggest all commands starting with ""
-    let completions = capture_completions("rb runtime --help", "3", None);
+    // "rb info --help" with cursor at position 3 should suggest all commands starting with ""
+    let completions = capture_completions("rb info --help", "3", None);
     assert!(
-        completions.contains("runtime"),
+        completions.contains("info"),
         "Expected commands at cursor position 3, got: {}",
         completions
     );
@@ -661,19 +662,15 @@ fn test_cursor_position_in_middle() {
 
 #[test]
 fn test_cursor_position_partial_word() {
-    // "rb ru --help" with cursor at position 5 should suggest "runtime" and "run"
+    // "rb ru --help" with cursor at position 5 should suggest "run" (no longer runtime)
     let completions = capture_completions("rb ru --help", "5", None);
-    assert!(
-        completions.contains("runtime"),
-        "Expected 'runtime' at cursor position 5, got: {}",
-        completions
-    );
     assert!(
         completions.contains("run"),
         "Expected 'run' at cursor position 5, got: {}",
         completions
     );
     assert!(!completions.contains("exec"));
+    assert!(!completions.contains("info"));
 }
 
 #[test]
@@ -681,11 +678,12 @@ fn test_global_flags_before_command() {
     // "rb -v " should suggest commands after global flag
     let completions = capture_completions("rb -v ", "6", None);
     assert!(
-        completions.contains("runtime"),
+        completions.contains("info"),
         "Expected commands after global flag, got: {}",
         completions
     );
     assert!(completions.contains("exec"));
+    assert!(completions.contains("run"));
 }
 
 #[test]
@@ -732,11 +730,12 @@ fn test_multiple_global_flags_before_command() {
     // "rb -v -R /opt/rubies " should still suggest commands
     let completions = capture_completions("rb -v -R /opt/rubies ", "21", None);
     assert!(
-        completions.contains("runtime"),
+        completions.contains("info"),
         "Expected commands after multiple flags, got: {}",
         completions
     );
     assert!(completions.contains("exec"));
+    assert!(completions.contains("run"));
 }
 
 #[test]
@@ -762,11 +761,12 @@ fn test_flag_completion_shows_all_flags() {
 fn test_command_alias_completion() {
     let completions = capture_completions("rb r", "4", None);
 
-    // Should suggest both "runtime" and "run" (and their aliases "rt" and "r")
-    assert!(completions.contains("runtime"));
-    assert!(completions.contains("rt"));
+    // Should suggest "run" and its alias "r"
     assert!(completions.contains("run"));
     assert!(completions.contains("r"));
+    // runtime and rt no longer exist at top level
+    assert!(!completions.contains("runtime"));
+    assert!(!completions.contains("rt"));
 }
 
 #[test]
@@ -830,9 +830,10 @@ fn test_empty_line_completion() {
 
     let lines: Vec<&str> = completions.lines().collect();
     assert!(lines.len() > 5, "Expected many commands, got: {:?}", lines);
-    assert!(completions.contains("runtime"));
-    assert!(completions.contains("init"));
+    assert!(completions.contains("info"));
+    assert!(completions.contains("new"));
     assert!(completions.contains("shell-integration"));
+    assert!(completions.contains("run"));
 }
 
 #[test]

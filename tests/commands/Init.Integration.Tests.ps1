@@ -27,7 +27,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                $Output = & $Script:RbPath init 2>&1
+                $Output = & $Script:RbPath new 2>&1
                 $LASTEXITCODE | Should -Be 0
                 ($Output -join " ") | Should -Match "Splendid"
                 Test-Path (Join-Path $TestSubDir "rbproject.toml") | Should -Be $true
@@ -42,7 +42,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                $Output = & $Script:RbPath init 2>&1
+                $Output = & $Script:RbPath new 2>&1
                 $LASTEXITCODE | Should -Be 0
                 ($Output -join " ") | Should -Match "Splendid"
                 ($Output -join " ") | Should -Match "rbproject.toml has been created"
@@ -57,7 +57,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                & $Script:RbPath init 2>&1 | Out-Null
+                & $Script:RbPath new 2>&1 | Out-Null
                 $Content = Get-Content (Join-Path $TestSubDir "rbproject.toml") -Raw
                 $Content | Should -Match "\[project\]"
                 $Content | Should -Match "\[scripts\]"
@@ -72,7 +72,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                & $Script:RbPath init 2>&1 | Out-Null
+                & $Script:RbPath new 2>&1 | Out-Null
                 $Content = Get-Content (Join-Path $TestSubDir "rbproject.toml") -Raw
                 $Content | Should -Match 'name = "Butler project template"'
                 $Content | Should -Match 'description'
@@ -87,7 +87,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                & $Script:RbPath init 2>&1 | Out-Null
+                & $Script:RbPath new 2>&1 | Out-Null
                 $Content = Get-Content (Join-Path $TestSubDir "rbproject.toml") -Raw
                 $Content | Should -Match 'ruby-version = "ruby -v"'
             } finally {
@@ -101,7 +101,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                $Output = & $Script:RbPath init 2>&1
+                $Output = & $Script:RbPath new 2>&1
                 $LASTEXITCODE | Should -Be 0
                 ($Output -join " ") | Should -Match "You may now"
                 ($Output -join " ") | Should -Match "rb run"
@@ -116,7 +116,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                $Output = & $Script:RbPath init 2>&1
+                $Output = & $Script:RbPath new 2>&1
                 $LASTEXITCODE | Should -Be 0
                 ($Output -join " ") | Should -Match "examples/rbproject.toml"
             } finally {
@@ -135,7 +135,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                $Output = & $Script:RbPath init 2>&1
+                $Output = & $Script:RbPath new 2>&1
                 $LASTEXITCODE | Should -Not -Be 0
                 ($Output -join " ") | Should -Match "already graces this directory"
                 ($Output -join " ") | Should -Match "this directory"
@@ -153,7 +153,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                $Output = & $Script:RbPath init 2>&1
+                $Output = & $Script:RbPath new 2>&1
                 $LASTEXITCODE | Should -Not -Be 0
                 ($Output -join " ") | Should -Match "remove the existing file first"
             } finally {
@@ -170,7 +170,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                & $Script:RbPath init 2>&1 | Out-Null
+                & $Script:RbPath new 2>&1 | Out-Null
                 $Content = Get-Content $ProjectFile -Raw
                 $Content | Should -BeExactly "my precious content`r`n"
             } finally {
@@ -186,7 +186,7 @@ Describe "Ruby Butler - Init Command" {
             
             Push-Location $TestSubDir
             try {
-                & $Script:RbPath init 2>&1 | Out-Null
+                & $Script:RbPath new 2>&1 | Out-Null
                 $Output = & $Script:RbPath run 2>&1
                 $LASTEXITCODE | Should -Be 0
                 ($Output -join " ") | Should -Match "ruby-version"
@@ -196,3 +196,4 @@ Describe "Ruby Butler - Init Command" {
         }
     }
 }
+

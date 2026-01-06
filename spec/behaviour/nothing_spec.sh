@@ -14,20 +14,17 @@ Describe "Ruby Butler No Command Behavior"
       When run rb
       The status should equal 0
       The output should include "Commands:"
-      The output should include "runtime"
-      The output should include "environment"
+      The output should include "info"
       The output should include "exec"
       The output should include "sync"
       The output should include "run"
-      The output should include "init"
+      The output should include "new"
       The output should include "shell-integration"
     End
 
     It "displays command aliases"
       When run rb
       The status should equal 0
-      The output should include "[aliases: rt]"
-      The output should include "[aliases: env]"
       The output should include "[aliases: x]"
       The output should include "[aliases: s]"
       The output should include "[aliases: r]"

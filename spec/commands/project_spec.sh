@@ -31,7 +31,7 @@ description = "A test project"
 [scripts]
 test = "echo 'test script'"
 EOF
-        When run rb -R "$RUBIES_DIR" --project custom-project.toml env
+        When run rb -R "$RUBIES_DIR" --project custom-project.toml info env
         The status should equal 0
         The output should include "Project"
       End
@@ -45,7 +45,7 @@ name = "Test Project"
 [scripts]
 test = "echo 'test'"
 EOF
-        When run rb -R "$RUBIES_DIR" -P custom-project.toml env
+        When run rb -R "$RUBIES_DIR" -P custom-project.toml info env
         The status should equal 0
         The output should include "Project"
       End
@@ -60,7 +60,7 @@ description = "A refined test project"
 [scripts]
 version = "ruby -v"
 EOF
-        When run rb -R "$RUBIES_DIR" -P custom-project.toml env
+        When run rb -R "$RUBIES_DIR" -P custom-project.toml info project
         The status should equal 0
         The output should include "Distinguished Project"
       End
@@ -75,7 +75,7 @@ description = "Sophisticated description text"
 [scripts]
 test = "echo test"
 EOF
-        When run rb -R "$RUBIES_DIR" -P custom-project.toml env
+        When run rb -R "$RUBIES_DIR" -P custom-project.toml info project
         The status should equal 0
         The output should include "Sophisticated description text"
       End

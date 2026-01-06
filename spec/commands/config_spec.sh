@@ -39,7 +39,7 @@ EOF
 rubies-dir = "/nonexistent/custom/rubies"
 EOF
         unset RB_RUBIES_DIR
-        When run rb --config test-config.toml runtime
+        When run rb --config test-config.toml info runtime
         The status should not equal 0
         The stdout should equal ""
         The stderr should include "/nonexistent/custom/rubies"
@@ -75,7 +75,7 @@ rubies-dir = "/env/var/rubies"
 EOF
         unset RB_RUBIES_DIR
         export RB_CONFIG="${TEST_CONFIG_DIR}/rb-env-config.toml"
-        When run rb runtime
+        When run rb info runtime
         The status should not equal 0
         The stdout should equal ""
         The stderr should include "/env/var/rubies"
@@ -87,7 +87,7 @@ EOF
 rubies-dir = "/env/var/rubies"
 EOF
         export RB_CONFIG="${TEST_CONFIG_DIR}/rb-env-config.toml"
-        When run rb -R "$RUBIES_DIR" -v runtime
+        When run rb -R "$RUBIES_DIR" -v info runtime
         The status should equal 0
         The output should include "Ruby Environment Survey"
         The stderr should include "Loading configuration"
@@ -107,7 +107,7 @@ rubies-dir = "/env/rubies"
 EOF
         unset RB_RUBIES_DIR
         export RB_CONFIG="${TEST_CONFIG_DIR}/env-config.toml"
-        When run rb --config cli-config.toml runtime
+        When run rb --config cli-config.toml info runtime
         The status should not equal 0
         The stdout should equal ""
         The stderr should include "/cli/rubies"
@@ -120,7 +120,7 @@ EOF
         cat > config.toml << 'EOF'
 rubies-dir = "/config/rubies"
 EOF
-        When run rb --config config.toml -R "/override/rubies" runtime
+        When run rb --config config.toml -R "/override/rubies" info runtime
         The status should not equal 0
         The stderr should include "/override/rubies"
       End
