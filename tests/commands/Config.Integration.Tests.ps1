@@ -11,43 +11,43 @@ BeforeAll {
 Describe "Config Command - Display Current Configuration" {
     Context "Basic Configuration Display" {
         It "Shows current configuration with rb config" {
-            $Output = & $Script:RbPath config 2>&1
+            $Output = & $Script:RbPath info config 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join "`n") | Should -Match "Current Configuration"
         }
         
         It "Shows rubies directory setting" {
-            $Output = & $Script:RbPath config 2>&1
+            $Output = & $Script:RbPath info config 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join "`n") | Should -Match "Rubies Directory:"
         }
         
         It "Shows ruby version setting" {
-            $Output = & $Script:RbPath config 2>&1
+            $Output = & $Script:RbPath info config 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join "`n") | Should -Match "Ruby Version:"
         }
         
         It "Shows gem home setting" {
-            $Output = & $Script:RbPath config 2>&1
+            $Output = & $Script:RbPath info config 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join "`n") | Should -Match "Gem Home:"
         }
         
         It "Shows no bundler setting" {
-            $Output = & $Script:RbPath config 2>&1
+            $Output = & $Script:RbPath info config 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join "`n") | Should -Match "No Bundler:"
         }
         
         It "Shows working directory setting" {
-            $Output = & $Script:RbPath config 2>&1
+            $Output = & $Script:RbPath info config 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join "`n") | Should -Match "Working Directory:"
         }
         
         It "Shows configuration sources in priority order" {
-            $Output = & $Script:RbPath config 2>&1
+            $Output = & $Script:RbPath info config 2>&1
             $LASTEXITCODE | Should -Be 0
             $OutputText = $Output -join "`n"
             $OutputText | Should -Match "Configuration sources.*in priority order"
@@ -58,7 +58,7 @@ Describe "Config Command - Display Current Configuration" {
         }
         
         It "Shows source for each configuration value" {
-            $Output = & $Script:RbPath config 2>&1
+            $Output = & $Script:RbPath info config 2>&1
             $LASTEXITCODE | Should -Be 0
             ($Output -join "`n") | Should -Match "Source:"
         }
@@ -73,7 +73,7 @@ Describe "Config Command - Display Current Configuration" {
                 # Note: config command shows CLI argument for rubies-dir when RB_RUBIES_DIR is set
                 # This is expected behavior - the config command itself doesn't distinguish
                 # between environment variable source and CLI for displaying current config
-                $Output = & $Script:RbPath config 2>&1
+                $Output = & $Script:RbPath info config 2>&1
                 $LASTEXITCODE | Should -Be 0
                 $OutputText = $Output -join "`n"
                 # Just verify the directory is shown
@@ -88,7 +88,7 @@ Describe "Config Command - Display Current Configuration" {
             $TempDir = Join-Path $env:TEMP "test-rubies-cli-$([guid]::NewGuid().ToString())"
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
             try {
-                $Output = & $Script:RbPath -R $TempDir config 2>&1
+                $Output = & $Script:RbPath -R $TempDir info config 2>&1
                 $LASTEXITCODE | Should -Be 0
                 $OutputText = $Output -join "`n"
                 $OutputText | Should -Match "Rubies Directory:\s+$([regex]::Escape($TempDir))"
@@ -108,7 +108,7 @@ ruby-version = "3.2.0"
 "@ | Set-Content -Path $ConfigPath -Force
             
             try {
-                $Output = & $Script:RbPath --config $ConfigPath config 2>&1
+                $Output = & $Script:RbPath --config $ConfigPath info config 2>&1
                 $LASTEXITCODE | Should -Be 0
                 $OutputText = $Output -join "`n"
                 $OutputText | Should -Match "Rubies Directory:\s+C:/test/rubies"
@@ -159,14 +159,14 @@ gem-home = "C:/test/gems"
         
         It "Should apply rubies-dir from RB_CONFIG to runtime command" {
             # Use rb runtime to check that the config value is actually used
-            $Output = & $Script:RbPath runtime 2>&1
+            $Output = & $Script:RbPath info runtime 2>&1
             # The error message should reference the configured directory
             ($Output -join " ") | Should -Match "C:/test/rubies"
         }
         
         It "Should show configured values with verbose logging" {
             # Use -v flag to see which config was loaded
-            $Output = & $Script:RbPath -v runtime 2>&1
+            $Output = & $Script:RbPath -v info runtime 2>&1
             # Should show that config was loaded
             ($Output -join " ") | Should -Match "Loading configuration from.*test-rb-config.*\.toml"
         }
@@ -203,7 +203,7 @@ rubies-dir = "D:/custom/rubies"
         
         It "Should apply rubies-dir from --config flag to runtime command" {
             # Verify the config value is actually used
-            $Output = & $Script:RbPath --config $script:TempConfigPath runtime 2>&1
+            $Output = & $Script:RbPath --config $script:TempConfigPath info runtime 2>&1
             # The error message should reference the configured directory
             ($Output -join " ") | Should -Match "D:/custom/rubies"
         }
@@ -251,7 +251,7 @@ rubies-dir = "D:/custom/rubies"
             Set-Content -Path $TestConfigPath -Value "rubies-dir = `"C:/config/rubies`"" -Force
             
             # Override with CLI argument
-            $Output = & $Script:RbPath --config $TestConfigPath -R "C:/cli/rubies" runtime 2>&1
+            $Output = & $Script:RbPath --config $TestConfigPath -R "C:/cli/rubies" info runtime 2>&1
             
             # Should use CLI value, not config value
             ($Output -join " ") | Should -Match "C:/cli/rubies"
@@ -266,7 +266,7 @@ rubies-dir = "D:/custom/rubies"
             Set-Content -Path $TestConfigPath -Value "rubies-dir = `"C:/config/rubies`"" -Force
             
             # Override with CLI and use -v for verbose logging
-            $Output = & $Script:RbPath --config $TestConfigPath -R "C:/cli/rubies" -v runtime 2>&1
+            $Output = & $Script:RbPath --config $TestConfigPath -R "C:/cli/rubies" -v info runtime 2>&1
             
             # Should at least show loading configuration message
             ($Output -join " ") | Should -Match "Loading configuration|rubies"
@@ -316,3 +316,6 @@ rubies-dir = "D:/custom/rubies"
         }
     }
 }
+
+
+

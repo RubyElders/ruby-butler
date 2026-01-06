@@ -1,7 +1,7 @@
-use rb_cli::Commands;
 use rb_cli::config::{RbConfig, TrackedConfig};
 use rb_cli::dispatch::dispatch_command;
 use rb_cli::runtime_helpers::CommandContext;
+use rb_cli::{Commands, InfoCommands};
 use std::path::PathBuf;
 
 /// Helper to create a test context
@@ -39,17 +39,17 @@ fn test_dispatch_help_with_subcommand() {
 }
 
 #[test]
-fn test_dispatch_init_command() {
+fn test_dispatch_new_command() {
     let mut context = create_test_context();
-    // Init creates file in current working directory
-    let temp_dir = std::env::temp_dir().join(format!("rb-dispatch-init-{}", std::process::id()));
+    // New creates file in current working directory
+    let temp_dir = std::env::temp_dir().join(format!("rb-dispatch-new-{}", std::process::id()));
     std::fs::create_dir_all(&temp_dir).unwrap();
 
     // Change to temp dir for test
     let original_dir = std::env::current_dir().unwrap();
     std::env::set_current_dir(&temp_dir).unwrap();
 
-    let result = dispatch_command(Commands::Init, &mut context);
+    let result = dispatch_command(Commands::New, &mut context);
     assert!(result.is_ok());
 
     // Restore directory and cleanup
@@ -58,9 +58,14 @@ fn test_dispatch_init_command() {
 }
 
 #[test]
-fn test_dispatch_config_command() {
+fn test_dispatch_info_config_command() {
     let mut context = create_test_context();
-    let result = dispatch_command(Commands::Config, &mut context);
+    let result = dispatch_command(
+        Commands::Info {
+            command: InfoCommands::Config,
+        },
+        &mut context,
+    );
     assert!(result.is_ok());
 }
 
@@ -71,7 +76,12 @@ fn test_dispatch_creates_runtime_lazily() {
     // After dispatching a runtime command, runtime is created lazily within the function
     // (depending on whether Ruby is available in test environment)
     // Note: This test may output to stdout - that's expected behavior for the command
-    let _ = dispatch_command(Commands::Runtime, &mut context);
+    let _ = dispatch_command(
+        Commands::Info {
+            command: InfoCommands::Runtime,
+        },
+        &mut context,
+    );
 
     // We just verify this doesn't panic - actual runtime creation
     // depends on Ruby installations being available

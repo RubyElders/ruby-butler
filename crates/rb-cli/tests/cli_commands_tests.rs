@@ -30,28 +30,24 @@ fn test_help_command_shows_all_commands() {
     let output = run_rb_command(&["help"]);
     let stdout = output_to_string(&output.stdout);
 
-    assert!(stdout.contains("runtime"), "Should list runtime command");
-    assert!(
-        stdout.contains("environment"),
-        "Should list environment command"
-    );
+    assert!(stdout.contains("run"), "Should list run command");
     assert!(stdout.contains("exec"), "Should list exec command");
     assert!(stdout.contains("sync"), "Should list sync command");
-    assert!(stdout.contains("run"), "Should list run command");
-    assert!(stdout.contains("init"), "Should list init command");
+    assert!(stdout.contains("info"), "Should list info command");
+    assert!(stdout.contains("new"), "Should list new command");
     assert!(stdout.contains("version"), "Should list version command");
     assert!(stdout.contains("help"), "Should list help command itself");
 }
 
 #[test]
 fn test_help_for_specific_command() {
-    let output = run_rb_command(&["help", "runtime"]);
+    let output = run_rb_command(&["help", "info"]);
     let stdout = output_to_string(&output.stdout);
 
-    assert!(output.status.success(), "help runtime should succeed");
+    assert!(output.status.success(), "help info should succeed");
     assert!(
-        stdout.contains("Survey your distinguished Ruby estate"),
-        "Should show runtime command description"
+        stdout.contains("Inspect Ruby Butler"),
+        "Should show info command description"
     );
 }
 

@@ -21,15 +21,36 @@ pub fn print_custom_help(cmd: &clap::Command) {
     println!();
 
     // Group commands
-    let runtime_commands = ["runtime", "environment", "exec", "sync", "run"];
-    let utility_commands = ["init", "config", "version", "help", "shell-integration"];
+    let workflow_commands = ["run", "exec", "sync"];
+    let diagnostic_commands = ["info"];
+    let utility_commands = ["new", "version", "help", "shell-integration"];
 
-    // Print runtime commands
+    // Print workflow commands
     println!("{}", "Commands:".green().bold());
     for subcmd in cmd.get_subcommands() {
         let name = subcmd.get_name();
-        if runtime_commands.contains(&name) {
+        if workflow_commands.contains(&name) {
             print_command_line(subcmd);
+        }
+    }
+    println!();
+
+    // Print diagnostic commands
+    println!("{}", "Diagnostic Commands:".green().bold());
+    for subcmd in cmd.get_subcommands() {
+        let name = subcmd.get_name();
+        if diagnostic_commands.contains(&name) {
+            // Show info subcommands directly without parent line
+            if name == "info" {
+                for info_subcmd in subcmd.get_subcommands() {
+                    let info_name = info_subcmd.get_name();
+                    if info_name != "help" {
+                        print_indented_command_line(info_subcmd);
+                    }
+                }
+            } else {
+                print_command_line(subcmd);
+            }
         }
     }
     println!();
@@ -69,6 +90,18 @@ fn print_command_line(subcmd: &clap::Command) {
         let alias_str = format!("[aliases: {}]", aliases.join(", "));
         println!("  {:18} {} {}", name.cyan().bold(), about, alias_str.cyan());
     }
+}
+
+/// Helper to print an indented subcommand line (for info subcommands)
+fn print_indented_command_line(subcmd: &clap::Command) {
+    let name = subcmd.get_name();
+    let about = subcmd
+        .get_about()
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+
+    let full_command = format!("info {}", name);
+    println!("  {:18} {}", full_command.cyan().bold(), about);
 }
 
 /// Helper to print an argument line

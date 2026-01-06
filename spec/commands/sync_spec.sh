@@ -13,6 +13,7 @@ Describe 'rb sync command'
     It 'successfully synchronizes bundler environment'
       When run rb -R "$RUBIES_DIR" sync
       The status should be success
+      The lines of stderr should be valid number
       The output should include "Environment Successfully Synchronized"
       The output should include "Bundle complete!"
     End
@@ -35,6 +36,7 @@ Describe 'rb sync command'
       It 'fails gracefully with "s" alias when no proper bundler project'
         When run rb -R "$RUBIES_DIR" s
         The status should be failure
+        The lines of stderr should be valid number
         The stderr should include "Bundler environment not detected"
       End
     End
@@ -45,6 +47,7 @@ Describe 'rb sync command'
       It 'works with "s" alias in bundler project'
         When run rb -R "$RUBIES_DIR" s
         The status should be success
+        The lines of stderr should be valid number
         The output should include "Environment Successfully Synchronized"
       End
     End
@@ -62,6 +65,7 @@ Describe 'rb sync command'
 
       When run rb -R "$RUBIES_DIR" sync
       The status should be success
+      The lines of stderr should be valid number
       The output should include "Synchronizing"
     End
   End
@@ -91,6 +95,7 @@ EOF
       # Run sync again
       When run rb -R "$RUBIES_DIR" sync
       The status should be success
+      The lines of stderr should be valid number
       The output should include "Synchronizing"
 
       # Verify rake is still in lockfile but minitest is removed
@@ -106,6 +111,7 @@ EOF
       export RB_RUBIES_DIR="$RUBIES_DIR"
       When run rb sync
       The status should be success
+      The lines of stderr should be valid number
       The output should include "Environment Successfully Synchronized"
     End
 
@@ -114,6 +120,7 @@ EOF
       export RB_RUBY_VERSION="$OLDER_RUBY"
       When run rb -R "$RUBIES_DIR" sync
       The status should be success
+      The lines of stderr should be valid number
       The output should include "Synchronizing"
     End
 
@@ -130,6 +137,7 @@ EOF
       export RB_RUBY_VERSION="$LATEST_RUBY"
       When run rb -R "$RUBIES_DIR" -r "$OLDER_RUBY" sync
       The status should be success
+      The lines of stderr should be valid number
       The output should include "Synchronizing"
     End
   End

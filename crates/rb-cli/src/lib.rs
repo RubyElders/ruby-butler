@@ -129,31 +129,12 @@ impl Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// 🔍 Survey your distinguished Ruby estate and present available environments
-    #[command(visible_alias = "rt", next_help_heading = "Runtime Commands")]
-    Runtime,
-
-    /// 🌍 Present your current Ruby environment with comprehensive details
-    #[command(visible_alias = "env")]
-    Environment,
-
-    /// ⚡ Execute commands within your meticulously prepared Ruby environment
-    #[command(visible_alias = "x")]
-    Exec {
-        /// The program and its arguments to execute with proper environmental preparation
-        #[arg(trailing_var_arg = true)]
-        args: Vec<String>,
-    },
-
-    /// 🔄 Synchronize your bundler environment with distinguished precision
-    #[command(visible_alias = "s")]
-    Sync,
-
     /// 🎯 Execute project scripts defined in rbproject.toml
     #[command(
         visible_alias = "r",
         about = "🎯 Execute project scripts defined in rbproject.toml",
-        long_about = "🎯 Run Project Scripts\n\nExecute scripts defined in your project's rbproject.toml file with the\nmeticulously prepared Ruby environment appropriate to your distinguished project.\n\nProject scripts provide convenient shortcuts for common development tasks,\nconfigured with the same refined precision befitting a proper Ruby development workflow.\n\nRun without a script name to list all available scripts."
+        long_about = "🎯 Run Project Scripts\n\nExecute scripts defined in your project's rbproject.toml file with the\nmeticulously prepared Ruby environment appropriate to your distinguished project.\n\nProject scripts provide convenient shortcuts for common development tasks,\nconfigured with the same refined precision befitting a proper Ruby development workflow.\n\nRun without a script name to list all available scripts.",
+        next_help_heading = "Workflow Commands"
     )]
     Run {
         /// Name of the script to execute (from rbproject.toml), or omit to list available scripts
@@ -169,21 +150,41 @@ pub enum Commands {
         args: Vec<String>,
     },
 
-    /// 📝 Initialize a new rbproject.toml in the current directory
+    /// ⚡ Execute commands within your meticulously prepared Ruby environment
+    #[command(visible_alias = "x")]
+    Exec {
+        /// The program and its arguments to execute with proper environmental preparation
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
+
+    /// 🔄 Synchronize your bundler environment with distinguished precision
+    #[command(visible_alias = "s")]
+    Sync,
+
+    /// 🔍 Inspect Ruby Butler state and configuration
     #[command(
-        about = "📝 Initialize a new rbproject.toml in the current directory",
+        visible_alias = "i",
+        about = "🔍 Inspect Ruby Butler state and configuration",
+        long_about = "🔍 Inspect State\n\nExamine various aspects of your Ruby Butler installation and configuration.\n\nAvailable subcommands:\n  runtime  - Detected Rubies and selected runtime\n  env      - Effective Ruby/Bundler environment\n  project  - Resolved rbproject.toml and settings\n  config   - Merged configuration with sources",
+        next_help_heading = "Diagnostic Commands"
+    )]
+    Info {
+        #[command(subcommand)]
+        command: InfoCommands,
+    },
+
+    /// 📝 Create a minimal rbproject.toml in the current directory
+    #[command(
+        about = "📝 Create a minimal rbproject.toml in the current directory",
         next_help_heading = "Utility Commands"
     )]
-    Init,
-    /// ⚙️  Display current configuration with sources
-    #[command(
-        about = "⚙️  Display current configuration with sources",
-        next_help_heading = "Utility Commands"
-    )]
-    Config,
-    /// � Display Ruby Butler version information
+    New,
+
+    /// 📋 Display Ruby Butler version information
     #[command(about = "📋 Display Ruby Butler version information")]
     Version,
+
     /// 📖 Display help information for Ruby Butler or specific commands
     #[command(about = "📖 Display help information for Ruby Butler or specific commands")]
     Help {
@@ -191,7 +192,8 @@ pub enum Commands {
         #[arg(help = "Command to get help for (omit for general help)")]
         command: Option<String>,
     },
-    /// �🔧 Generate shell integration (completions) for your distinguished shell
+
+    /// 🔧 Generate shell integration (completions) for your distinguished shell
     #[command(about = "🔧 Generate shell integration (completions)")]
     ShellIntegration {
         /// The shell to generate completions for (omit to see available integrations)
@@ -212,6 +214,21 @@ pub enum Commands {
     },
 }
 
+#[derive(Subcommand)]
+pub enum InfoCommands {
+    /// 🔍 Detected Rubies and selected runtime
+    Runtime,
+
+    /// 🌍 Effective Ruby/Bundler environment
+    Env,
+
+    /// 📁 Resolved rbproject.toml and settings
+    Project,
+
+    /// ⚙️  Merged configuration with sources
+    Config,
+}
+
 #[derive(Clone, Debug, ValueEnum)]
 pub enum Shell {
     Bash,
@@ -219,8 +236,7 @@ pub enum Shell {
 
 // Re-export for convenience
 pub use commands::{
-    config_command, environment_command, exec_command, init_command, run_command, runtime_command,
-    shell_integration_command, sync_command,
+    exec_command, info_command, new_command, run_command, shell_integration_command, sync_command,
 };
 
 use log::debug;
@@ -383,7 +399,9 @@ mod tests {
             config_file: None,
             project_file: None,
             config: RbConfig::default(),
-            command: Some(Commands::Runtime),
+            command: Some(Commands::Info {
+                command: InfoCommands::Runtime,
+            }),
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
 
@@ -395,7 +413,9 @@ mod tests {
             config_file: None,
             project_file: None,
             config: RbConfig::default(),
-            command: Some(Commands::Runtime),
+            command: Some(Commands::Info {
+                command: InfoCommands::Runtime,
+            }),
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
 
@@ -407,7 +427,9 @@ mod tests {
             config_file: None,
             project_file: None,
             config: RbConfig::default(),
-            command: Some(Commands::Runtime),
+            command: Some(Commands::Info {
+                command: InfoCommands::Runtime,
+            }),
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Debug));
     }

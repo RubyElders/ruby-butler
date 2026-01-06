@@ -223,7 +223,8 @@ bundle-version = "bundle -v"
 EOF
         When run rb -R "$RUBIES_DIR" run bundle-version
         The status should equal 0
-        The output should include "Bundler"
+        The lines of output should be valid number
+        The output should match pattern "*[0-9].[0-9].[0-9]*"
       End
     End
 
