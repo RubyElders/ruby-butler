@@ -12,10 +12,8 @@ fn list_available_scripts(
 ) -> Result<(), ButlerError> {
     info!("Listing available project scripts");
 
-    // Detect or load project runtime
     let current_dir = butler_runtime.current_dir();
     let project_runtime = if let Some(path) = project_file {
-        // Use specified project file
         debug!(
             "Loading project config from specified path: {}",
             path.display()
@@ -169,10 +167,8 @@ pub fn run_command(
         script_name
     );
 
-    // Detect or load project runtime
     let current_dir = butler_runtime.current_dir();
     let project_runtime = if let Some(path) = project_file {
-        // Use specified project file
         debug!(
             "Loading project config from specified path: {}",
             path.display()
@@ -188,7 +184,6 @@ pub fn run_command(
             }
         }
     } else {
-        // Auto-detect project file
         match RbprojectDetector::discover(current_dir) {
             Ok(Some(project)) => {
                 debug!(
@@ -206,7 +201,6 @@ pub fn run_command(
         }
     };
 
-    // Ensure we have a project configuration
     let project = match project_runtime {
         Some(p) => p,
         None => {
@@ -217,7 +211,6 @@ pub fn run_command(
         }
     };
 
-    // Look up the script
     if !project.has_script(&script_name) {
         return Err(ButlerError::General(format!(
             "The script '{}' is not defined in your project configuration",

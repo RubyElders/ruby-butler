@@ -25,18 +25,13 @@ fn present_current_environment(
     debug!("Current working directory: {}", current_dir.display());
     debug!("Using discovered bundler runtime from context");
 
-    // Use bundler runtime from butler runtime
     let bundler_runtime = butler_runtime.bundler_runtime();
 
-    // Use Ruby selection from butler runtime
     let ruby = butler_runtime.selected_ruby()?;
 
-    // Get gem runtime from butler runtime
     let gem_runtime = butler_runtime.gem_runtime();
 
-    // Detect or load project runtime
     let project_runtime = if let Some(path) = project_file {
-        // Use specified project file
         debug!(
             "Loading project config from specified path: {}",
             path.display()
@@ -60,7 +55,6 @@ fn present_current_environment(
             }
         }
     } else {
-        // Auto-detect project file
         RbprojectDetector::discover(current_dir)
             .ok()
             .flatten()

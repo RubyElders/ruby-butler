@@ -3,10 +3,8 @@ use std::path::Path;
 
 /// Initialize a new rbproject.toml in the current directory
 pub fn init_command(current_dir: &Path) -> Result<(), String> {
-    // Delegate to rb-core for file creation
     create_default_project(current_dir)?;
 
-    // Present success message with ceremony
     println!("✨ Splendid! A new rbproject.toml has been created with appropriate ceremony.");
     println!();
     println!("📝 This template includes:");
