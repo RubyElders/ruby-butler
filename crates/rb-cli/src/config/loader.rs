@@ -93,7 +93,6 @@ mod tests {
 
     #[test]
     fn test_load_config_returns_default_when_no_file() {
-        // Should return default config when no file exists
         let result = load_config(None);
         assert!(result.is_ok());
 
@@ -111,19 +110,16 @@ mod tests {
         let temp_dir = std::env::temp_dir();
         let config_path = temp_dir.join("test_rb_custom.toml");
 
-        // Create a test config file
         let mut file = fs::File::create(&config_path).expect("Failed to create test config");
         writeln!(file, r#"ruby-version = "3.2.0""#).expect("Failed to write config");
         drop(file);
 
-        // Load config from custom path
         let result = load_config(Some(config_path.clone()));
         assert!(result.is_ok());
 
         let config = result.unwrap();
         assert_eq!(config.ruby_version, Some("3.2.0".to_string()));
 
-        // Cleanup
         let _ = fs::remove_file(&config_path);
     }
 
@@ -134,7 +130,6 @@ mod tests {
         let temp_dir = std::env::temp_dir();
         let config_path = temp_dir.join("test_rb_config.kdl");
 
-        // Create a test KDL config file
         let kdl_content = r#"
 rubies-dir "/opt/rubies"
 ruby-version "3.3.0"
@@ -142,7 +137,6 @@ gem-home "/opt/gems"
 "#;
         fs::write(&config_path, kdl_content).expect("Failed to write KDL config");
 
-        // Load config from KDL path
         let result = load_config(Some(config_path.clone()));
         assert!(result.is_ok());
 
@@ -151,7 +145,6 @@ gem-home "/opt/gems"
         assert_eq!(config.ruby_version, Some("3.3.0".to_string()));
         assert_eq!(config.gem_home, Some(PathBuf::from("/opt/gems")));
 
-        // Cleanup
         let _ = fs::remove_file(&config_path);
     }
 }

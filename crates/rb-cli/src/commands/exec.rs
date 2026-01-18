@@ -9,7 +9,6 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<
         ));
     }
 
-    // Extract the program and its accompanying arguments
     let program = &program_args[0];
     let args = if program_args.len() > 1 {
         &program_args[1..]
@@ -22,7 +21,6 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<
         program
     );
 
-    // Butler's refined approach: Ensure bundler environment is properly prepared
     if let Some(bundler_runtime) = butler.bundler_runtime() {
         match bundler_runtime.check_sync(&butler) {
             Ok(false) => {
@@ -32,7 +30,6 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<
                     "Bundler environment requires synchronization. Preparing now...".dimmed()
                 );
 
-                // Use bundler runtime's synchronize method directly
                 match bundler_runtime.synchronize(&butler, |line| {
                     println!("{}", line.dimmed());
                 }) {
@@ -57,7 +54,6 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<
             }
             Err(e) => {
                 debug!("Unable to verify bundler synchronization status: {}", e);
-                // Continue anyway - might be a bundler install issue that user needs to handle
             }
         }
     }
@@ -65,13 +61,11 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<
     debug!("Program: {}", program);
     debug!("Arguments: {:?}", args);
 
-    // Create and configure the butler command
     let mut cmd = Command::new(program);
     cmd.args(args);
 
     debug!("Commencing program execution...");
 
-    // Execute with validation and handle command not found errors
     match cmd.status_with_validation(&butler) {
         Ok(status) => {
             if let Some(code) = status.code() {
@@ -90,23 +84,6 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<
 mod tests {
     use super::*;
     use rb_tests::RubySandbox;
-
-    #[test]
-    fn test_exec_command_with_empty_args() {
-        // This test verifies the function signature and empty args behavior
-        let sandbox = RubySandbox::new().expect("Failed to create sandbox");
-        sandbox
-            .add_ruby_dir("3.2.5")
-            .expect("Failed to create ruby-3.2.5");
-
-        let _butler_runtime = ButlerRuntime::discover_and_create(sandbox.root(), None)
-            .expect("Failed to create ButlerRuntime");
-
-        // Test with empty args - we can test the validation logic
-        let empty_args: Vec<String> = vec![];
-        // Note: The actual exec_command would exit, so we just test our setup
-        assert_eq!(empty_args.len(), 0);
-    }
 
     #[test]
     fn test_butler_runtime_env_composition() {

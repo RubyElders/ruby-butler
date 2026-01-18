@@ -5,7 +5,6 @@ use rb_core::butler::{ButlerError, ButlerRuntime};
 pub fn sync_command(butler_runtime: ButlerRuntime) -> Result<(), ButlerError> {
     debug!("Starting sync command");
 
-    // Check if bundler runtime is available
     let bundler_runtime = match butler_runtime.bundler_runtime() {
         Some(bundler) => bundler,
         None => {
