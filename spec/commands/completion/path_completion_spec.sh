@@ -1,6 +1,10 @@
 #!/bin/bash
 # ShellSpec tests for path-based completion
 # Tests directory and file completion for path-based flags
+#
+# Note: These tests verify the completion OUTPUT (what rb __bash_complete returns).
+# The bash completion function behavior (adding/not adding space) is controlled by
+# the generated bash script which uses compopt -o nospace when $cur ends with /
 
 Describe "Ruby Butler Path Completion"
   Include spec/support/helpers.sh
@@ -28,6 +32,20 @@ Describe "Ruby Butler Path Completion"
         When run rb __bash_complete "rb -C " 7
         The status should equal 0
         The first line of output should not equal "runtime"
+      End
+
+      It "completes partial directory path and suggests subdirectories"
+        When run rb __bash_complete "rb -C sp" 9
+        The status should equal 0
+        The output should include "spec/"
+      End
+
+      It "suggests subdirectories after completing a directory"
+        When run rb __bash_complete "rb -C spec/" 13
+        The status should equal 0
+        The output should include "spec/behaviour/"
+        The output should include "spec/commands/"
+        The output should include "spec/support/"
       End
     End
 

@@ -68,10 +68,15 @@ _rb_completion() {{
     # Call rb to get context-aware completions
     local completions
     completions=$(rb __bash_complete "${{COMP_LINE}}" "${{COMP_POINT}}" 2>/dev/null)
-    
+
     if [ -n "$completions" ]; then
+        # Only use nospace when actively navigating through a directory path
+        # (i.e., when current word ends with /)
+        if [[ "$cur" =~ /$ ]]; then
+            compopt -o nospace
+        fi
+
         COMPREPLY=($(compgen -W "$completions" -- "$cur"))
-        # Bash will automatically add space for single completion
     else
         # No rb completions, fall back to default bash completion (files/dirs)
         compopt -o default
