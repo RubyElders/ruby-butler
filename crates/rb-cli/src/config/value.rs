@@ -38,12 +38,10 @@ pub struct ConfigValue<T> {
 }
 
 impl<T> ConfigValue<T> {
-    /// Create a new config value with its source
     pub fn new(value: T, source: ConfigSource) -> Self {
         Self { value, source }
     }
 
-    /// Create a default value
     pub fn default_value(value: T) -> Self {
         Self {
             value,
@@ -51,7 +49,6 @@ impl<T> ConfigValue<T> {
         }
     }
 
-    /// Create value from environment
     pub fn from_env(value: T) -> Self {
         Self {
             value,
@@ -59,7 +56,6 @@ impl<T> ConfigValue<T> {
         }
     }
 
-    /// Create value from config file
     pub fn from_file(value: T) -> Self {
         Self {
             value,
@@ -67,7 +63,6 @@ impl<T> ConfigValue<T> {
         }
     }
 
-    /// Create value from CLI
     pub fn from_cli(value: T) -> Self {
         Self {
             value,
@@ -91,7 +86,6 @@ impl<T> ConfigValue<T> {
         }
     }
 
-    /// Check if this value is unresolved
     pub fn is_unresolved(&self) -> bool {
         self.source == ConfigSource::Unresolved
     }
@@ -121,22 +115,18 @@ impl<T> ConfigValue<T> {
         old_value
     }
 
-    /// Get reference to the inner value
     pub fn get(&self) -> &T {
         &self.value
     }
 
-    /// Get mutable reference to the inner value
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.value
     }
 
-    /// Take the inner value
     pub fn into_inner(self) -> T {
         self.value
     }
 
-    /// Map the value while preserving the source
     pub fn map<U, F>(self, f: F) -> ConfigValue<U>
     where
         F: FnOnce(T) -> U,
@@ -163,16 +153,15 @@ impl ConfigSource {
     /// Get priority of this source (higher = takes precedence)
     fn priority(self) -> u8 {
         match self {
-            ConfigSource::Unresolved => 0, // Lowest - can be overridden by anything
+            ConfigSource::Unresolved => 0,
             ConfigSource::Default => 1,
             ConfigSource::EnvVar => 2,
             ConfigSource::ConfigFile => 3,
-            ConfigSource::Resolved => 4, // Higher than config sources but...
-            ConfigSource::Cli => 5,      // CLI always wins
+            ConfigSource::Resolved => 4,
+            ConfigSource::Cli => 5,
         }
     }
 
-    /// Check if this is a default value
     pub fn is_default(self) -> bool {
         self == ConfigSource::Default
     }

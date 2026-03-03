@@ -85,7 +85,6 @@ mod tests {
         fs::create_dir_all(&temp_dir).unwrap();
         let project_file = temp_dir.join("rbproject.toml");
 
-        // Create existing file
         fs::write(&project_file, "existing content").unwrap();
 
         let result = create_default_project(&temp_dir);

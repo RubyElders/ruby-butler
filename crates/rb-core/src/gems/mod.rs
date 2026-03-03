@@ -41,16 +41,10 @@ impl GemRuntime {
         Self { gem_home, gem_bin }
     }
 
-    /// Returns gem directories for this gem runtime
-    ///
-    /// Returns: [gem_home]
     pub fn gem_dirs(&self) -> Vec<PathBuf> {
         vec![self.gem_home.clone()]
     }
 
-    /// Returns bin directories for this gem runtime
-    ///
-    /// Returns: [gem_bin]
     pub fn bin_dirs(&self) -> Vec<PathBuf> {
         vec![self.gem_bin.clone()]
     }

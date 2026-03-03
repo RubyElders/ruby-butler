@@ -79,7 +79,7 @@ _rb_completion() {{
                 break
             fi
         done <<< "$completions"
-        
+
         if [ "$all_dirs" = true ]; then
             compopt -o nospace
         fi

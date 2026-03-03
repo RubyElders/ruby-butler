@@ -72,7 +72,6 @@ pub struct GemPathConfig {
 }
 
 impl GemPathConfig {
-    /// Create a new gem path configuration
     pub fn new(gem_dirs: Vec<PathBuf>, gem_bin_dirs: Vec<PathBuf>) -> Self {
         Self {
             gem_dirs,
@@ -80,17 +79,15 @@ impl GemPathConfig {
         }
     }
 
-    /// Get gem directories
     pub fn gem_dirs(&self) -> &[PathBuf] {
         &self.gem_dirs
     }
 
-    /// Get gem binary directories
     pub fn gem_bin_dirs(&self) -> &[PathBuf] {
         &self.gem_bin_dirs
     }
 
-    /// Get the primary gem home (first gem dir)
+    /// Primary gem home (first gem dir, if any)
     pub fn gem_home(&self) -> Option<&Path> {
         self.gem_dirs.first().map(|p| p.as_path())
     }
@@ -108,7 +105,6 @@ pub struct GemPathContext<'a> {
 }
 
 impl<'a> GemPathContext<'a> {
-    /// Create a new gem path context
     pub fn new(
         current_dir: &'a Path,
         ruby_runtime: &'a RubyRuntime,
@@ -166,7 +162,7 @@ impl CompositeGemPathDetector {
             debug!("Detector '{}' not applicable", detector.name());
         }
 
-        // Should never reach here as UserGemsDetector always returns Some
+        // Fallback: UserGemsDetector always returns Some
         debug!("No detector matched, falling back to user gems");
         UserGemsDetector
             .detect(context)
