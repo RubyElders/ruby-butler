@@ -17,6 +17,13 @@ Describe 'rb sync command'
       The output should include "Environment Successfully Synchronized"
       The output should include "Bundle complete!"
     End
+
+    It 'does not emit bundler deprecation warnings'
+      When run rb -R "$RUBIES_DIR" sync
+      The status should be success
+      The output should include "Environment Successfully Synchronized"
+      The stderr should not include "[DEPRECATED]"
+    End
   End
 
   Context 'when running sync in non-bundler project'

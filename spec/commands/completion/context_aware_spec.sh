@@ -156,11 +156,11 @@ Describe "Ruby Butler Context-Aware Completion"
   Describe "Dockerfile rubies path testing"
     Context "non-standard rubies location"
       It "completes rubies from /opt/rubies when explicitly specified"
-        # Test with Docker-style path (Docker has 3.2.4 and 3.4.5)
+        # Test with Docker-style path (Docker has 3.4.5 and 4.0.1)
         When run rb __bash_complete "rb -r " 7 --rubies-dir "/opt/rubies"
         The status should equal 0
+        The output should include "4.0.1"
         The output should include "3.4.5"
-        The output should include "3.2.4"
       End
     End
   End
