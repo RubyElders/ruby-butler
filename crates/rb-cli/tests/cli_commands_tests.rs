@@ -1,18 +1,14 @@
 use std::process::Command;
 
-/// Helper to execute rb binary with arguments
 fn run_rb_command(args: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_rb"));
     cmd.args(args);
     cmd.output().expect("Failed to execute rb")
 }
 
-/// Helper to convert output to string
 fn output_to_string(output: &[u8]) -> String {
     String::from_utf8_lossy(output).to_string()
 }
-
-// Help command tests
 
 #[test]
 fn test_help_command_works() {
@@ -92,8 +88,6 @@ fn test_short_help_flag_is_rejected() {
     );
 }
 
-// Version command tests
-
 #[test]
 fn test_version_command_works() {
     let output = run_rb_command(&["version"]);
@@ -140,16 +134,12 @@ fn test_version_flag_is_rejected() {
 
 #[test]
 fn test_short_version_flag_is_rejected() {
-    // -V is now --very-verbose, so this test is obsolete
-    // Test that -V works as very verbose flag
     let output = run_rb_command(&["-V", "help"]);
     assert!(
         output.status.success(),
         "-V flag should work as --very-verbose"
     );
 }
-
-// No arguments behavior
 
 #[test]
 fn test_no_arguments_shows_help() {
@@ -164,8 +154,6 @@ fn test_no_arguments_shows_help() {
     );
 }
 
-// Command-based interface philosophy
-
 #[test]
 fn test_all_major_features_are_commands() {
     let output = run_rb_command(&["help"]);
@@ -178,7 +166,6 @@ fn test_all_major_features_are_commands() {
     );
     assert!(stdout.contains("help"), "help should be in help output");
 
-    // Extract options section (after both Commands sections)
     let options_section = stdout.split("Options:").nth(1).unwrap_or("");
 
     assert!(
@@ -186,7 +173,6 @@ fn test_all_major_features_are_commands() {
         "Options should not list -h or --help flags"
     );
 
-    // Note: -V is now --very-verbose, not version flag
     assert!(
         options_section.contains("--very-verbose"),
         "Options should list --very-verbose flag"

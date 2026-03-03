@@ -40,7 +40,6 @@ fn main() {
         init_logger(cli.effective_log_level());
     }
 
-    // Merge config file defaults with CLI arguments (just data, no side effects)
     let (cli_parsed, file_config) = match cli.with_config_defaults_tracked() {
         Ok(result) => result,
         Err(e) => {
@@ -56,10 +55,8 @@ fn main() {
         std::process::exit(0);
     };
 
-    // Create tracked config with sources
     let tracked_config = TrackedConfig::from_merged(&cli_parsed.config, &file_config);
 
-    // Change working directory if specified
     if !tracked_config.work_dir.source.is_default() {
         let target_dir = tracked_config.work_dir.get();
         if let Err(e) = std::env::set_current_dir(target_dir) {
@@ -74,16 +71,13 @@ fn main() {
         debug!("Changed working directory to: {}", target_dir.display());
     }
 
-    // Create command context (just config data, no runtime discovery yet)
     let mut context = CommandContext {
         config: tracked_config,
         project_file: cli_parsed.project_file.clone(),
     };
 
-    // Dispatch to appropriate command handler
     let result = dispatch_command(command, &mut context);
 
-    // Handle any errors with consistent, friendly messages
     if let Err(e) = result {
         handle_command_error(e, &context);
     }

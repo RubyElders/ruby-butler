@@ -20,7 +20,6 @@ impl GemPathDetector for BundlerIsolationDetector {
     fn detect(&self, _context: &GemPathContext) -> Option<GemPathConfig> {
         debug!("Bundler environment - using bundler isolation (no gem paths)");
 
-        // Return empty config to indicate: don't set GEM_HOME/GEM_PATH, bundler handles it
         Some(GemPathConfig::new(vec![], vec![]))
     }
 
@@ -59,7 +58,6 @@ mod tests {
 
         assert!(config.is_some());
         let config = config.unwrap();
-        // Should have NO gem dirs (bundler isolation)
         assert_eq!(config.gem_dirs().len(), 0);
         assert_eq!(config.gem_home(), None);
     }
@@ -75,7 +73,7 @@ mod tests {
         let detector = BundlerIsolationDetector;
         let config = detector.detect(&context);
 
-        // Always returns empty config when used (only included in BundlerRuntime composition)
+        // Always returns empty config (only included in BundlerRuntime composition)
         assert!(config.is_some());
         assert_eq!(config.unwrap().gem_dirs().len(), 0);
     }

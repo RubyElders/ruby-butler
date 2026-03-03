@@ -281,10 +281,8 @@ fn test_bundler_isolation_excludes_user_gems() -> Result<(), Box<dyn std::error:
     let rubies = RubyRuntimeDetector::discover(ruby_sandbox.root())?;
     let ruby = &rubies[0];
 
-    // Create gem runtime (user gems)
     let _gem_runtime = GemRuntime::for_base_dir(&ruby_sandbox.gem_base_dir(), &ruby.version);
 
-    // Create bundler project
     let project_dir = bundler_sandbox.add_bundler_project("isolated-app", true)?;
     let _bundler_runtime = rb_core::BundlerRuntime::new(&project_dir, ruby.version.clone());
 
@@ -297,13 +295,12 @@ fn test_bundler_isolation_excludes_user_gems() -> Result<(), Box<dyn std::error:
         project_dir.clone(),
     )?;
 
-    // CRITICAL: When bundler context is present, gem_runtime should be None (isolation)
+    // When bundler context is present, gem_runtime should be None (isolation)
     assert!(
         runtime_with_bundler.gem_runtime().is_none(),
         "User gem runtime should NOT be available in bundler context (isolation)"
     );
 
-    // Bundler runtime SHOULD be present
     assert!(
         runtime_with_bundler.bundler_runtime().is_some(),
         "Bundler runtime should be detected"
@@ -364,10 +361,8 @@ fn test_no_bundler_flag_restores_user_gems() -> Result<(), Box<dyn std::error::E
     let rubies = RubyRuntimeDetector::discover(ruby_sandbox.root())?;
     let _ruby = &rubies[0];
 
-    // Create bundler project
     let project_dir = bundler_sandbox.add_bundler_project("user-gems-app", true)?;
 
-    // Discover runtime WITH --no-bundler flag
     let runtime_no_bundler = ButlerRuntime::discover_and_compose_with_current_dir(
         ruby_sandbox.root().to_path_buf(),
         None,
@@ -376,13 +371,11 @@ fn test_no_bundler_flag_restores_user_gems() -> Result<(), Box<dyn std::error::E
         project_dir.clone(),
     )?;
 
-    // Bundler should NOT be detected
     assert!(
         runtime_no_bundler.bundler_runtime().is_none(),
         "Bundler should be skipped with --no-bundler flag"
     );
 
-    // User gem runtime SHOULD be available now
     assert!(
         runtime_no_bundler.gem_runtime().is_some(),
         "User gem runtime should be available with --no-bundler"
@@ -437,7 +430,6 @@ fn test_bundler_bin_paths_include_ruby_version() -> Result<(), Box<dyn std::erro
     let rubies = RubyRuntimeDetector::discover(ruby_sandbox.root())?;
     let _ruby = &rubies[0];
 
-    // Create bundler project
     let project_dir = bundler_sandbox.add_bundler_project("versioned-bins", true)?;
 
     // Add .ruby-version file so bundler knows which Ruby to use

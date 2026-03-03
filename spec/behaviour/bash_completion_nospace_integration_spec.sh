@@ -11,7 +11,6 @@ Describe "Ruby Butler Bash Completion Nospace Integration"
       The status should equal 0
       The output should equal "spec/"
       The lines of output should equal 1
-      # Even with count=1, if it's a directory, nospace is applied
     End
 
     It "multiple directory completions do not add space"
@@ -20,7 +19,6 @@ Describe "Ruby Butler Bash Completion Nospace Integration"
       The line 1 of output should end with "/"
       The line 2 of output should end with "/"
       The line 3 of output should end with "/"
-      # Multiple directories, nospace is applied
     End
   End
 

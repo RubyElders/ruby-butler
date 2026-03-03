@@ -18,7 +18,6 @@ where
 {
     let rubies_dir = context.config.rubies_dir.get().clone();
 
-    // Use runtime-compatible version (filters out unresolved values)
     let requested_version = context.config.ruby_version_for_runtime();
 
     let butler_runtime = ButlerRuntime::discover_and_compose_with_gem_base(
@@ -28,7 +27,6 @@ where
         *context.config.no_bundler.get(),
     )?;
 
-    // Update context with resolved Ruby version if it was unresolved
     if context.config.has_unresolved()
         && let Ok(ruby_runtime) = butler_runtime.selected_ruby()
     {
@@ -64,8 +62,7 @@ pub fn bash_complete_command(
 ) -> Result<(), ButlerError> {
     let rubies_dir = context.config.rubies_dir.get().clone();
 
-    // Try to create runtime, but if it fails, continue with None
-    // Completion still works for commands/flags even without Ruby
+    // Completion works for commands/flags even without Ruby
     let butler_runtime = ButlerRuntime::discover_and_compose_with_gem_base(
         rubies_dir,
         context

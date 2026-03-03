@@ -16,21 +16,17 @@ impl GemPathDetector for UserGemsDetector {
     fn detect(&self, context: &GemPathContext) -> Option<GemPathConfig> {
         debug!("Using standard user gems configuration");
 
-        // Get Ruby's built-in gem directory
         let ruby_gem_runtime = context.ruby_runtime.infer_gem_runtime().ok()?;
 
-        // Get user's home gem directory
         let user_gem_base = home::home_dir()?.join(".gem");
         let user_gem_runtime =
             GemRuntime::for_base_dir(&user_gem_base, &context.ruby_runtime.version);
 
-        // Compose gem directories: user gems first (GEM_HOME), then Ruby's lib
         let gem_dirs = vec![
             user_gem_runtime.gem_home.clone(),
             ruby_gem_runtime.gem_home.clone(),
         ];
 
-        // Compose bin directories
         let gem_bin_dirs = vec![
             user_gem_runtime.gem_bin.clone(),
             ruby_gem_runtime.gem_bin.clone(),
@@ -78,14 +74,11 @@ mod tests {
         let detector = UserGemsDetector;
         let config = detector.detect(&context).unwrap();
 
-        // Should have both user gems and Ruby's lib gems
         assert_eq!(config.gem_dirs().len(), 2);
 
-        // First should be user gems (GEM_HOME)
         let gem_home = config.gem_home().unwrap();
         assert!(gem_home.to_string_lossy().contains(".gem"));
 
-        // Should have bin directories for both
         assert!(!config.gem_bin_dirs().is_empty());
     }
 }

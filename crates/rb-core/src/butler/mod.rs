@@ -219,16 +219,13 @@ impl ButlerRuntime {
         debug!("Current directory: {}", current_dir.display());
         debug!("Requested Ruby version: {:?}", requested_ruby_version);
 
-        // Step 1: Discover Ruby installations
         debug!("Discovering Ruby installations");
         let ruby_installations = match RubyRuntimeDetector::discover(&rubies_dir) {
             Ok(installations) => installations,
             Err(RubyDiscoveryError::DirectoryNotFound(path)) => {
-                // If the rubies directory doesn't exist, return a proper error
                 return Err(ButlerError::RubiesDirectoryNotFound(path));
             }
             Err(e) => {
-                // Other errors (like I/O errors) return empty list to gracefully degrade
                 debug!("Ruby discovery failed: {:?}", e);
                 vec![]
             }
@@ -236,7 +233,6 @@ impl ButlerRuntime {
 
         info!("Found {} Ruby installations", ruby_installations.len());
 
-        // If no Ruby installations found, return empty runtime
         if ruby_installations.is_empty() {
             debug!("No Ruby installations found, returning empty runtime");
             return Ok(Self::empty(rubies_dir, current_dir));
@@ -267,7 +263,7 @@ impl ButlerRuntime {
             }
         };
 
-        // Step 3: Extract version requirements from project directory
+        // Extract version requirements from project directory
         let required_ruby_version = if bundler_root.is_some() {
             let detector = DetectorComposer::version_detector_for_bundler();
             detector.detect(&current_dir)
@@ -275,7 +271,7 @@ impl ButlerRuntime {
             None
         };
 
-        // Step 4: Select the most appropriate Ruby installation
+        // Select the most appropriate Ruby installation
         let selected_ruby = Self::select_ruby_runtime(
             &ruby_installations,
             &requested_ruby_version,
@@ -284,7 +280,6 @@ impl ButlerRuntime {
 
         // If no Ruby selected, handle appropriately
         let Some(selected_ruby) = selected_ruby else {
-            // If a specific version was requested but not found, return error
             if let Some(requested) = &requested_ruby_version {
                 return Err(ButlerError::NoSuitableRuby(format!(
                     "Requested Ruby version {} not found",
@@ -296,20 +291,15 @@ impl ButlerRuntime {
             return Ok(Self::empty(rubies_dir, current_dir));
         };
 
-        // Step 5: Create bundler runtime with selected Ruby version (if bundler detected)
         let bundler_runtime =
             bundler_root.map(|root| BundlerRuntime::new(root, selected_ruby.version.clone()));
 
-        // Step 6: Detect and compose gem path configuration
-        // Uses detector pattern to determine appropriate gem directories
-        // Choose detector based on whether bundler is active
+        // Detect and compose gem path configuration
         use crate::gems::gem_path_detector::GemPathContext;
 
         let gem_detector = if bundler_runtime.is_some() {
-            // Bundler detected: use bundler-specific composition (no user gems)
             DetectorComposer::gem_path_detector_for_bundler()
         } else {
-            // No bundler: use standard composition (includes user gems)
             DetectorComposer::gem_path_detector_standard()
         };
 
@@ -322,7 +312,6 @@ impl ButlerRuntime {
             gem_path_config.gem_dirs().len()
         );
 
-        // Create primary gem runtime from detected configuration
         let gem_runtime = gem_path_config.gem_home().map(|gem_home| {
             GemRuntime::for_base_dir(
                 gem_home.parent().unwrap_or(gem_home),

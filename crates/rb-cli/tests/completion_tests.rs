@@ -11,7 +11,6 @@ fn capture_completions(
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
 
     if let Some(dir) = rubies_dir {
-        // Set RB_RUBIES_DIR environment variable (preferred method)
         cmd.env("RB_RUBIES_DIR", &dir);
     }
 
@@ -57,7 +56,6 @@ fn test_command_completion_with_prefix() {
 fn test_ruby_version_completion_empty_prefix() {
     let sandbox = RubySandbox::new().expect("Failed to create sandbox");
 
-    // Create mock Ruby installations
     sandbox.add_ruby_dir("3.4.5").unwrap();
     sandbox.add_ruby_dir("3.4.4").unwrap();
     sandbox.add_ruby_dir("3.3.7").unwrap();
@@ -73,7 +71,6 @@ fn test_ruby_version_completion_empty_prefix() {
 fn test_ruby_version_completion_with_prefix() {
     let sandbox = RubySandbox::new().expect("Failed to create sandbox");
 
-    // Create mock Ruby installations
     sandbox.add_ruby_dir("3.4.5").unwrap();
     sandbox.add_ruby_dir("3.4.4").unwrap();
     sandbox.add_ruby_dir("3.3.7").unwrap();
@@ -90,17 +87,13 @@ fn test_ruby_version_completion_with_prefix() {
 #[test]
 #[cfg(unix)]
 fn test_tilde_expansion_in_rubies_dir_short_flag() {
-    // Create a Ruby sandbox in a known location within home directory
     let home_dir = std::env::var("HOME").expect("HOME not set");
     let test_dir = std::path::PathBuf::from(&home_dir).join(".rb-test-rubies");
 
-    // Clean up if exists
     let _ = std::fs::remove_dir_all(&test_dir);
 
-    // Create test rubies directory
     std::fs::create_dir_all(&test_dir).expect("Failed to create test dir");
 
-    // Create mock Ruby installations
     let ruby_345 = test_dir.join("ruby-3.4.5").join("bin");
     std::fs::create_dir_all(&ruby_345).expect("Failed to create ruby-3.4.5");
     std::fs::File::create(ruby_345.join("ruby")).expect("Failed to create ruby executable");
@@ -109,7 +102,6 @@ fn test_tilde_expansion_in_rubies_dir_short_flag() {
     std::fs::create_dir_all(&ruby_344).expect("Failed to create ruby-3.4.4");
     std::fs::File::create(ruby_344.join("ruby")).expect("Failed to create ruby executable");
 
-    // Test completion with tilde in path using -R flag
     let cmd_line = "rb -R ~/.rb-test-rubies -r ";
     let cursor_pos = "28";
 
@@ -119,7 +111,6 @@ fn test_tilde_expansion_in_rubies_dir_short_flag() {
     let output = cmd.output().expect("Failed to execute rb");
     let completions = String::from_utf8(output.stdout).expect("Invalid UTF-8 output");
 
-    // Cleanup
     let _ = std::fs::remove_dir_all(&test_dir);
 
     assert!(
@@ -137,22 +128,17 @@ fn test_tilde_expansion_in_rubies_dir_short_flag() {
 #[test]
 #[cfg(unix)]
 fn test_tilde_expansion_in_rubies_dir_long_flag() {
-    // Create a Ruby sandbox in a known location within home directory
     let home_dir = std::env::var("HOME").expect("HOME not set");
     let test_dir = std::path::PathBuf::from(&home_dir).join(".rb-test-rubies-long");
 
-    // Clean up if exists
     let _ = std::fs::remove_dir_all(&test_dir);
 
-    // Create test rubies directory
     std::fs::create_dir_all(&test_dir).expect("Failed to create test dir");
 
-    // Create mock Ruby installation
     let ruby_337 = test_dir.join("ruby-3.3.7").join("bin");
     std::fs::create_dir_all(&ruby_337).expect("Failed to create ruby-3.3.7");
     std::fs::File::create(ruby_337.join("ruby")).expect("Failed to create ruby executable");
 
-    // Test completion with tilde in path using --rubies-dir flag
     let cmd_line = "rb --rubies-dir ~/.rb-test-rubies-long -r 3.3";
     let cursor_pos = "48";
 
@@ -162,7 +148,6 @@ fn test_tilde_expansion_in_rubies_dir_long_flag() {
     let output = cmd.output().expect("Failed to execute rb");
     let completions = String::from_utf8(output.stdout).expect("Invalid UTF-8 output");
 
-    // Cleanup
     let _ = std::fs::remove_dir_all(&test_dir);
 
     assert!(
@@ -175,17 +160,13 @@ fn test_tilde_expansion_in_rubies_dir_long_flag() {
 #[test]
 #[cfg(unix)]
 fn test_tilde_only_expands_to_home() {
-    // Create a Ruby sandbox in a known location within home directory
     let home_dir = std::env::var("HOME").expect("HOME not set");
     let test_dir = std::path::PathBuf::from(&home_dir).join(".rb-test-tilde-only");
 
-    // Clean up if exists
     let _ = std::fs::remove_dir_all(&test_dir);
 
-    // Create test rubies directory
     std::fs::create_dir_all(&test_dir).expect("Failed to create test dir");
 
-    // Create mock Ruby installation
     let ruby_345 = test_dir.join("ruby-3.4.5").join("bin");
     std::fs::create_dir_all(&ruby_345).expect("Failed to create ruby-3.4.5");
     std::fs::File::create(ruby_345.join("ruby")).expect("Failed to create ruby executable");
@@ -200,7 +181,6 @@ fn test_tilde_only_expands_to_home() {
     let output = cmd.output().expect("Failed to execute rb");
     let completions_expanded = String::from_utf8(output.stdout).expect("Invalid UTF-8 output");
 
-    // Now test with tilde version
     let cmd_line_tilde = "rb -R ~/.rb-test-tilde-only -r ";
     let cursor_pos_tilde = "31";
 
@@ -213,10 +193,8 @@ fn test_tilde_only_expands_to_home() {
     let output_tilde = cmd_tilde.output().expect("Failed to execute rb");
     let completions_tilde = String::from_utf8(output_tilde.stdout).expect("Invalid UTF-8 output");
 
-    // Cleanup
     let _ = std::fs::remove_dir_all(&test_dir);
 
-    // Both should produce the same results
     assert_eq!(
         completions_expanded, completions_tilde,
         "Tilde expansion should produce same results as full path"
@@ -226,7 +204,6 @@ fn test_tilde_only_expands_to_home() {
 
 #[test]
 fn test_script_completion_from_rbproject() {
-    // Create a temporary directory with rbproject.toml
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
     let project_file = temp_dir.path().join("rbproject.toml");
 
@@ -238,7 +215,6 @@ fn test_script_completion_from_rbproject() {
     file.flush().unwrap();
     drop(file);
 
-    // Run completion from the temp directory
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
     cmd.arg("__bash_complete").arg("rb run ").arg("7");
     cmd.current_dir(temp_dir.path());
@@ -265,7 +241,6 @@ fn test_script_completion_from_rbproject() {
 
 #[test]
 fn test_script_completion_with_prefix() {
-    // Create a temporary directory with rbproject.toml
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
     let project_file = temp_dir.path().join("rbproject.toml");
 
@@ -277,7 +252,6 @@ fn test_script_completion_with_prefix() {
     file.flush().unwrap();
     drop(file);
 
-    // Run completion from the temp directory with prefix filtering
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
     cmd.arg("__bash_complete").arg("rb run te").arg("9");
     cmd.current_dir(temp_dir.path());
@@ -308,16 +282,13 @@ fn test_binstubs_completion_from_bundler() {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
-    // Create Ruby sandbox with Ruby installation
     let sandbox = RubySandbox::new().expect("Failed to create sandbox");
     sandbox
         .add_ruby_dir("3.3.0")
         .expect("Failed to create ruby");
 
-    // Create a temporary work directory with bundler binstubs
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 
-    // Create Gemfile (required for bundler detection)
     fs::write(
         temp_dir.path().join("Gemfile"),
         "source 'https://rubygems.org'\n",
@@ -334,7 +305,6 @@ fn test_binstubs_completion_from_bundler() {
         .join("bin");
     fs::create_dir_all(&binstubs_dir).expect("Failed to create binstubs directory");
 
-    // Create mock binstubs
     let rspec_exe = binstubs_dir.join("rspec");
     fs::write(&rspec_exe, "#!/usr/bin/env ruby\n").expect("Failed to write rspec");
     #[cfg(unix)]
@@ -353,7 +323,6 @@ fn test_binstubs_completion_from_bundler() {
     fs::set_permissions(&rake_exe, fs::Permissions::from_mode(0o755))
         .expect("Failed to set permissions");
 
-    // Run completion from the temp directory with rubies-dir pointing to sandbox
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
     cmd.arg("__bash_complete")
         .arg("rb exec ")
@@ -365,7 +334,6 @@ fn test_binstubs_completion_from_bundler() {
     let output = cmd.output().expect("Failed to execute rb");
     let completions = String::from_utf8(output.stdout).expect("Invalid UTF-8 output");
 
-    // Should include bundler binstubs
     assert!(
         completions.contains("rspec"),
         "Expected 'rspec' in completions, got: {}",
@@ -381,9 +349,6 @@ fn test_binstubs_completion_from_bundler() {
         "Expected 'rake' in completions, got: {}",
         completions
     );
-
-    // Note: Ruby bin executables (gem, bundle, ruby, etc.) would also be suggested
-    // since we now have a Ruby installation
 }
 
 #[test]
@@ -394,7 +359,6 @@ fn test_binstubs_with_ruby_executables_in_bundler() {
 
     let sandbox = RubySandbox::new().expect("Failed to create sandbox");
 
-    // Create Ruby installation
     let ruby_version = "3.4.5";
     sandbox
         .add_ruby_dir(ruby_version)
@@ -414,7 +378,6 @@ fn test_binstubs_with_ruby_executables_in_bundler() {
             .expect("Failed to set permissions");
     }
 
-    // Create work directory with bundler project
     let work_dir = tempfile::tempdir().expect("Failed to create temp dir");
     fs::write(
         work_dir.path().join("Gemfile"),
@@ -439,7 +402,6 @@ fn test_binstubs_with_ruby_executables_in_bundler() {
     fs::set_permissions(&rspec_exe, fs::Permissions::from_mode(0o755))
         .expect("Failed to set permissions");
 
-    // Run completion
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
     cmd.arg("__bash_complete")
         .arg("rb exec ")
@@ -451,7 +413,6 @@ fn test_binstubs_with_ruby_executables_in_bundler() {
     let output = cmd.output().expect("Failed to execute rb");
     let completions = String::from_utf8(output.stdout).expect("Invalid UTF-8 output");
 
-    // Should include both bundler binstubs AND Ruby executables
     assert!(
         completions.contains("rspec"),
         "Expected bundler binstub 'rspec' in completions, got: {}",
@@ -472,16 +433,13 @@ fn test_binstubs_completion_with_prefix() {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
-    // Create Ruby sandbox
     let sandbox = RubySandbox::new().expect("Failed to create sandbox");
     sandbox
         .add_ruby_dir("3.3.0")
         .expect("Failed to create ruby");
 
-    // Create a temporary directory with bundler binstubs in versioned ruby directory
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 
-    // Create Gemfile (required for bundler detection)
     fs::write(
         temp_dir.path().join("Gemfile"),
         "source 'https://rubygems.org'\n",
@@ -498,7 +456,6 @@ fn test_binstubs_completion_with_prefix() {
         .join("bin");
     fs::create_dir_all(&binstubs_dir).expect("Failed to create binstubs directory");
 
-    // Create mock binstubs
     let rspec_exe = binstubs_dir.join("rspec");
     fs::write(&rspec_exe, "#!/usr/bin/env ruby\n").expect("Failed to write rspec");
     #[cfg(unix)]
@@ -511,7 +468,6 @@ fn test_binstubs_completion_with_prefix() {
     fs::set_permissions(&rails_exe, fs::Permissions::from_mode(0o755))
         .expect("Failed to set permissions");
 
-    // Run completion with prefix "r"
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
     cmd.arg("__bash_complete")
         .arg("rb exec r")
@@ -541,16 +497,13 @@ fn test_binstubs_completion_with_x_alias() {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
-    // Create Ruby sandbox
     let sandbox = RubySandbox::new().expect("Failed to create sandbox");
     sandbox
         .add_ruby_dir("3.3.0")
         .expect("Failed to create ruby");
 
-    // Create a temporary directory with bundler binstubs in versioned ruby directory
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 
-    // Create Gemfile (required for bundler detection)
     fs::write(
         temp_dir.path().join("Gemfile"),
         "source 'https://rubygems.org'\n",
@@ -567,14 +520,12 @@ fn test_binstubs_completion_with_x_alias() {
         .join("bin");
     fs::create_dir_all(&binstubs_dir).expect("Failed to create binstubs directory");
 
-    // Create mock binstub
     let rspec_exe = binstubs_dir.join("rspec");
     fs::write(&rspec_exe, "#!/usr/bin/env ruby\n").expect("Failed to write rspec");
     #[cfg(unix)]
     fs::set_permissions(&rspec_exe, fs::Permissions::from_mode(0o755))
         .expect("Failed to set permissions");
 
-    // Run completion using 'x' alias
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
     cmd.arg("__bash_complete")
         .arg("rb x ")
@@ -592,9 +543,6 @@ fn test_binstubs_completion_with_x_alias() {
         completions
     );
 }
-
-// Note: test_gem_binstubs_completion_without_bundler was removed as it requires
-// a real Ruby installation with gems. This scenario is covered by integration tests.
 
 #[test]
 fn test_flags_completion() {
@@ -1048,7 +996,6 @@ fn test_binstubs_with_no_bundler_flag() {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
-    // Create Ruby sandbox
     let sandbox = RubySandbox::new().expect("Failed to create sandbox");
     sandbox
         .add_ruby_dir("3.3.0")
@@ -1082,7 +1029,6 @@ fn test_binstubs_with_no_bundler_flag() {
             .expect("Failed to set permissions");
     }
 
-    // Run completion WITHOUT -B flag - should show bundler binstubs
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
     cmd.env("RB_RUBIES_DIR", sandbox.root())
         .current_dir(temp_dir.path())
@@ -1094,7 +1040,6 @@ fn test_binstubs_with_no_bundler_flag() {
     let output = cmd.output().expect("Failed to execute rb");
     let completions_without_flag = String::from_utf8(output.stdout).expect("Invalid UTF-8 output");
 
-    // Run completion WITH -B flag - should NOT show bundler binstubs
     let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_rb"));
     cmd.env("RB_RUBIES_DIR", sandbox.root())
         .current_dir(temp_dir.path())
@@ -1152,7 +1097,6 @@ fn test_version_command_appears_in_completions() {
 fn test_help_flag_not_in_completions() {
     let completions = capture_completions("rb -", "4", None);
 
-    // Check that neither -h nor --help appear as standalone completions
     let lines: Vec<&str> = completions.lines().collect();
     assert!(
         !lines.contains(&"-h") && !lines.contains(&"--help"),

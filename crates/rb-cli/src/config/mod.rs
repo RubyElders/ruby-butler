@@ -162,7 +162,6 @@ impl TrackedConfig {
 
         debug!("Building tracked configuration with sources");
 
-        // Helper to determine source and value for PathBuf options
         let resolve_path_config = |cli: &Option<PathBuf>,
                                    file: &Option<PathBuf>,
                                    env_val: Option<PathBuf>,
@@ -183,7 +182,6 @@ impl TrackedConfig {
             }
         };
 
-        // Helper for optional String values
         let resolve_string_config = |cli: &Option<String>,
                                      file: &Option<String>,
                                      env_val: Option<String>|
@@ -202,7 +200,6 @@ impl TrackedConfig {
             }
         };
 
-        // Helper for bool values
         let resolve_bool_config = |cli: &Option<bool>,
                                    file: &Option<bool>,
                                    env_val: Option<bool>,
@@ -223,7 +220,6 @@ impl TrackedConfig {
             }
         };
 
-        // Read environment variables
         let env_rubies_dir = std::env::var("RB_RUBIES_DIR").ok().map(PathBuf::from);
         let env_ruby_version = std::env::var("RB_RUBY_VERSION").ok();
         let env_gem_home = std::env::var("RB_GEM_HOME").ok().map(PathBuf::from);
@@ -232,7 +228,6 @@ impl TrackedConfig {
             .and_then(|v| v.parse::<bool>().ok());
         let env_work_dir = std::env::var("RB_WORK_DIR").ok().map(PathBuf::from);
 
-        // Default values
         let default_rubies_dir = home::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".rubies");

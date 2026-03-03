@@ -18,14 +18,12 @@ pub fn dispatch_command(
     context: &mut CommandContext,
 ) -> Result<(), ButlerError> {
     match command {
-        // Utility commands - no runtime needed
         Commands::Version => version_command(),
         Commands::Help { command: help_cmd } => help_command(help_cmd),
         Commands::New => new_command_wrapper(),
         Commands::ShellIntegration { shell } => shell_integration_command_wrapper(shell),
         Commands::BashComplete { line, point } => bash_complete_command(context, &line, &point),
 
-        // Workflow commands - create ButlerRuntime
         Commands::Run { script, args } => {
             let project_file = context.project_file.clone();
             with_butler_runtime(context, |runtime| {
@@ -37,14 +35,9 @@ pub fn dispatch_command(
         }
         Commands::Sync => with_butler_runtime(context, |runtime| sync_command(runtime.clone())),
 
-        // Diagnostic commands
         Commands::Info { command } => match command {
-            InfoCommands::Config => {
-                // Config doesn't need runtime, just the config
-                info_config_command(&context.config)
-            }
+            InfoCommands::Config => info_config_command(&context.config),
             _ => {
-                // Other info commands need runtime
                 let project_file = context.project_file.clone();
                 with_butler_runtime(context, |runtime| {
                     info_command(&command, runtime, project_file)

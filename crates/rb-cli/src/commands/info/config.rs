@@ -7,7 +7,6 @@ pub fn config_command(config: &TrackedConfig) -> Result<(), ButlerError> {
     println!("{}", "🎩 Current Configuration".bright_cyan().bold());
     println!();
 
-    // Rubies directory
     println!(
         "{} {}",
         "Rubies Directory:".bright_white().bold(),
@@ -20,7 +19,6 @@ pub fn config_command(config: &TrackedConfig) -> Result<(), ButlerError> {
     );
     println!();
 
-    // Ruby version
     if let Some(ref version) = config.ruby_version {
         println!(
             "{} {}",
@@ -54,7 +52,6 @@ pub fn config_command(config: &TrackedConfig) -> Result<(), ButlerError> {
     }
     println!();
 
-    // Gem home
     println!(
         "{} {}",
         "Gem Home:".bright_white().bold(),
@@ -67,7 +64,6 @@ pub fn config_command(config: &TrackedConfig) -> Result<(), ButlerError> {
     );
     println!();
 
-    // No bundler
     println!(
         "{} {}",
         "No Bundler:".bright_white().bold(),
@@ -84,7 +80,6 @@ pub fn config_command(config: &TrackedConfig) -> Result<(), ButlerError> {
     );
     println!();
 
-    // Working directory
     println!(
         "{} {}",
         "Working Directory:".bright_white().bold(),

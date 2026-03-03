@@ -162,14 +162,11 @@ mod tests {
         let temp_dir = std::env::temp_dir();
         let config_path = temp_dir.join("test_rb_override.toml");
 
-        // Create a temporary config file
         fs::write(&config_path, "# test config").expect("Failed to write test config");
 
-        // Should return the override path
         let result = locate_config_file(Some(config_path.clone()));
         assert_eq!(result, Some(config_path.clone()));
 
-        // Cleanup
         let _ = fs::remove_file(&config_path);
     }
 
@@ -179,18 +176,14 @@ mod tests {
         let temp_dir = std::env::temp_dir();
         let config_path = temp_dir.join("test_rb_env_mock.toml");
 
-        // Create a temporary config file
         fs::write(&config_path, "# test config").expect("Failed to write test config");
 
-        // Use mock environment - no global state mutation!
         let mock_env =
             MockEnvReader::new().with_var("RB_CONFIG", config_path.to_string_lossy().to_string());
 
-        // Should return the env var path
         let result = locate_config_file_with_env(None, &mock_env);
         assert_eq!(result, Some(config_path.clone()));
 
-        // Cleanup
         let _ = fs::remove_file(&config_path);
     }
 
@@ -202,19 +195,15 @@ mod tests {
         let rb_dir = xdg_base.join("rb");
         let config_path = rb_dir.join("rb.toml");
 
-        // Create directory structure
         fs::create_dir_all(&rb_dir).expect("Failed to create test directory");
         fs::write(&config_path, "# test config").expect("Failed to write test config");
 
-        // Use mock environment
         let mock_env = MockEnvReader::new()
             .with_var("XDG_CONFIG_HOME", xdg_base.to_string_lossy().to_string());
 
-        // Should return the XDG config path
         let result = locate_config_file_with_env(None, &mock_env);
         assert_eq!(result, Some(config_path.clone()));
 
-        // Cleanup
         let _ = fs::remove_dir_all(&xdg_base);
     }
 }

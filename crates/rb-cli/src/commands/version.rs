@@ -8,7 +8,6 @@ pub fn build_version_info() -> String {
 
     let mut parts = vec![format!("Ruby Butler v{}", version)];
 
-    // Add tag if available, otherwise add git hash
     if let Some(tag) = option_env!("GIT_TAG") {
         if !tag.is_empty() && tag != format!("v{}", version) {
             parts.push(format!("({})", tag));
@@ -17,12 +16,10 @@ pub fn build_version_info() -> String {
         parts.push(format!("({})", git_hash));
     }
 
-    // Add profile if debug
     if profile == "debug" {
         parts.push("[debug build]".to_string());
     }
 
-    // Add dirty flag if present
     if option_env!("GIT_DIRTY").is_some() {
         parts.push("[modified]".to_string());
     }
@@ -64,15 +61,12 @@ mod tests {
     #[test]
     fn test_build_version_info_includes_git_hash_when_available() {
         let info = build_version_info();
-        // Either shows tag, git hash, or neither (unknown)
-        // We just verify it doesn't panic and produces output
         assert!(!info.is_empty());
-        assert!(info.len() > 50); // Should have substantial content
+        assert!(info.len() > 50);
     }
 
     #[test]
     fn test_version_command_returns_ok() {
-        // version_command always succeeds
         let result = version_command();
         assert!(result.is_ok());
     }
