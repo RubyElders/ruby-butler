@@ -27,7 +27,6 @@ impl BundlerRuntimeDetector {
                 debug!("No Gemfile found in: {}", current_dir.display());
             }
 
-            // Move up one directory
             match current_dir.parent() {
                 Some(parent) => {
                     current_dir = parent.to_path_buf();
@@ -47,7 +46,6 @@ impl BundlerRuntimeDetector {
         Ok(None)
     }
 
-    /// Convenience method to discover from current working directory
     pub fn discover_from_cwd() -> std::io::Result<Option<PathBuf>> {
         let cwd = std::env::current_dir()?;
         debug!(

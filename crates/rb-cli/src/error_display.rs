@@ -2,7 +2,6 @@ use colored::Colorize;
 use rb_core::butler::ButlerError;
 use std::path::Path;
 
-/// Format error message for NoSuitableRuby error
 pub fn format_no_suitable_ruby(
     rubies_dir: &Path,
     source: String,
@@ -31,7 +30,6 @@ pub fn format_no_suitable_ruby(
     msg
 }
 
-/// Format error message for CommandNotFound error
 pub fn format_command_not_found(command: &str) -> String {
     format!(
         "🎩 My sincerest apologies, but the command '{}' appears to be
@@ -51,7 +49,6 @@ Might I suggest:
     )
 }
 
-/// Format error message for RubiesDirectoryNotFound error
 pub fn format_rubies_dir_not_found(path: &Path) -> String {
     format!(
         "Ruby installation directory not found: {}
@@ -62,12 +59,10 @@ using the -R flag or RB_RUBIES_DIR environment variable.",
     )
 }
 
-/// Format general error message
 pub fn format_general_error(msg: &str) -> String {
     format!("❌ {}", msg)
 }
 
-/// Get exit code for specific error type
 pub fn error_exit_code(error: &ButlerError) -> i32 {
     match error {
         ButlerError::CommandNotFound(_) => 127,

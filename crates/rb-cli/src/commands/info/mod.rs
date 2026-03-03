@@ -28,7 +28,6 @@ pub fn info_command(
     }
 }
 
-/// Info command for config specifically (doesn't need runtime)
 pub fn info_config_command(config: &TrackedConfig) -> Result<(), ButlerError> {
     config::config_command(config)
 }

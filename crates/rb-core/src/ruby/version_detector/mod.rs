@@ -101,13 +101,10 @@ pub struct CompositeDetector {
 }
 
 impl CompositeDetector {
-    /// Create a new composite detector with the given strategies
     pub fn new(detectors: Vec<Box<dyn RubyVersionDetector>>) -> Self {
         Self { detectors }
     }
 
-    /// Detect Ruby version using all configured detectors in order
-    ///
     /// Returns the first version found, or None if no detector succeeds.
     pub fn detect(&self, context: &Path) -> Option<Version> {
         for detector in &self.detectors {
@@ -126,7 +123,6 @@ impl CompositeDetector {
         None
     }
 
-    /// Add a detector to the chain
     pub fn add_detector(&mut self, detector: Box<dyn RubyVersionDetector>) {
         self.detectors.push(detector);
     }
@@ -142,7 +138,6 @@ mod tests {
     fn test_composite_detector_tries_in_order() {
         let temp_dir = TempDir::new().unwrap();
 
-        // Create both .ruby-version and Gemfile
         std::fs::write(temp_dir.path().join(".ruby-version"), "3.2.5\n").unwrap();
 
         let gemfile_path = temp_dir.path().join("Gemfile");
@@ -155,7 +150,6 @@ mod tests {
         ]);
         let version = detector.detect(temp_dir.path()).unwrap();
 
-        // .ruby-version should take precedence (first in chain)
         assert_eq!(version, Version::new(3, 2, 5));
     }
 
@@ -163,7 +157,6 @@ mod tests {
     fn test_composite_detector_falls_back() {
         let temp_dir = TempDir::new().unwrap();
 
-        // Only create Gemfile (no .ruby-version)
         let gemfile_path = temp_dir.path().join("Gemfile");
         let mut file = std::fs::File::create(&gemfile_path).unwrap();
         writeln!(file, "ruby '2.7.8'").unwrap();
@@ -174,7 +167,6 @@ mod tests {
         ]);
         let version = detector.detect(temp_dir.path()).unwrap();
 
-        // Should fall back to Gemfile
         assert_eq!(version, Version::new(2, 7, 8));
     }
 

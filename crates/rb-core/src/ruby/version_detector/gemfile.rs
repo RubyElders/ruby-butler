@@ -24,11 +24,10 @@ impl RubyVersionDetector for GemfileDetector {
                 for line in content.lines() {
                     let line = line.trim();
 
-                    // Look for patterns like: ruby '3.2.5' or ruby "3.2.5"
+                    // Match: ruby '3.2.5' or ruby "3.2.5"
                     if line.starts_with("ruby ") {
                         debug!("Found ruby line: '{}'", line);
 
-                        // Extract version string between quotes
                         if let Some(version_str) = Self::extract_quoted_version(line) {
                             debug!("Extracted version string: '{}'", version_str);
 
@@ -67,13 +66,9 @@ impl RubyVersionDetector for GemfileDetector {
 }
 
 impl GemfileDetector {
-    /// Extract version string from between quotes in a line
-    /// Handles both single and double quotes
     fn extract_quoted_version(line: &str) -> Option<String> {
-        // Remove "ruby " prefix and trim
         let rest = line.strip_prefix("ruby ")?.trim();
 
-        // Handle both single and double quotes
         for quote in &['\'', '"'] {
             if rest.starts_with(*quote)
                 && let Some(end_idx) = rest[1..].find(*quote)

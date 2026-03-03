@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler runtime command
-# Distinguished validation of Ruby environment surveying capabilities
 
 Describe "Ruby Butler Runtime System"
   Include spec/support/helpers.sh

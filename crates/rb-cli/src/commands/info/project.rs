@@ -20,7 +20,6 @@ fn present_project_info(
     println!("{}", "📁 Project Configuration".to_string().bold());
     println!();
 
-    // Load project file - either specified or discovered
     let project_runtime = if let Some(path) = project_file {
         debug!(
             "Loading project config from specified path: {}",
@@ -81,7 +80,6 @@ fn present_project_info(
 
     println!();
 
-    // Show effective configuration
     println!("{}", "🔧 Effective Configuration".to_string().bold());
     println!();
     println!(

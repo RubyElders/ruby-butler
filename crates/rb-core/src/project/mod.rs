@@ -28,7 +28,6 @@ pub enum ScriptDefinition {
 }
 
 impl ScriptDefinition {
-    /// Get the command string
     pub fn command(&self) -> &str {
         match self {
             ScriptDefinition::Simple(cmd) => cmd,
@@ -36,7 +35,6 @@ impl ScriptDefinition {
         }
     }
 
-    /// Get the optional description
     pub fn description(&self) -> Option<&str> {
         match self {
             ScriptDefinition::Simple(_) => None,
@@ -75,7 +73,6 @@ fn parse_kdl(content: &str, filename: &str) -> io::Result<RbprojectConfig> {
     let mut metadata = ProjectMetadata::default();
     let mut scripts = HashMap::new();
 
-    // Parse project node
     if let Some(project_node) = document.get("project") {
         if let Some(name_node) = project_node.children().and_then(|c| c.get("name"))
             && let Some(name_val) = name_node.entries().first()
@@ -91,24 +88,20 @@ fn parse_kdl(content: &str, filename: &str) -> io::Result<RbprojectConfig> {
         }
     }
 
-    // Parse scripts node
     if let Some(scripts_node) = document.get("scripts")
         && let Some(children) = scripts_node.children()
     {
         for child in children.nodes() {
             let script_name = child.name().value().to_string();
 
-            // Check if it's a simple string or detailed format
             if let Some(command_entry) = child.entries().first() {
                 if let Some(command_str) = command_entry.value().as_string() {
-                    // Simple format: script "command"
                     scripts.insert(
                         script_name.clone(),
                         ScriptDefinition::Simple(command_str.to_string()),
                     );
                 }
             } else if let Some(script_children) = child.children() {
-                // Detailed format with command and description nodes
                 let mut command = None;
                 let mut description = None;
 
@@ -164,7 +157,6 @@ pub struct ProjectRuntime {
 }
 
 impl ProjectRuntime {
-    /// Create a new ProjectRuntime from a directory containing a project config file
     pub fn new(
         root: impl AsRef<Path>,
         config_filename: impl Into<String>,
@@ -189,11 +181,9 @@ impl ProjectRuntime {
         }
     }
 
-    /// Load ProjectRuntime from a project config file
     pub fn from_file(config_path: impl AsRef<Path>) -> io::Result<Self> {
         let config_path = config_path.as_ref();
 
-        // Extract the filename from the path
         let config_filename = config_path
             .file_name()
             .and_then(|n| n.to_str())
@@ -205,11 +195,9 @@ impl ProjectRuntime {
         let content = fs::read_to_string(config_path)?;
         debug!("Read {} bytes from {}", content.len(), config_filename);
 
-        // Parse based on file extension
         let config: RbprojectConfig = if config_filename.ends_with(".kdl") {
             parse_kdl(&content, &config_filename)?
         } else {
-            // Default to TOML parsing
             toml::from_str(&content).map_err(|e| {
                 debug!("Failed to parse TOML: {}", e);
                 io::Error::new(
@@ -262,27 +250,22 @@ impl ProjectRuntime {
         ))
     }
 
-    /// Returns the full path to the project config file
     pub fn rbproject_path(&self) -> PathBuf {
         self.root.join(&self.config_filename)
     }
 
-    /// Check if a script with the given name exists
     pub fn has_script(&self, name: &str) -> bool {
         self.scripts.contains_key(name)
     }
 
-    /// Get the script definition by name
     pub fn get_script(&self, name: &str) -> Option<&ScriptDefinition> {
         self.scripts.get(name)
     }
 
-    /// Get the command string for a script by name
     pub fn get_script_command(&self, name: &str) -> Option<&str> {
         self.scripts.get(name).map(|s| s.command())
     }
 
-    /// Get the description for a script by name
     pub fn get_script_description(&self, name: &str) -> Option<&str> {
         self.scripts.get(name).and_then(|s| s.description())
     }

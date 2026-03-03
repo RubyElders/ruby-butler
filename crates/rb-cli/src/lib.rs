@@ -234,7 +234,6 @@ pub enum Shell {
     Bash,
 }
 
-// Re-export for convenience
 pub use commands::{
     exec_command, info_command, new_command, run_command, shell_integration_command, sync_command,
 };
@@ -245,7 +244,6 @@ use std::path::PathBuf;
 
 const DEFAULT_RUBIES_DIR: &str = ".rubies";
 
-/// Create Ruby context by discovering and setting up ButlerRuntime
 pub fn create_ruby_context(
     rubies_dir: Option<PathBuf>,
     ruby_version: Option<String>,
@@ -261,10 +259,8 @@ pub fn create_ruby_context(
     }
 }
 
-/// Resolve the directory to search for Ruby installations
 pub fn resolve_search_dir(rubies_dir: Option<PathBuf>) -> PathBuf {
     rubies_dir.unwrap_or_else(|| {
-        // Check RB_RUBIES_DIR environment variable
         if let Ok(env_dir) = std::env::var("RB_RUBIES_DIR") {
             let path = PathBuf::from(env_dir);
             debug!(
@@ -287,8 +283,7 @@ pub fn resolve_search_dir(rubies_dir: Option<PathBuf>) -> PathBuf {
 }
 
 impl Cli {
-    /// Merge CLI arguments with config file defaults
-    /// CLI arguments always take precedence over config file values
+    /// Merge CLI arguments with config file defaults (CLI takes precedence)
     pub fn with_config_defaults(mut self) -> Result<Self, ConfigError> {
         let file_config = config::loader::load_config(self.config_file.clone())?;
         self.config.merge_with(file_config);

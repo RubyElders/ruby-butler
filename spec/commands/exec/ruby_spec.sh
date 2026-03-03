@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler exec command - Ruby environment testing
-# Distinguished validation of Ruby execution capabilities
 
 Describe "Ruby Butler Exec Command - Ruby Environment"
   Include spec/support/helpers.sh

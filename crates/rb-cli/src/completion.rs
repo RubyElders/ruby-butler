@@ -14,7 +14,6 @@ enum CompletionBehavior {
     DefaultOnly,
 }
 
-/// Get completion behavior for a command
 fn get_completion_behavior(command: &str) -> CompletionBehavior {
     match command {
         "run" | "r" => CompletionBehavior::Scripts,
@@ -49,7 +48,6 @@ fn extract_rubies_dir_from_line(words: &[&str]) -> Option<PathBuf> {
     None
 }
 
-/// Suggest directories for completion
 fn suggest_directories(current: &str) {
     let current_path = std::path::Path::new(current);
 
@@ -120,7 +118,6 @@ fn suggest_directories(current: &str) {
     }
 }
 
-/// Suggest files and directories for completion  
 fn suggest_files(current: &str) {
     let current_path = std::path::Path::new(current);
 
@@ -344,7 +341,6 @@ fn print_commands(prefix: &str) {
             println!("{}", name);
         }
 
-        // Also include visible aliases
         for alias in subcommand.get_visible_aliases() {
             if alias.starts_with(prefix) {
                 println!("{}", alias);
@@ -356,19 +352,15 @@ fn print_commands(prefix: &str) {
 fn print_flags() {
     let cmd = Cli::command();
 
-    // Get all global flags from the root command
     for arg in cmd.get_arguments() {
-        // Skip positional arguments and hidden flags
         if arg.is_positional() || arg.is_hide_set() {
             continue;
         }
 
-        // Print short flag if available
         if let Some(short) = arg.get_short() {
             println!("-{}", short);
         }
 
-        // Print long flag if available
         if let Some(long) = arg.get_long() {
             println!("--{}", long);
         }
@@ -424,7 +416,6 @@ fn suggest_binstubs(prefix: &str, butler_runtime: &rb_core::butler::ButlerRuntim
     }
 }
 
-/// Helper function to collect executables from a directory into a HashSet
 fn collect_executables_from_dir(
     bin_dir: &std::path::Path,
     prefix: &str,

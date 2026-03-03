@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler environment variables
-# Distinguished validation of systematic RB_* environment variable support
 
 Describe "Ruby Butler Environment Variables"
   Include spec/support/helpers.sh

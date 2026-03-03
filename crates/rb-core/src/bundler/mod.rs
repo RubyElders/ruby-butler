@@ -86,7 +86,6 @@ impl BundlerRuntime {
 
         self.configure_local_path(butler_runtime)?;
 
-        // Check if dependencies are satisfied
         let output = Command::new("bundle")
             .arg("check")
             .current_dir(&self.root)
@@ -101,7 +100,6 @@ impl BundlerRuntime {
                     output.status.code().unwrap_or(-1)
                 );
 
-                // If check passes, update lockfile to handle removed gems
                 if is_synced {
                     debug!("Bundle check passed, updating lockfile to match Gemfile");
                     self.update_lockfile_quietly(butler_runtime)?;
@@ -110,7 +108,6 @@ impl BundlerRuntime {
                 Ok(is_synced)
             }
             Err(e) => {
-                // Check if bundler is not installed
                 if e.kind() == std::io::ErrorKind::NotFound {
                     Err(std::io::Error::new(
                         std::io::ErrorKind::NotFound,
@@ -164,7 +161,6 @@ impl BundlerRuntime {
         }
     }
 
-    /// Install bundler dependencies with streaming output
     pub fn install_dependencies<F>(
         &self,
         butler_runtime: &crate::butler::ButlerRuntime,
@@ -199,7 +195,6 @@ impl BundlerRuntime {
             }
         };
 
-        // Stream stdout to the output handler
         if let Some(stdout) = child.stdout.take() {
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
@@ -208,7 +203,6 @@ impl BundlerRuntime {
             }
         }
 
-        // Capture stderr for error analysis
         let mut stderr_content = String::new();
         if let Some(stderr) = child.stderr.take() {
             let reader = BufReader::new(stderr);
@@ -226,7 +220,6 @@ impl BundlerRuntime {
             debug!("Bundle install completed successfully");
             Ok(())
         } else {
-            // Enhance error message with stderr content for better error classification
             let base_error = format!(
                 "Bundle install failed (exit code: {})",
                 status.code().unwrap_or(-1)
@@ -292,7 +285,6 @@ impl BundlerRuntime {
             .current_dir(&self.root)
             .output_with_context(butler_runtime)?;
 
-        // Stream output to handler
         if !output.stdout.is_empty() {
             let stdout_str = String::from_utf8_lossy(&output.stdout);
             for line in stdout_str.lines() {
@@ -318,7 +310,6 @@ impl BundlerRuntime {
         }
     }
 
-    /// Synchronize the bundler environment (configure path, check, and install if needed)
     pub fn synchronize<F>(
         &self,
         butler_runtime: &crate::butler::ButlerRuntime,
@@ -329,14 +320,12 @@ impl BundlerRuntime {
     {
         debug!("Starting bundler synchronization");
 
-        // Step 1: Check if already synchronized
-        // Note: check_sync already updates lockfile quietly, but for sync command
+        // check_sync already updates lockfile quietly, but for sync command
         // we want to show output, so we call update_lockfile explicitly
         match self.check_sync(butler_runtime)? {
             true => {
                 debug!("Bundler environment already synchronized");
 
-                // For sync command, show the lockfile update output
                 self.update_lockfile(butler_runtime, &mut output_handler)?;
 
                 Ok(SyncResult::AlreadySynced)
@@ -344,7 +333,6 @@ impl BundlerRuntime {
             false => {
                 debug!("Bundler environment requires synchronization");
 
-                // Step 3: Install dependencies
                 self.install_dependencies(butler_runtime, output_handler)?;
 
                 Ok(SyncResult::Synchronized)
@@ -423,7 +411,6 @@ mod tests {
     use std::io;
     use std::path::Path;
 
-    // Helper to create BundlerRuntime with a default Ruby version for testing
     fn bundler_rt(root: impl AsRef<Path>) -> BundlerRuntime {
         BundlerRuntime::new(root, Version::new(3, 3, 7))
     }
@@ -445,27 +432,22 @@ mod tests {
 
     #[test]
     fn bin_dir_is_vendor_bin() {
-        // When no ruby/X.Y.Z structure exists, falls back to vendor/bundler/bin
         let br = bundler_rt("/home/user/project");
-        // bin_dir should include Ruby minor version: .rb/vendor/bundler/ruby/3.3.0/bin
         let expected = Path::new("/home/user/project/.rb/vendor/bundler/ruby/3.3.0/bin");
         assert_eq!(br.bin_dir(), expected);
     }
 
     #[test]
     fn bin_dir_finds_versioned_ruby_directory() -> io::Result<()> {
-        // When ruby/X.Y.Z/bin structure exists, uses that instead
         let sandbox = BundlerSandbox::new()?;
         let project_root = sandbox.root().join("versioned-project");
         fs::create_dir_all(&project_root)?;
 
-        // Create Gemfile
         fs::write(
             project_root.join("Gemfile"),
             "source 'https://rubygems.org'\n",
         )?;
 
-        // Create versioned ruby bin directory
         let ruby_bin = project_root
             .join(".rb")
             .join("vendor")
@@ -487,12 +469,9 @@ mod tests {
         let project_dir = sandbox.add_bundler_project("configured-app", true)?;
         let br = bundler_rt(&project_dir);
 
-        // Should be configured since we created vendor structure
         assert!(br.is_configured());
 
-        // bin_dir should include Ruby minor version path (X.Y.0)
         let expected_bin = br.vendor_dir().join("ruby").join("3.3.0").join("bin");
-        // gem_dir should be the Ruby-minor-specific vendor directory
         let expected_gem = br.vendor_dir().join("ruby").join("3.3.0");
 
         assert_eq!(
@@ -513,7 +492,6 @@ mod tests {
         let project_dir = sandbox.add_bundler_project("basic-app", false)?;
         let br = bundler_rt(&project_dir);
 
-        // Should not be configured since no vendor structure exists
         assert!(!br.is_configured());
         assert_eq!(<BundlerRuntime as RuntimeProvider>::bin_dir(&br), None);
         assert_eq!(<BundlerRuntime as RuntimeProvider>::gem_dir(&br), None);
@@ -526,7 +504,6 @@ mod tests {
         let sandbox = BundlerSandbox::new()?;
         let project_dir = sandbox.add_bundler_project("version-app", false)?;
 
-        // Add .ruby-version file
         sandbox.add_file(
             format!(
                 "{}/{}",
@@ -598,7 +575,6 @@ gem "rails", "~> 7.1"
         let sandbox = BundlerSandbox::new()?;
         let project_dir = sandbox.add_dir("precedence-app")?;
 
-        // Add Gemfile with one version
         let gemfile_content = r#"source 'https://rubygems.org'
 ruby '3.1.0'
 gem 'rails'
@@ -611,7 +587,6 @@ gem 'rails'
             gemfile_content,
         )?;
 
-        // Add .ruby-version with different version
         sandbox.add_file(
             format!(
                 "{}/{}",
@@ -622,7 +597,6 @@ gem 'rails'
         )?;
 
         let br = bundler_rt(&project_dir);
-        // Should prefer .ruby-version
         assert_eq!(br.ruby_version(), Some(Version::parse("3.2.5").unwrap()));
 
         Ok(())
@@ -633,7 +607,6 @@ gem 'rails'
         let sandbox = BundlerSandbox::new()?;
         let project_dir = sandbox.add_dir("invalid-app")?;
 
-        // Add invalid .ruby-version file
         sandbox.add_file(
             format!(
                 "{}/{}",
@@ -654,7 +627,6 @@ gem 'rails'
         let sandbox = BundlerSandbox::new()?;
         let project_dir = sandbox.add_dir("no-version-app")?;
 
-        // Add Gemfile without ruby declaration
         let gemfile_content = r#"source 'https://rubygems.org'
 
 gem 'rails'
@@ -679,7 +651,6 @@ gem 'pg'
         let sandbox = BundlerSandbox::new()?;
         let project_dir = sandbox.add_bundler_project("whitespace-app", false)?;
 
-        // Add .ruby-version file with whitespace
         sandbox.add_file(
             format!(
                 "{}/{}",

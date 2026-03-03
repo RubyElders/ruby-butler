@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler bash completion
-# Distinguished validation of completion behavior
 
 Describe "Ruby Butler Bash Completion"
   Include spec/support/helpers.sh

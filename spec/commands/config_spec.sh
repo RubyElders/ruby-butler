@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler configuration file support
-# Distinguished validation of rb.toml loading and precedence
 
 Describe "Ruby Butler Configuration System"
   Include spec/support/helpers.sh

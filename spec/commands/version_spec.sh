@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler version command
-# Distinguished validation of version information display
 
 Describe "Ruby Butler Version Command"
   Include spec/support/helpers.sh

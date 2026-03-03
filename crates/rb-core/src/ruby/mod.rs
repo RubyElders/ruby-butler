@@ -148,16 +148,10 @@ impl RubyRuntime {
         gem_runtime
     }
 
-    /// Returns bin directories for this Ruby installation
-    ///
-    /// Returns: [ruby_bin]
     pub fn bin_dirs(&self) -> Vec<PathBuf> {
         vec![self.bin_dir()]
     }
 
-    /// Returns gem directories for this Ruby installation (system gems only)
-    ///
-    /// Returns: [lib_dir] (e.g., ~/.rubies/ruby-3.2.1/lib/ruby/gems/3.2.0)
     pub fn gem_dirs(&self) -> Vec<PathBuf> {
         vec![self.lib_dir()]
     }
@@ -260,11 +254,9 @@ mod tests {
         let r = rt("3.3.2", "/opt/rubies/ruby-3.3.2");
         let exe = r.ruby_executable_path();
 
-        // File name should be "ruby" (Unix) or "ruby.exe" (Windows)
         let expected_name = format!("ruby{EXE_SUFFIX}");
         assert_eq!(exe.file_name().unwrap(), expected_name.as_str());
 
-        // Parent dir should be the bin dir
         assert_eq!(exe.parent().unwrap(), r.bin_dir().as_path());
     }
 
@@ -287,11 +279,10 @@ mod tests {
 
     #[test]
     fn infer_gem_runtime_creates_proper_gem_runtime() {
-        // Use a simple test since home crate handles cross-platform concerns
         let r = rt("3.4.5", "/opt/rubies/ruby-3.4.5");
         let gem_runtime = r.infer_gem_runtime().expect("Should create GemRuntime");
 
-        // Check that the gem_home follows /.gem/ruby/3.4.5 pattern (full version)
+        // gem_home follows /.gem/ruby/3.4.5 pattern (full version, not ABI)
         assert!(
             gem_runtime
                 .gem_home
@@ -303,7 +294,6 @@ mod tests {
                 .ends_with(Path::new(".gem").join("ruby").join("3.4.5").join("bin"))
         );
 
-        // Verify the version formatting uses full version
         let version_part = gem_runtime.gem_home.file_name().unwrap();
         assert_eq!(version_part, "3.4.5");
     }

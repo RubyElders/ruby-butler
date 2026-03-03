@@ -19,7 +19,6 @@ impl GemPathDetector for CustomGemBaseDetector {
             custom_base.display()
         );
 
-        // Create gem runtime for the custom base
         let gem_runtime = GemRuntime::for_base_dir(custom_base, &context.ruby_runtime.version);
 
         let gem_dirs = vec![gem_runtime.gem_home.clone()];

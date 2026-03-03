@@ -12,21 +12,17 @@ fn create_test_context() -> CommandContext {
 
 #[test]
 fn test_new_command_wrapper_creates_file() {
-    // Create temp directory for test
     let temp_dir = std::env::temp_dir().join(format!("rb-runtime-new-{}", std::process::id()));
     std::fs::create_dir_all(&temp_dir).unwrap();
 
-    // Change to temp dir and run new
     let original_dir = std::env::current_dir().unwrap();
     std::env::set_current_dir(&temp_dir).unwrap();
 
     let result = new_command_wrapper();
     assert!(result.is_ok());
 
-    // Verify file was created
     assert!(temp_dir.join("rbproject.toml").exists());
 
-    // Restore and cleanup
     std::env::set_current_dir(&original_dir).unwrap();
     std::fs::remove_dir_all(&temp_dir).ok();
 }
@@ -37,16 +33,13 @@ fn test_new_command_wrapper_fails_if_file_exists() {
         std::env::temp_dir().join(format!("rb-runtime-new-exists-{}", std::process::id()));
     std::fs::create_dir_all(&temp_dir).unwrap();
 
-    // Create existing file
     let project_file = temp_dir.join("rbproject.toml");
     std::fs::write(&project_file, "existing").unwrap();
 
-    // Ensure file exists before proceeding (Windows may need explicit sync)
     assert!(
         project_file.exists(),
         "Test precondition failed: file should exist"
     );
-    // Sync metadata to ensure file is visible
     if let Ok(file) = std::fs::File::open(&project_file) {
         let _ = file.sync_all();
     }
@@ -68,7 +61,6 @@ fn test_new_command_wrapper_fails_if_file_exists() {
 fn test_command_context_initialization() {
     let context = create_test_context();
 
-    // Context should start with no project file
     assert!(context.project_file.is_none());
 }
 
@@ -84,7 +76,6 @@ fn test_command_context_stores_config() {
         project_file: None,
     };
 
-    // Verify context is valid with custom config
     assert!(context.project_file.is_none());
 }
 
