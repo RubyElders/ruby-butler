@@ -70,17 +70,35 @@ _rb_completion() {{
     completions=$(rb __bash_complete "${{COMP_LINE}}" "${{COMP_POINT}}" 2>/dev/null)
 
     if [ -n "$completions" ]; then
-        # Only use nospace when actively navigating through a directory path
-        # (i.e., when current word ends with /)
-        if [[ "$cur" =~ /$ ]]; then
+        # Check if all completions are directories (end with /)
+        # If so, don't add space to allow continued navigation
+        local all_dirs=true
+        while IFS= read -r line; do
+            if [[ ! "$line" =~ /$ ]]; then
+                all_dirs=false
+                break
+            fi
+        done <<< "$completions"
+        
+        if [ "$all_dirs" = true ]; then
             compopt -o nospace
         fi
 
         COMPREPLY=($(compgen -W "$completions" -- "$cur"))
     else
-        # No rb completions, fall back to default bash completion (files/dirs)
-        compopt -o default
-        COMPREPLY=()
+        # No rb completions - check if we're completing a directory-only flag
+        # For -C, -R, -G: don't fall back to default (which would show files)
+        case "$prev" in
+            -C|--work-dir|-R|--rubies-dir|-G|--gem-home)
+                # Return empty completions (no files for directory flags)
+                COMPREPLY=()
+                ;;
+            *)
+                # Fall back to default bash completion for other cases
+                compopt -o default
+                COMPREPLY=()
+                ;;
+        esac
     fi
 }}
 

@@ -312,11 +312,11 @@ EOF
         The output should include "COMPREPLY=(\$(compgen -W \"\$completions\" -- \"\$cur\"))"
       End
 
-      It "includes fallback to default bash completion"
+      It "includes fallback to default bash completion for non-directory flags"
         When run rb shell-integration bash
         The status should equal 0
         The output should include "compopt -o default"
-        The output should include "# No rb completions, fall back to default bash completion"
+        The output should include "# No rb completions - check if we're completing a directory-only flag"
       End
     End
   End
