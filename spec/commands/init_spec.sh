@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler init command
-# Distinguished validation of project initialization capabilities
 
 Describe "Ruby Butler Init Command"
   Include spec/support/helpers.sh

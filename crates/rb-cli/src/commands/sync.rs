@@ -21,7 +21,6 @@ pub fn sync_command(butler_runtime: ButlerRuntime) -> Result<(), ButlerError> {
     println!("📦 Vendor:  {}", bundler_runtime.vendor_dir().display());
     println!();
 
-    // Perform synchronization
     match bundler_runtime.synchronize(&butler_runtime, |line| {
         println!("{}", line);
     }) {
@@ -49,7 +48,6 @@ pub fn sync_command(butler_runtime: ButlerRuntime) -> Result<(), ButlerError> {
 
             let error_msg = e.to_string();
 
-            // Check for common error patterns and provide helpful guidance
             if error_msg.contains("extconf.rb failed")
                 || error_msg.contains("native extension")
                 || error_msg.contains("development tools")
@@ -122,11 +120,9 @@ mod tests {
         let project_dir = sandbox.add_dir("no_gemfile_project")?;
         let rubies_dir = sandbox.add_dir("rubies")?;
 
-        // Change to project directory
         let original_dir = std::env::current_dir()?;
         std::env::set_current_dir(&project_dir)?;
 
-        // Try to create a ButlerRuntime without bundler (no Gemfile)
         let result = ButlerRuntime::discover_and_compose_with_gem_base(
             rubies_dir.clone(),
             None,
@@ -134,7 +130,6 @@ mod tests {
             false,
         );
 
-        // Restore directory
         let _ = std::env::set_current_dir(original_dir);
 
         match result {

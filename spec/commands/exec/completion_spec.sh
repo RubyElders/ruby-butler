@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler exec command - Completion behavior
-# Distinguished validation of completion with --no-bundler flag
 
 Describe "Ruby Butler Exec Command - Completion Behavior"
   Include spec/support/helpers.sh

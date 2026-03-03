@@ -47,7 +47,6 @@ fn list_available_scripts(
         }
     };
 
-    // Ensure we have a project configuration
     let project = match project_runtime {
         Some(p) => p,
         None => {
@@ -57,11 +56,9 @@ fn list_available_scripts(
         }
     };
 
-    // Display help-style output
     println!("{}", "🎯 Run Project Scripts".green().bold());
     println!();
 
-    // Show project metadata if available
     if let Some(name) = &project.metadata.name {
         println!("{}", name);
     }
@@ -103,7 +100,6 @@ fn list_available_scripts(
         // Scripts section - formatted like Clap's Commands section
         println!("{}", "Scripts:".green().bold());
 
-        // Calculate max width for alignment
         let max_name_width = available_scripts.iter().map(|s| s.len()).max().unwrap_or(0);
 
         for name in available_scripts {
@@ -156,7 +152,6 @@ pub fn run_command(
     args: Vec<String>,
     project_file: Option<PathBuf>,
 ) -> Result<(), ButlerError> {
-    // If no script name provided, list available scripts
     if script_name.is_none() {
         return list_available_scripts(butler_runtime, project_file);
     }
@@ -218,12 +213,10 @@ pub fn run_command(
         )));
     }
 
-    // Get the script command
     let command_str = project.get_script_command(&script_name).unwrap();
 
     info!("Executing script: {} → {}", script_name, command_str);
 
-    // Parse the command string into program and arguments using shell word splitting
     let command_parts = parse_command(command_str);
 
     if command_parts.is_empty() {
@@ -233,17 +226,12 @@ pub fn run_command(
         )));
     }
 
-    // Build the full argument list: parsed command parts + user-provided args
     let mut full_args = command_parts;
     full_args.extend(args);
 
     info!("Delegating to exec command with args: {:?}", full_args);
 
-    // Delegate to exec_command - this ensures consistent behavior including:
-    // - Automatic bundle exec detection
-    // - Bundler environment synchronization
-    // - Proper environment composition
-    // - Command validation and error handling
+    // Delegate to exec_command for consistent behavior (auto bundle exec, env composition)
     exec_command(butler_runtime, full_args)
 }
 

@@ -7,17 +7,14 @@ use std::io;
 fn bundler_detector_integrates_with_bundler_sandbox() -> io::Result<()> {
     let sandbox = BundlerSandbox::new()?;
 
-    // Create a configured bundler project
     let project_dir = sandbox.add_bundler_project("my-rails-app", true)?;
 
-    // Detector should find the bundler root
     let result = BundlerRuntimeDetector::discover(&project_dir)?;
     assert!(result.is_some());
 
     let bundler_root = result.unwrap();
     assert_eq!(bundler_root, project_dir);
 
-    // Create runtime to verify configuration
     let bundler_runtime = BundlerRuntime::new(&bundler_root, Version::new(3, 3, 7));
     assert!(bundler_runtime.is_configured());
 
@@ -28,15 +25,12 @@ fn bundler_detector_integrates_with_bundler_sandbox() -> io::Result<()> {
 fn bundler_detector_finds_gemfile_from_nested_directory() -> io::Result<()> {
     let sandbox = BundlerSandbox::new()?;
 
-    // Create complex project structure
     let (root_project, _subproject, deep_dir) = sandbox.add_complex_project()?;
 
-    // Detector should find the nearest Gemfile when searching from deep directory
     let result = BundlerRuntimeDetector::discover(&deep_dir)?;
     assert!(result.is_some());
 
     let bundler_root = result.unwrap();
-    // Should NOT find the root project, but rather the subproject
     assert_ne!(bundler_root, root_project);
     assert!(bundler_root.ends_with("engines/my-engine"));
 
@@ -47,10 +41,8 @@ fn bundler_detector_finds_gemfile_from_nested_directory() -> io::Result<()> {
 fn bundler_detector_returns_none_for_non_bundler_directory() -> io::Result<()> {
     let sandbox = BundlerSandbox::new()?;
 
-    // Create a directory without Gemfile
     let non_bundler_dir = sandbox.add_dir("just-a-directory")?;
 
-    // Detector should return None
     let result = BundlerRuntimeDetector::discover(&non_bundler_dir)?;
     assert!(result.is_none());
 
@@ -62,11 +54,9 @@ fn bundler_runtime_provides_correct_paths_for_configured_project() -> io::Result
     let sandbox = BundlerSandbox::new()?;
     let ruby_version = Version::new(3, 3, 7);
 
-    // Create configured project
     let project_dir = sandbox.add_bundler_project("configured-app", true)?;
     let bundler_runtime = BundlerRuntime::new(&project_dir, ruby_version.clone());
 
-    // Check all paths
     assert_eq!(bundler_runtime.gemfile_path(), project_dir.join("Gemfile"));
     assert_eq!(bundler_runtime.app_config_dir(), project_dir.join(".rb"));
     assert_eq!(
@@ -82,7 +72,6 @@ fn bundler_runtime_provides_correct_paths_for_configured_project() -> io::Result
         .join("bin");
     assert_eq!(bundler_runtime.bin_dir(), expected_bin);
 
-    // Should be configured since we created vendor structure
     assert!(bundler_runtime.is_configured());
 
     Ok(())

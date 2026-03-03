@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler project file support
-# Distinguished validation of rbproject.toml and --project/-P flag
 
 Describe "Ruby Butler Project System"
   Include spec/support/helpers.sh

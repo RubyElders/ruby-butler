@@ -4,7 +4,6 @@ use rb_cli::runtime_helpers::CommandContext;
 use rb_cli::{Commands, InfoCommands};
 use std::path::PathBuf;
 
-/// Helper to create a test context
 fn create_test_context() -> CommandContext {
     let config = RbConfig::default();
     CommandContext {
@@ -34,25 +33,21 @@ fn test_dispatch_help_with_subcommand() {
     let context = create_test_context();
 
     // Just verify the dispatch doesn't panic - actual help output tested elsewhere
-    // We skip the actual call to avoid stdout during test runs
     assert!(context.project_file.is_none()); // Verify context is valid
 }
 
 #[test]
 fn test_dispatch_new_command() {
     let mut context = create_test_context();
-    // New creates file in current working directory
     let temp_dir = std::env::temp_dir().join(format!("rb-dispatch-new-{}", std::process::id()));
     std::fs::create_dir_all(&temp_dir).unwrap();
 
-    // Change to temp dir for test
     let original_dir = std::env::current_dir().unwrap();
     std::env::set_current_dir(&temp_dir).unwrap();
 
     let result = dispatch_command(Commands::New, &mut context);
     assert!(result.is_ok());
 
-    // Restore directory and cleanup
     std::env::set_current_dir(&original_dir).unwrap();
     std::fs::remove_dir_all(&temp_dir).ok();
 }

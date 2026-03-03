@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler help command
-# Distinguished validation of assistance and guidance features
 
 Describe "Ruby Butler Help System"
   Include spec/support/helpers.sh

@@ -1,6 +1,5 @@
 #!/bin/bash
 # ShellSpec tests for Ruby Butler run command
-# Distinguished validation of rb run / rb r script execution
 
 Describe "Ruby Butler Run Command"
   Include spec/support/helpers.sh
