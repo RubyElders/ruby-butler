@@ -198,9 +198,23 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Try to pull Docker test image
+    - name: Check for Docker file changes
+      uses: dorny/paths-filter@v3
+      id: docker-changes
+      with:
+        filters: |
+          docker:
+            - 'Dockerfile'
+            - 'docker-compose.yml'
+
+    - name: Pull or build Docker test image
       run: |
-        docker compose pull
+        if [ "${{ steps.docker-changes.outputs.docker }}" = "true" ]; then
+          echo "Dockerfile changed — building image locally"
+          docker compose build
+        else
+          docker compose pull
+        fi
 
     - name: Make shellspec executable
       run: chmod +x ./shellspec
