@@ -31,24 +31,24 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ruby-install once (cached layer)
-RUN curl -fsSL https://github.com/postmodern/ruby-install/releases/download/v0.9.3/ruby-install-0.9.3.tar.gz | tar -xzf - \
-    && cd ruby-install-0.9.3 \
+RUN curl -fsSL https://github.com/postmodern/ruby-install/releases/download/v0.10.1/ruby-install-0.10.1.tar.gz | tar -xzf - \
+    && cd ruby-install-0.10.1 \
     && make install \
     && cd .. \
-    && rm -rf ruby-install-0.9.3
+    && rm -rf ruby-install-0.10.1
 
-# Stage for Ruby 3.2.4 compilation
-FROM base AS ruby-3-2-4
+# Stage for Ruby 4.0.1 compilation
+FROM base AS ruby-4-0-1
 
 RUN mkdir -p /opt/rubies && \
     MAKE_OPTS="-j$(nproc)" \
     ruby-install \
-        --install-dir /opt/rubies/ruby-3.2.4 \
+        --install-dir /opt/rubies/ruby-4.0.1 \
         --jobs $(nproc) \
         --cleanup \
-        ruby 3.2.4 \
+        ruby 4.0.1 \
         -- --with-jemalloc \
-    && /opt/rubies/ruby-3.2.4/bin/gem install bundler --no-document
+    && /opt/rubies/ruby-4.0.1/bin/gem install bundler --no-document
 
 # Stage for Ruby 3.4.5 compilation  
 FROM base AS ruby-3-4-5
@@ -73,7 +73,7 @@ RUN git clone https://github.com/shellspec/shellspec.git /tmp/shellspec \
     && rm -rf /tmp/shellspec
 
 # Copy compiled Ruby installations from parallel stages
-COPY --from=ruby-3-2-4 /opt/rubies/ruby-3.2.4 /opt/rubies/ruby-3.2.4
+COPY --from=ruby-4-0-1 /opt/rubies/ruby-4.0.1 /opt/rubies/ruby-4.0.1
 COPY --from=ruby-3-4-5 /opt/rubies/ruby-3.4.5 /opt/rubies/ruby-3.4.5
 
 # Create test user (non-root for realistic testing)

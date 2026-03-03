@@ -102,8 +102,8 @@ Describe "Ruby Butler Bash Completion"
       It "provides only version numbers without CRuby prefix"
         When run rb __bash_complete "rb -r " 7 --rubies-dir "$RUBIES_DIR"
         The status should equal 0
+        The lines of output should not include "CRuby-4.0.1"
         The lines of output should not include "CRuby-3.4.5"
-        The lines of output should not include "CRuby-3.2.4"
       End
     End
 
@@ -136,7 +136,7 @@ Describe "Ruby Butler Bash Completion"
         mkdir -p "$PROJECT_DIR"
         cat > "$PROJECT_DIR/rbproject.toml" << 'EOF'
 [project]
-ruby = "3.4.5"
+ruby = "4.0.1"
 
 [scripts]
 test = "bundle exec rspec"

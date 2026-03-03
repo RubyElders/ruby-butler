@@ -2,14 +2,14 @@
 # ShellSpec helper functions for Ruby Butler
 
 # Ruby versions available in Docker environment
-LATEST_RUBY="3.4.5"
-OLDER_RUBY="3.2.4"
+LATEST_RUBY="4.0.1"
+OLDER_RUBY="3.4.5"
 RUBIES_DIR="/opt/rubies"
 
 # Set RB_RUBIES_DIR for all tests so they use Docker Ruby installations
 export RB_RUBIES_DIR="$RUBIES_DIR"
 
-# Get Ruby ABI version from full version (e.g., "3.4.5" -> "3.4.0")
+# Get Ruby ABI version from full version (e.g., "4.0.1" -> "4.0.0")
 get_ruby_abi_version() {
     local version="$1"
     echo "$version" | sed -E 's/^([0-9]+\.[0-9]+).*/\1.0/'
