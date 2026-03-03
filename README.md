@@ -33,7 +33,7 @@ First, check your Ruby estate (by default checking at `~/.rubies`, see `--help` 
 
 ```bash
 # Survey your distinguished Ruby installations
-rb runtime
+rb info runtime
 ```
 
 Ruby Butler composes gem and bundle commands with environmental intelligence:
@@ -85,16 +85,21 @@ Ruby Butler expects Ruby installations in `~/.rubies/` (the standard location fo
 
 ## Commands
 
-- `rb runtime` / `rb rt` - Survey your Ruby estate with elegant presentation
 - `rb exec` / `rb x` - Execute commands within meticulously prepared environments
-- `rb environment` / `rb env` - Display current environment composition
-- `rb sync` - Manually synchronize bundler environments (auto-triggered when needed)
-- `rb run` / `rb r` - Execute project scripts defined in `gem.toml` or `rbproject.toml`
+- `rb sync` / `rb s` - Synchronize bundler environments (also auto-triggered when needed)
+- `rb run` / `rb r` - Execute project scripts defined in `rbproject.toml`
+- `rb new` - Create a minimal `rbproject.toml` in the current directory
+- `rb info runtime` - Survey your Ruby estate with elegant presentation
+- `rb info env` - Display current environment composition
+- `rb info project` - Show resolved project settings
+- `rb info config` - Display merged configuration with sources
+- `rb version` - Display version information
+- `rb shell-integration bash` - Generate bash completions (`eval "$(rb shell-integration bash)"`)
 
 ## Configuration
 
-- **`rb.toml`** - Global configuration file (in `%APPDATA%/rb/` or `~/.rb.toml`)
-- **`gem.toml`** or **`rbproject.toml`** - Project-level script definitions and metadata
+- **`rb.toml`** - Global configuration file (in `~/.config/rb/` or `~/.rb.toml`)
+- **`rbproject.toml`** or **`gem.toml`** - Project-level script definitions and metadata
 
 ## Development
 
@@ -134,13 +139,13 @@ Invoke-Pester tests/
 
 Ruby Butler is built with Rust for cross-platform reliability and employs a **environment-agnostic** design—no shell modifications required.
 
-If you're curious about what Butler does under the hood, add `-v` or even better `-vv` to see the distinguished orchestration in action.
+If you're curious about what Butler does under the hood, add `-v` or `-V` to see the distinguished orchestration in action.
 
 ## Release Process
 
 To create a new release with cross-platform binaries:
 
-1. **Update version** in `crates/rb-cli/Cargo.toml`
+1. **Update version** in root `Cargo.toml` (workspace version)
 2. **Update CHANGELOG.md** with release notes
 3. **Create and push tag**:
    ```bash
@@ -149,9 +154,9 @@ To create a new release with cross-platform binaries:
    ```
 
 The release workflow automatically:
-- Builds binaries for Linux, macOS, and Windows (both release and debug)
+- Builds binaries for Linux, macOS (ARM64), and Windows (both release and debug)
 - Creates GitHub release with binaries attached
-- Embeds git information in version output (`rb --version`)
+- Embeds git information in version output (`rb version`)
 
 Released binaries include version traceability:
 - **Tagged builds**: `Ruby Butler v1.0.0`
