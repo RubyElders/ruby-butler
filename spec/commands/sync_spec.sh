@@ -24,6 +24,16 @@ Describe 'rb sync command'
       The output should include "Environment Successfully Synchronized"
       The stderr should not include "[DEPRECATED]"
     End
+
+    It 'does not warn when checking an already synchronized bundle'
+      rb -R "$RUBIES_DIR" sync >/dev/null 2>&1 || fail "initial sync should succeed"
+
+      When run rb -R "$RUBIES_DIR" x bundle check
+      The status should be success
+      The output should include "The Gemfile's dependencies are satisfied"
+      The output should not include "You are replacing the current local value of path"
+      The stderr should not include "You are replacing the current local value of path"
+    End
   End
 
   Context 'when running sync in non-bundler project'

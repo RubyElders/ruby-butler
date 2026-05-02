@@ -127,6 +127,7 @@ mod tests {
 
         assert!(!env_vars.contains_key("BUNDLE_GEMFILE"));
         assert!(!env_vars.contains_key("BUNDLE_APP_CONFIG"));
+        assert!(!env_vars.contains_key("BUNDLE_PATH"));
     }
 
     #[test]
@@ -177,11 +178,17 @@ mod tests {
 
         assert!(env_vars.contains_key("BUNDLE_GEMFILE"));
         assert!(env_vars.contains_key("BUNDLE_APP_CONFIG"));
+        assert!(env_vars.contains_key("BUNDLE_PATH"));
 
         let bundle_gemfile = env_vars.get("BUNDLE_GEMFILE").unwrap();
         assert!(bundle_gemfile.contains("Gemfile"));
 
         let bundle_app_config = env_vars.get("BUNDLE_APP_CONFIG").unwrap();
         assert!(bundle_app_config.contains(".rb"));
+
+        let bundle_path = env_vars.get("BUNDLE_PATH").unwrap();
+        assert!(bundle_path.contains(".rb"));
+        assert!(bundle_path.contains("vendor"));
+        assert!(bundle_path.contains("bundler"));
     }
 }

@@ -618,6 +618,7 @@ impl ButlerRuntime {
         if let Some(bundler_runtime) = &self.bundler_runtime {
             let gemfile_path = bundler_runtime.gemfile_path();
             let app_config_dir = bundler_runtime.app_config_dir();
+            let vendor_dir = bundler_runtime.vendor_dir();
 
             debug!("Setting BUNDLE_GEMFILE: {}", gemfile_path.display());
             env.insert(
@@ -630,6 +631,9 @@ impl ButlerRuntime {
                 "BUNDLE_APP_CONFIG".to_string(),
                 app_config_dir.display().to_string(),
             );
+
+            debug!("Setting BUNDLE_PATH: {}", vendor_dir.display());
+            env.insert("BUNDLE_PATH".to_string(), vendor_dir.display().to_string());
         } else {
             debug!("No bundler runtime detected - skipping bundler environment variables");
         }
