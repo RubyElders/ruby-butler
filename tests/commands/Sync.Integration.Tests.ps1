@@ -77,6 +77,32 @@ gem 'rake'
                 Pop-Location
             }
         }
+
+        It "Does not warn when checking an already synchronized bundle" {
+            $TestSubDir = Join-Path $Script:TestDir "test-recheck-$(Get-Random)"
+            New-Item -ItemType Directory -Path $TestSubDir -Force | Out-Null
+
+            @"
+source 'https://rubygems.org'
+gem 'rake'
+"@ | Set-Content -Path (Join-Path $TestSubDir "Gemfile")
+
+            Push-Location $TestSubDir
+            try {
+                $InitialOutput = & $Script:RbPath sync 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Initial sync failed. Exit code: $LASTEXITCODE. Output: $($InitialOutput -join "`n")"
+                }
+
+                $Output = & $Script:RbPath x bundle check 2>&1
+
+                $LASTEXITCODE | Should -Be 0
+                ($Output -join " ") | Should -Match "The Gemfile's dependencies are satisfied"
+                ($Output -join " ") | Should -Not -Match "You are replacing the current local value of path"
+            } finally {
+                Pop-Location
+            }
+        }
     }
     
     Context "Sync in Non-Bundler Project" {

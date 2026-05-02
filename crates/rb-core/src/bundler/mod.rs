@@ -84,8 +84,6 @@ impl BundlerRuntime {
     ) -> std::io::Result<bool> {
         debug!("Checking bundle synchronization status");
 
-        self.configure_local_path(butler_runtime)?;
-
         let output = Command::new("bundle")
             .arg("check")
             .current_dir(&self.root)
@@ -106,47 +104,6 @@ impl BundlerRuntime {
                 }
 
                 Ok(is_synced)
-            }
-            Err(e) => {
-                if e.kind() == std::io::ErrorKind::NotFound {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::NotFound,
-                        "Bundler executable not found. Please install bundler with: gem install bundler",
-                    ))
-                } else {
-                    Err(e)
-                }
-            }
-        }
-    }
-
-    /// Configure bundler to use local vendor directory
-    pub fn configure_local_path(
-        &self,
-        butler_runtime: &crate::butler::ButlerRuntime,
-    ) -> std::io::Result<()> {
-        debug!(
-            "Configuring bundle path to vendor directory: {}",
-            self.vendor_dir().display()
-        );
-
-        let status = Command::new("bundle")
-            .args(["config", "set", "path", "--local"])
-            .arg(self.vendor_dir().to_string_lossy().as_ref())
-            .current_dir(&self.root)
-            .status_with_context(butler_runtime);
-
-        match status {
-            Ok(status) => {
-                if status.success() {
-                    debug!("Successfully configured bundle path");
-                    Ok(())
-                } else {
-                    Err(std::io::Error::other(format!(
-                        "Failed to configure bundle path (exit code: {})",
-                        status.code().unwrap_or(-1)
-                    )))
-                }
             }
             Err(e) => {
                 if e.kind() == std::io::ErrorKind::NotFound {
