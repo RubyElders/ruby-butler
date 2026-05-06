@@ -17,7 +17,7 @@ Download the latest production binary for your platform from [releases](https://
 curl -L https://github.com/RubyElders/ruby-butler/releases/latest/download/rb-linux -o ~/.local/bin/rb && chmod +x ~/.local/bin/rb
 ```
 
-### macOS
+### macOS (Apple Silicon)
 ```bash
 curl -L https://github.com/RubyElders/ruby-butler/releases/latest/download/rb-macos -o ~/.local/bin/rb && chmod +x ~/.local/bin/rb
 ```
@@ -154,7 +154,7 @@ To create a new release with cross-platform binaries:
    ```
 
 The release workflow automatically:
-- Builds binaries for Linux, macOS (ARM64), and Windows (both release and debug)
+- Builds binaries for Linux, macOS (Apple Silicon), and Windows (both release and debug)
 - Creates GitHub release with binaries attached
 - Embeds git information in version output (`rb version`)
 
