@@ -86,11 +86,8 @@ impl RbConfig {
                 debug!("  Using rubies-dir from config file: {}", dir.display());
                 self.rubies_dir = other.rubies_dir;
             }
-        } else {
-            debug!(
-                "  Using rubies-dir from CLI arguments: {}",
-                self.rubies_dir.as_ref().unwrap().display()
-            );
+        } else if let Some(dir) = &self.rubies_dir {
+            debug!("  Using rubies-dir from CLI arguments: {}", dir.display());
         }
 
         if self.ruby_version.is_none() {
@@ -98,11 +95,8 @@ impl RbConfig {
                 debug!("  Using ruby-version from config file: {}", version);
                 self.ruby_version = other.ruby_version;
             }
-        } else {
-            debug!(
-                "  Using ruby-version from CLI arguments: {}",
-                self.ruby_version.as_ref().unwrap()
-            );
+        } else if let Some(version) = &self.ruby_version {
+            debug!("  Using ruby-version from CLI arguments: {}", version);
         }
 
         if self.gem_home.is_none() {
@@ -110,11 +104,8 @@ impl RbConfig {
                 debug!("  Using gem-home from config file: {}", home.display());
                 self.gem_home = other.gem_home;
             }
-        } else {
-            debug!(
-                "  Using gem-home from CLI arguments: {}",
-                self.gem_home.as_ref().unwrap().display()
-            );
+        } else if let Some(home) = &self.gem_home {
+            debug!("  Using gem-home from CLI arguments: {}", home.display());
         }
 
         if self.no_bundler.is_none() {
@@ -122,11 +113,8 @@ impl RbConfig {
                 debug!("  Using no-bundler from config file: {}", no_bundler);
                 self.no_bundler = Some(no_bundler);
             }
-        } else {
-            debug!(
-                "  Using no-bundler from CLI arguments: {}",
-                self.no_bundler.unwrap()
-            );
+        } else if let Some(no_bundler) = &self.no_bundler {
+            debug!("  Using no-bundler from CLI arguments: {}", no_bundler);
         }
 
         if self.work_dir.is_none() {
@@ -134,11 +122,8 @@ impl RbConfig {
                 debug!("  Using work-dir from config file: {}", dir.display());
                 self.work_dir = other.work_dir;
             }
-        } else {
-            debug!(
-                "  Using work-dir from CLI arguments: {}",
-                self.work_dir.as_ref().unwrap().display()
-            );
+        } else if let Some(dir) = &self.work_dir {
+            debug!("  Using work-dir from CLI arguments: {}", dir.display());
         }
     }
 }
