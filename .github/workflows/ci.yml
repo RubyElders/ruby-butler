@@ -18,10 +18,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: 1.90.0
-        components: rustfmt, clippy
+      run: rustup install
 
     - name: Cache cargo registry
       uses: actions/cache@v4
@@ -30,9 +27,9 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-cargo-
+          ${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-cargo-
 
     - name: Check formatting
       run: cargo fmt --all -- --check
@@ -99,14 +96,11 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [1.90.0]
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: ${{ matrix.rust }}
+      run: rustup install
 
     - name: Cache cargo registry
       uses: actions/cache@v4
@@ -115,10 +109,9 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-${{ matrix.rust }}-cargo-
-          ${{ runner.os }}-cargo-
+          ${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-cargo-
 
     - name: Build
       run: cargo build --verbose
@@ -231,9 +224,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: 1.90.0
+      run: rustup install
 
     - name: Cache cargo registry
       uses: actions/cache@v4
@@ -242,7 +233,7 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: windows-latest-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: windows-latest-${{ hashFiles('rust-toolchain.toml') }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Build Ruby Butler
       run: cargo build --release
@@ -305,12 +296,10 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: 1.90.0
+      run: rustup install
 
     - name: Install cargo-audit
-      run: cargo install --force cargo-audit
+      run: cargo install --locked --force cargo-audit
 
     - name: Run security audit
       run: cargo audit
@@ -323,10 +312,10 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: 1.90.0
-        components: llvm-tools-preview
+      run: rustup install
+
+    - name: Install coverage tools
+      run: rustup component add llvm-tools-preview
 
     - name: Cache cargo registry
       uses: actions/cache@v4
@@ -335,7 +324,7 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: coverage-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: coverage-${{ hashFiles('rust-toolchain.toml') }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Install cargo-llvm-cov
       run: cargo install --force cargo-llvm-cov
