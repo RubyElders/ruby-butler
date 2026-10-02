@@ -1,6 +1,6 @@
 use rb_cli::config::{RbConfig, TrackedConfig};
-use rb_cli::runtime_helpers::{CommandContext, new_command_wrapper};
-use std::path::PathBuf;
+use rb_cli::runtime_helpers::CommandContext;
+use std::{path::PathBuf, process::Command};
 
 fn create_test_context() -> CommandContext {
     let config = RbConfig::default();
@@ -12,49 +12,35 @@ fn create_test_context() -> CommandContext {
 
 #[test]
 fn test_new_command_wrapper_creates_file() {
-    let temp_dir = std::env::temp_dir().join(format!("rb-runtime-new-{}", std::process::id()));
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    let temp_dir = tempfile::tempdir().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_rb"))
+        .arg("new")
+        .current_dir(temp_dir.path())
+        .output()
+        .unwrap();
 
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_dir).unwrap();
-
-    let result = new_command_wrapper();
-    assert!(result.is_ok());
-
-    assert!(temp_dir.join("rbproject.toml").exists());
-
-    std::env::set_current_dir(&original_dir).unwrap();
-    std::fs::remove_dir_all(&temp_dir).ok();
+    assert!(output.status.success(), "{output:?}");
+    assert!(temp_dir.path().join("rbproject.toml").exists());
 }
 
 #[test]
 fn test_new_command_wrapper_fails_if_file_exists() {
-    let temp_dir =
-        std::env::temp_dir().join(format!("rb-runtime-new-exists-{}", std::process::id()));
-    std::fs::create_dir_all(&temp_dir).unwrap();
-
-    let project_file = temp_dir.join("rbproject.toml");
+    let temp_dir = tempfile::tempdir().unwrap();
+    let project_file = temp_dir.path().join("rbproject.toml");
     std::fs::write(&project_file, "existing").unwrap();
 
+    let output = Command::new(env!("CARGO_BIN_EXE_rb"))
+        .arg("new")
+        .current_dir(temp_dir.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success(), "{output:?}");
     assert!(
-        project_file.exists(),
-        "Test precondition failed: file should exist"
+        String::from_utf8_lossy(&output.stderr).contains("already graces this directory"),
+        "{output:?}"
     );
-    if let Ok(file) = std::fs::File::open(&project_file) {
-        let _ = file.sync_all();
-    }
-
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_dir).unwrap();
-
-    let result = new_command_wrapper();
-    assert!(
-        result.is_err(),
-        "Expected error when rbproject.toml already exists"
-    );
-
-    std::env::set_current_dir(&original_dir).unwrap();
-    std::fs::remove_dir_all(&temp_dir).ok();
+    assert_eq!(std::fs::read_to_string(project_file).unwrap(), "existing");
 }
 
 #[test]
