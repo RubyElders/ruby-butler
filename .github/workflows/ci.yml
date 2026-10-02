@@ -122,6 +122,18 @@ jobs:
     - name: Run integration tests
       run: cargo test --verbose --test '*'
 
+    - name: Test standalone progress reporting
+      run: |
+        cargo test -p rb-progress --no-default-features
+        cargo build -p rb-progress --no-default-features --examples
+
+    - name: Test progress UI in a pseudo-terminal
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        cargo test -p rb-progress --features rb-task
+        cargo build -p rb-progress --features rb-task --example progress_ui_probe --example tasks
+        python3 crates/rb-progress/tests/pty_ui_test.py target/debug/examples/progress_ui_probe target/debug/examples/parallel
+
     - name: Build release
       run: cargo build --release
 
