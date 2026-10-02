@@ -1,0 +1,23 @@
+[package]
+name = "rb-progress"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Terminal progress reporting for task execution"
+
+[features]
+default = []
+rb-task = ["dep:rb-task"]
+
+[dependencies]
+terminal_size = "0.4.3"
+unicode-width = "0.2.2"
+rb-task = { path = "../rb-task", optional = true }
+
+[[example]]
+name = "progress_ui_probe"
+required-features = ["rb-task"]
+
+[[example]]
+name = "tasks"
+required-features = ["rb-task"]
