@@ -22,6 +22,7 @@ path = "src/bin/rb.rs"
 clap = { version = "4.0", features = ["derive", "color", "help", "usage", "env"] }
 clap_complete = "4.0"
 rb-core = { path = "../rb-core" }
+rb-progress = { path = "../rb-progress" }
 home = "0.5"
 colored = "2.0"
 log = "0.4"

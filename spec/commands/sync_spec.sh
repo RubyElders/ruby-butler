@@ -14,14 +14,14 @@ Describe 'rb sync command'
       When run rb -R "$RUBIES_DIR" sync
       The status should be success
       The lines of stderr should be valid number
-      The output should include "Environment Successfully Synchronized"
-      The output should include "Bundle complete!"
+      The stderr should include "[overall] complete: Your bundle is ready"
+      The stderr should include "[worker: 0] Bundle complete!"
     End
 
     It 'does not emit bundler deprecation warnings'
       When run rb -R "$RUBIES_DIR" sync
       The status should be success
-      The output should include "Environment Successfully Synchronized"
+      The stderr should include "[overall] complete: Your bundle is ready"
       The stderr should not include "[DEPRECATED]"
     End
 
@@ -65,7 +65,7 @@ Describe 'rb sync command'
         When run rb -R "$RUBIES_DIR" s
         The status should be success
         The lines of stderr should be valid number
-        The output should include "Environment Successfully Synchronized"
+        The stderr should include "[overall] complete: Your bundle is ready"
       End
     End
   End
@@ -83,7 +83,7 @@ Describe 'rb sync command'
       When run rb -R "$RUBIES_DIR" sync
       The status should be success
       The lines of stderr should be valid number
-      The output should include "Synchronizing"
+      The stderr should include "[overall] Preparing your bundle"
     End
   End
 
@@ -113,7 +113,7 @@ EOF
       When run rb -R "$RUBIES_DIR" sync
       The status should be success
       The lines of stderr should be valid number
-      The output should include "Synchronizing"
+      The stderr should include "[overall] Preparing your bundle"
 
       # Verify rake is still in lockfile but minitest is removed
       The path Gemfile.lock should be exist
@@ -129,7 +129,7 @@ EOF
       When run rb sync
       The status should be success
       The lines of stderr should be valid number
-      The output should include "Environment Successfully Synchronized"
+      The stderr should include "[overall] complete: Your bundle is ready"
     End
 
     It 'respects RB_RUBY_VERSION environment variable'
@@ -138,7 +138,7 @@ EOF
       When run rb -R "$RUBIES_DIR" sync
       The status should be success
       The lines of stderr should be valid number
-      The output should include "Synchronizing"
+      The stderr should include "[overall] Preparing your bundle"
     End
 
     It 'respects RB_NO_BUNDLER environment variable (disables sync)'
@@ -155,7 +155,7 @@ EOF
       When run rb -R "$RUBIES_DIR" -r "$OLDER_RUBY" sync
       The status should be success
       The lines of stderr should be valid number
-      The output should include "Synchronizing"
+      The stderr should include "[overall] Preparing your bundle"
     End
   End
 End

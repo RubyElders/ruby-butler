@@ -5,6 +5,25 @@ use log::debug;
 use semver::Version;
 use std::path::{Path, PathBuf};
 
+#[derive(Debug)]
+pub enum SyncEvent<'a> {
+    Checking,
+    CheckingLockfile,
+    LockfileChecked { changed: bool },
+    Installing,
+    Output { line: &'a str, stderr: bool },
+}
+
+fn forward_output(event: SyncEvent<'_>, handler: &mut impl FnMut(&str)) {
+    if let SyncEvent::Output { line, stderr } = event {
+        if stderr {
+            eprintln!("{line}");
+        } else {
+            handler(line);
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BundlerRuntime {
     /// Root directory containing the Gemfile
@@ -77,7 +96,6 @@ impl BundlerRuntime {
     }
 
     /// Check if bundler environment is synchronized (dependencies satisfied)
-    /// Also updates Gemfile.lock if check passes to handle removed gems
     pub fn check_sync(
         &self,
         butler_runtime: &crate::butler::ButlerRuntime,
@@ -97,11 +115,6 @@ impl BundlerRuntime {
                     is_synced,
                     output.status.code().unwrap_or(-1)
                 );
-
-                if is_synced {
-                    debug!("Bundle check passed, updating lockfile to match Gemfile");
-                    self.update_lockfile_quietly(butler_runtime)?;
-                }
 
                 Ok(is_synced)
             }
@@ -126,6 +139,16 @@ impl BundlerRuntime {
     where
         F: FnMut(&str),
     {
+        self.install_with_events(butler_runtime, |event| {
+            forward_output(event, &mut output_handler)
+        })
+    }
+
+    fn install_with_events(
+        &self,
+        butler_runtime: &crate::butler::ButlerRuntime,
+        mut output_handler: impl FnMut(SyncEvent<'_>),
+    ) -> std::io::Result<()> {
         use std::io::{BufRead, BufReader};
         use std::process::Stdio;
 
@@ -152,26 +175,53 @@ impl BundlerRuntime {
             }
         };
 
-        if let Some(stdout) = child.stdout.take() {
-            let reader = BufReader::new(stdout);
-            for line in reader.lines() {
-                let line = line?;
-                output_handler(&line);
-            }
-        }
-
         let mut stderr_content = String::new();
-        if let Some(stderr) = child.stderr.take() {
-            let reader = BufReader::new(stderr);
-            for line in reader.lines() {
-                let line = line?;
-                eprintln!("{}", line); // Still show stderr to user
-                stderr_content.push_str(&line);
-                stderr_content.push('\n');
+        let read_result = std::thread::scope(|scope| {
+            let (sender, receiver) = std::sync::mpsc::sync_channel(64);
+            if let Some(stdout) = child.stdout.take() {
+                let sender = sender.clone();
+                scope.spawn(move || {
+                    for line in BufReader::new(stdout).lines() {
+                        if sender.send((false, line)).is_err() {
+                            break;
+                        }
+                    }
+                });
             }
-        }
+            if let Some(stderr) = child.stderr.take() {
+                let sender = sender.clone();
+                scope.spawn(move || {
+                    for line in BufReader::new(stderr).lines() {
+                        if sender.send((true, line)).is_err() {
+                            break;
+                        }
+                    }
+                });
+            }
+            drop(sender);
+            let mut error = None;
+            for (stderr, line) in receiver {
+                match line {
+                    Ok(line) => {
+                        if stderr {
+                            stderr_content.push_str(&line);
+                            stderr_content.push('\n');
+                        }
+                        output_handler(SyncEvent::Output {
+                            line: &line,
+                            stderr,
+                        });
+                    }
+                    Err(err) => {
+                        error.get_or_insert(err);
+                    }
+                }
+            }
+            error.map_or(Ok(()), Err)
+        });
 
         let status = child.wait()?;
+        read_result?;
 
         if status.success() {
             debug!("Bundle install completed successfully");
@@ -192,45 +242,14 @@ impl BundlerRuntime {
         }
     }
 
-    /// Update Gemfile.lock to match Gemfile quietly (no output)
-    /// Used by check_sync to ensure lockfile is up to date
-    fn update_lockfile_quietly(
-        &self,
-        butler_runtime: &crate::butler::ButlerRuntime,
-    ) -> std::io::Result<()> {
-        debug!("Quietly updating Gemfile.lock to match Gemfile");
-
-        // Run bundle lock --local to regenerate lockfile based on Gemfile
-        // Uses --local to avoid network access since bundle check already passed
-        let output = Command::new("bundle")
-            .arg("lock")
-            .arg("--local")
-            .current_dir(&self.root)
-            .output_with_context(butler_runtime)?;
-
-        if output.status.success() {
-            debug!("Gemfile.lock updated successfully");
-            Ok(())
-        } else {
-            // Silently ignore errors - lockfile update is best-effort
-            // The bundle check already passed, so environment is functional
-            debug!(
-                "Bundle lock failed but continuing (exit code: {})",
-                output.status.code().unwrap_or(-1)
-            );
-            Ok(())
-        }
-    }
-
     /// Update Gemfile.lock to match Gemfile (handles removed gems)
-    /// Used by sync command with output streaming
     fn update_lockfile<F>(
         &self,
         butler_runtime: &crate::butler::ButlerRuntime,
         output_handler: &mut F,
     ) -> std::io::Result<()>
     where
-        F: FnMut(&str),
+        F: FnMut(SyncEvent<'_>),
     {
         debug!("Updating Gemfile.lock to match Gemfile");
 
@@ -245,14 +264,17 @@ impl BundlerRuntime {
         if !output.stdout.is_empty() {
             let stdout_str = String::from_utf8_lossy(&output.stdout);
             for line in stdout_str.lines() {
-                output_handler(line);
+                output_handler(SyncEvent::Output {
+                    line,
+                    stderr: false,
+                });
             }
         }
 
         if !output.stderr.is_empty() {
             let stderr_str = String::from_utf8_lossy(&output.stderr);
             for line in stderr_str.lines() {
-                eprintln!("{}", line);
+                output_handler(SyncEvent::Output { line, stderr: true });
             }
         }
 
@@ -267,6 +289,14 @@ impl BundlerRuntime {
         }
     }
 
+    fn lockfile_contents(&self) -> std::io::Result<Option<Vec<u8>>> {
+        match std::fs::read(self.root.join("Gemfile.lock")) {
+            Ok(contents) => Ok(Some(contents)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     pub fn synchronize<F>(
         &self,
         butler_runtime: &crate::butler::ButlerRuntime,
@@ -275,22 +305,40 @@ impl BundlerRuntime {
     where
         F: FnMut(&str),
     {
+        self.synchronize_with_events(butler_runtime, |event| {
+            forward_output(event, &mut output_handler)
+        })
+    }
+
+    pub fn synchronize_with_events(
+        &self,
+        butler_runtime: &crate::butler::ButlerRuntime,
+        mut output_handler: impl FnMut(SyncEvent<'_>),
+    ) -> std::io::Result<SyncResult> {
+        output_handler(SyncEvent::Checking);
         debug!("Starting bundler synchronization");
 
-        // check_sync already updates lockfile quietly, but for sync command
-        // we want to show output, so we call update_lockfile explicitly
         match self.check_sync(butler_runtime)? {
             true => {
                 debug!("Bundler environment already synchronized");
 
+                output_handler(SyncEvent::CheckingLockfile);
+                let before = self.lockfile_contents()?;
                 self.update_lockfile(butler_runtime, &mut output_handler)?;
+                let changed = before != self.lockfile_contents()?;
+                output_handler(SyncEvent::LockfileChecked { changed });
 
-                Ok(SyncResult::AlreadySynced)
+                Ok(if changed {
+                    SyncResult::Synchronized
+                } else {
+                    SyncResult::AlreadySynced
+                })
             }
             false => {
                 debug!("Bundler environment requires synchronization");
 
-                self.install_dependencies(butler_runtime, output_handler)?;
+                output_handler(SyncEvent::Installing);
+                self.install_with_events(butler_runtime, output_handler)?;
 
                 Ok(SyncResult::Synchronized)
             }

@@ -497,3 +497,104 @@ fn standalone_threads_share_workers_and_completion_counts() {
     drop(state);
     reporter.finish();
 }
+
+#[test]
+fn standalone_worker_output_keeps_three_lines_without_changing_its_label() {
+    let buffer = Buffer::default();
+    let reporter = Reporter::with_writer("service", buffer.clone());
+    let handle = reporter.handle();
+    handle.worker_started(0, "Bundler");
+    handle.worker_started(1, "other job");
+    handle.worker_output(1, "other output");
+    handle.worker_output(0, "one\ntwo\nthree\nfour\n");
+    {
+        let state = reporter.progress.lock().unwrap();
+        assert_eq!(state.workers[&0].detail.as_deref(), Some("Bundler"));
+        assert_eq!(state.workers[&0].output, ["two", "three", "four"]);
+        assert_eq!(state.workers[&1].output, ["other output"]);
+        let lines = render::body_lines(&state);
+        assert!(lines.windows(3).any(|lines| lines
+            == [
+                "\x1b[2m│        two\x1b[22m",
+                "\x1b[2m│        three\x1b[22m",
+                "\x1b[2m│        four\x1b[22m"
+            ]));
+    }
+    handle.worker_started(0, "next job");
+    assert!(
+        reporter.progress.lock().unwrap().workers[&0]
+            .output
+            .is_empty()
+    );
+    reporter.finish();
+    let finished = buffer.text();
+    handle.worker_output(0, "late output");
+    assert_eq!(buffer.text(), finished);
+}
+
+#[test]
+fn standalone_plain_worker_output_appends_every_line_with_a_prefix() {
+    let buffer = Buffer::default();
+    let reporter = Reporter::with_plain_writer("service", buffer.clone());
+    let handle = reporter.handle();
+    handle.worker_started(2, "Bundler");
+    handle.worker_output(2, "one\ntwo\nthree\nfour\n");
+    reporter.finish();
+    let output = buffer.text();
+    assert!(
+        output.contains("[worker: 2] one\n[worker: 2] two\n[worker: 2] three\n[worker: 2] four\n")
+    );
+    assert!(!output.contains('\x1b'));
+    handle.worker_output(2, "late output");
+    assert_eq!(buffer.text(), output);
+}
+
+#[test]
+fn compact_completion_keeps_failure_details() {
+    let buffer = Buffer::default();
+    let reporter = Reporter::with_writer("service", buffer.clone());
+    let handle = reporter.handle();
+    handle.worker_started(0, "inspection");
+    handle.worker_failed(0, "Replace the teacup");
+    buffer.0.lock().unwrap().clear();
+    reporter.finish_compact("service failed");
+    let output = buffer.text();
+    assert!(output.contains("┌─ × service"));
+    assert!(output.contains("│  × Replace the teacup"));
+    assert!(output.contains("└─ × service failed"));
+    handle.worker_output(0, "late output");
+    assert_eq!(buffer.text(), output);
+}
+
+#[test]
+fn compact_plain_completion_preserves_append_only_output() {
+    let buffer = Buffer::default();
+    let reporter = Reporter::with_plain_writer("service", buffer.clone());
+    let handle = reporter.handle();
+    handle.worker_started(0, "inspection");
+    handle.worker_output(0, "Checking the china");
+    handle.worker_finished(0);
+    reporter.finish_compact("ready");
+    let output = buffer.text();
+    assert!(output.contains("[worker: 0] Checking the china\n"));
+    assert!(output.contains("[overall] complete: ready"));
+    assert!(!output.contains('\x1b'));
+    handle.worker_output(0, "late output");
+    assert_eq!(buffer.text(), output);
+}
+
+#[test]
+fn live_footer_uses_direct_status_and_trailing_duration() {
+    let mut state = ProgressState::default();
+    assert_eq!(
+        render::tree_frame(&state).last().unwrap(),
+        "└─ ⠋ completed 0 | active 0 | failed 0 (0.0s)"
+    );
+    state.phase = "checking dependencies";
+    state.done = 1;
+    state.total = 2;
+    assert_eq!(
+        render::tree_frame(&state).last().unwrap(),
+        "└─ ⠋ checking dependencies 1/2 | workers 0 (0.0s)"
+    );
+}

@@ -58,6 +58,17 @@ pub(crate) struct WorkerProgress {
 }
 
 impl ProgressState {
+    pub(crate) fn worker_output(&mut self, worker: usize, output: &str) {
+        if let Some(state) = self.workers.get_mut(&worker) {
+            for line in output.lines() {
+                state.output.push_back(line.to_owned());
+                while state.output.len() > 3 {
+                    state.output.pop_front();
+                }
+            }
+        }
+    }
+
     pub(crate) fn set_worker_status(&mut self, worker: usize, status: WorkerStatus) -> bool {
         let Some(state) = self.workers.get_mut(&worker) else {
             return false;

@@ -49,14 +49,7 @@ impl TaskEventSink for TaskBridge {
                 elapsed: Some(elapsed),
             },
             TaskEvent::Output { worker, line, .. } => {
-                if let Some(state) = progress.workers.get_mut(&worker) {
-                    for line in line.lines() {
-                        state.output.push_back(line.to_owned());
-                        while state.output.len() > 3 {
-                            state.output.pop_front();
-                        }
-                    }
-                }
+                progress.worker_output(worker, &line);
                 crate::render::draw(&mut progress);
                 return;
             }

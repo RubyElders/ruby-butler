@@ -70,7 +70,7 @@ pub(crate) fn tree_frame(state: &ProgressState) -> Vec<String> {
             .filter(|worker| worker.status == WorkerStatus::Running)
             .count();
         fit_terminal(&format!(
-            "└─ {icon} completed {} | active {} | failed {} | elapsed {}",
+            "└─ {icon} completed {} | active {} | failed {} ({})",
             state.completed_tasks,
             active,
             state.failed_tasks,
@@ -78,7 +78,7 @@ pub(crate) fn tree_frame(state: &ProgressState) -> Vec<String> {
         ))
     } else {
         fit_terminal(&format!(
-            "└─ {icon} overall: {} {}/{} | workers {} | elapsed {}",
+            "└─ {icon} {} {}/{} | workers {} ({})",
             state.phase,
             state.done,
             state.total,
@@ -114,6 +114,7 @@ pub(crate) fn body_lines(state: &ProgressState) -> Vec<String> {
             format_duration(state.phase_elapsed())
         ));
     }
+    let mut lines: Vec<_> = lines.into_iter().map(|line| fit_terminal(&line)).collect();
     for (position, (worker, worker_state)) in state.workers.iter().enumerate() {
         let branch = if position + 1 == state.workers.len() {
             "└─"
@@ -129,7 +130,7 @@ pub(crate) fn body_lines(state: &ProgressState) -> Vec<String> {
             WorkerStatus::Succeeded => "✓",
             WorkerStatus::Failed => "×",
         };
-        lines.push(format!(
+        lines.push(fit_terminal(&format!(
             "│     {} {marker} worker {} ({}){} ({})",
             branch,
             worker,
@@ -143,12 +144,13 @@ pub(crate) fn body_lines(state: &ProgressState) -> Vec<String> {
                     elapsed + worker_state.started.elapsed()
                 }
             ),)
-        ));
+        )));
         for line in &worker_state.output {
-            lines.push(format!("│        {line}"));
+            let line = fit_terminal(&format!("│        {line}"));
+            lines.push(format!("\x1b[2m{line}\x1b[22m"));
         }
     }
-    lines.into_iter().map(|line| fit_terminal(&line)).collect()
+    lines
 }
 
 #[cfg(test)]
@@ -237,6 +239,21 @@ fn clear_render(state: &mut ProgressState) {
     state.frame_capacity = 0;
 }
 
+pub(crate) fn finish_compact(state: &mut ProgressState, summary: Option<String>) {
+    if state.plain {
+        crate::plain::finish(state, summary.as_deref());
+        return;
+    }
+    clear_render(state);
+    let line = fit_terminal(&format!(
+        "✓ {} ({})",
+        summary.as_deref().unwrap_or("complete"),
+        format_duration(state.elapsed())
+    ));
+    println(state, format_args!("{line}"));
+    flush(state);
+}
+
 pub(crate) fn finish(state: &mut ProgressState, summary: Option<String>) {
     if state.plain {
         crate::plain::finish(state, summary.as_deref());
@@ -306,20 +323,28 @@ pub(crate) fn finish(state: &mut ProgressState, summary: Option<String>) {
             .iter()
             .map(|record| {
                 fit_terminal(&format!(
-                    "│  ├─ ✓ {} {}/{} ({})",
+                    "│  ├─ ✓ {} {}/{}{} ({})",
                     record.phase,
                     record.done,
                     record.total,
+                    record
+                        .detail
+                        .as_deref()
+                        .map_or(String::new(), |detail| format!(" | {detail}")),
                     format_duration(record.elapsed)
                 ))
             })
             .collect::<Vec<_>>();
         if !state.phase.is_empty() {
             body.push(fit_terminal(&format!(
-                "│  ├─ {marker} {} {}/{} ({})",
+                "│  ├─ {marker} {} {}/{}{} ({})",
                 state.phase,
                 state.done,
                 state.total,
+                state
+                    .phase_detail
+                    .as_deref()
+                    .map_or(String::new(), |detail| format!(" | {detail}")),
                 format_duration(state.phase_elapsed())
             )));
         }
