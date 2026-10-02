@@ -5,6 +5,7 @@ pub mod new;
 pub mod run;
 pub mod shell_integration;
 pub mod sync;
+mod sync_report;
 pub mod version;
 
 pub use exec::exec_command;

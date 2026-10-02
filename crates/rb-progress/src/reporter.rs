@@ -80,6 +80,20 @@ impl ProgressHandle {
         render::draw(&mut progress);
     }
 
+    /// Appends output to an existing worker's three-line terminal preview.
+    /// Plain reporters write every line with its worker prefix.
+    pub fn worker_output(&self, worker: usize, output: &str) {
+        let mut progress = self.progress.lock().unwrap();
+        if progress.closed {
+            return;
+        }
+        if progress.plain {
+            crate::plain::line(&progress, &format!("worker: {worker}"), output);
+        }
+        progress.worker_output(worker, output);
+        render::draw(&mut progress);
+    }
+
     pub fn worker_finished(&self, worker: usize) {
         self.end_worker(worker, None);
     }
@@ -192,11 +206,15 @@ impl Reporter {
     }
 
     pub fn finish(mut self) {
-        self.stop(None);
+        self.stop(None, false);
     }
 
     pub fn finish_with_summary(mut self, summary: impl Into<String>) {
-        self.stop(Some(summary.into()));
+        self.stop(Some(summary.into()), false);
+    }
+
+    pub fn finish_compact(mut self, summary: impl Into<String>) {
+        self.stop(Some(summary.into()), true);
     }
 
     pub fn handle(&self) -> ProgressHandle {
@@ -212,7 +230,7 @@ impl Reporter {
         })
     }
 
-    fn stop(&mut self, summary: Option<String>) {
+    fn stop(&mut self, summary: Option<String>, compact: bool) {
         if self.finished {
             return;
         }
@@ -222,14 +240,18 @@ impl Reporter {
             let _ = ticker.join();
         }
         let mut progress = self.progress.lock().unwrap();
-        render::finish(&mut progress, summary);
+        if compact && progress.failed_tasks == 0 && !progress.external_output {
+            render::finish_compact(&mut progress, summary);
+        } else {
+            render::finish(&mut progress, summary);
+        }
         progress.closed = true;
     }
 }
 
 impl Drop for Reporter {
     fn drop(&mut self) {
-        self.stop(None);
+        self.stop(None, false);
     }
 }
 

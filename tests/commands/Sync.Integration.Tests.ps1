@@ -35,7 +35,7 @@ gem 'rake'
             try {
                 $Output = & $Script:RbPath sync 2>&1
                 $LASTEXITCODE | Should -Be 0
-                ($Output -join " ") | Should -Match "Environment Successfully Synchronized|Bundle complete"
+                ($Output -join " ") | Should -Match "Your bundle is ready|Bundle complete"
             } finally {
                 Pop-Location
             }
@@ -54,7 +54,7 @@ gem 'rake'
             try {
                 $Output = & $Script:RbPath s 2>&1
                 $LASTEXITCODE | Should -Be 0
-                ($Output -join " ") | Should -Match "Environment Successfully Synchronized|Bundle complete"
+                ($Output -join " ") | Should -Match "Your bundle is ready|Bundle complete"
             } finally {
                 Pop-Location
             }

@@ -133,6 +133,7 @@ jobs:
         cargo test -p rb-progress --features rb-task
         cargo build -p rb-progress --features rb-task --example progress_ui_probe --example tasks
         python3 crates/rb-progress/tests/pty_ui_test.py target/debug/examples/progress_ui_probe target/debug/examples/parallel
+        python3 crates/rb-cli/tests/sync_ui_test.py target/debug/rb
 
     - name: Build release
       run: cargo build --release

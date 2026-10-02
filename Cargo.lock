@@ -556,6 +556,7 @@ dependencies = [
  "kdl",
  "log",
  "rb-core",
+ "rb-progress",
  "rb-tests",
  "semver",
  "serde",

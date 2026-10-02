@@ -1,4 +1,4 @@
-use colored::*;
+use super::sync_report::{Completion, report_sync, sync_reporter};
 use log::{debug, info};
 use rb_core::butler::{ButlerError, ButlerRuntime, Command};
 
@@ -24,30 +24,9 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<
     if let Some(bundler_runtime) = butler.bundler_runtime() {
         match bundler_runtime.check_sync(&butler) {
             Ok(false) => {
-                println!(
-                    "{} {}",
-                    "🎩 Butler Notice:".bright_blue().bold(),
-                    "Bundler environment requires synchronization. Preparing now...".dimmed()
-                );
-
-                match bundler_runtime.synchronize(&butler, |line| {
-                    println!("{}", line.dimmed());
-                }) {
-                    Ok(_) => {
-                        println!(
-                            "{} {}",
-                            "✨".bright_green(),
-                            "Environment meticulously prepared. Proceeding with execution..."
-                                .green()
-                        );
-                    }
-                    Err(e) => {
-                        return Err(ButlerError::General(format!(
-                            "Failed to prepare bundler environment: {}",
-                            e
-                        )));
-                    }
-                }
+                report_sync(sync_reporter(), Completion::Compact, |handler| {
+                    bundler_runtime.synchronize_with_events(&butler, handler)
+                })?;
             }
             Ok(true) => {
                 debug!("Bundler environment already synchronized");

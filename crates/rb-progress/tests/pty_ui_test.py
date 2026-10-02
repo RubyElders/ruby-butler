@@ -144,9 +144,12 @@ def capture(binary, args, rows, columns, prompt_row, observe=None):
             if not chunk:
                 break
             output.extend(chunk)
-            screen.feed(chunk)
-            if observe is not None:
-                observe(screen)
+            if observe is None:
+                screen.feed(chunk)
+            else:
+                for line in chunk.splitlines(keepends=True):
+                    screen.feed(line)
+                    observe(screen)
             if not screen.has('[shell]$ rb --db sync'):
                 raise AssertionError('prompt was erased or scrolled during rendering')
             if not progress_started and b'resolved' in output:

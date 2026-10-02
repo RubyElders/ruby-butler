@@ -236,13 +236,13 @@ Describe "Ruby Butler Exec Command - Bundler Environment"
         The output should include "Bundle complete"
       End
 
-      It "executes bundle list after install"
-        # First install, then test list in separate test
+      It "installs dependencies before listing bundled gems"
         When run rb -R "$RUBIES_DIR" exec bundle list
         The status should equal 0
-        The lines of stderr should be valid number
-        # Bundle list may trigger install, so expect bundler output
-        The output should include "Butler Notice"
+        The output should include "Gems included by the bundle:"
+        The output should include "rake"
+        The stderr should include "[worker: 0] installing dependencies"
+        The stderr should include "[overall] complete: Your bundle is ready"
       End
 
       It "executes bundle exec rake after install"
