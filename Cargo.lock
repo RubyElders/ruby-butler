@@ -1276,6 +1276,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rb-gem-types"
+version = "0.3.1"
+dependencies = [
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "rb-gemfile"
 version = "0.3.1"
 dependencies = [
