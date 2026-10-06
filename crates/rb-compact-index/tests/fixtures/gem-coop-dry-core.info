@@ -1,0 +1,2 @@
+0.1.0 concurrent-ruby:~> 1.0|checksum:e682e6d7067e48017a8daa4e7361650761ff34539f65e4559c4ab1e6244f16af,ruby:>= 0,rubygems:>= 0,licenses:MIT,published_at:2016-09-17T16:12:39.153Z
+1.2.0 concurrent-ruby:~> 1.0,logger:>= 0,zeitwerk:~> 2.6|checksum:0cc5a7da88df397f153947eeeae42e876e999c1e30900f3c536fb173854e96a1,ruby:>= 3.2,rubygems:>= 0,licenses:MIT,published_at:2025-12-28T02:24:36.645Z
