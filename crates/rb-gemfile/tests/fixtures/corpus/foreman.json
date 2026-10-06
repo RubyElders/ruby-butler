@@ -1,0 +1,31 @@
+{
+  "dependencies": {
+    "rails": {
+      "version": "~> 7.0.3"
+    },
+    "fog-vsphere": {
+      "version": [
+        ">= 3.7.1",
+        "< 4.0"
+      ],
+      "groups": [
+        "vmware"
+      ]
+    },
+    "puma": {
+      "version": [
+        ">= 8.0",
+        "< 9"
+      ],
+      "require": false,
+      "groups": [
+        "test",
+        "service"
+      ]
+    }
+  },
+  "absent": [
+    "manageiq-schema",
+    "idn-ruby"
+  ]
+}

@@ -1,4 +1,5 @@
 pub mod exec;
+pub mod export_gemfile;
 pub mod help;
 pub mod info;
 pub mod new;

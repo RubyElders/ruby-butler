@@ -1,0 +1,17 @@
+[[sources]]
+url = "https://rubygems.org"
+default = true
+[sources.dependencies]
+rails = "~> 8.0"
+[[sources.groups]]
+names = ["development", "test"]
+[sources.groups.dependencies]
+rake = { version = "~> 13", require = false }
+[[sources.groups]]
+names = ["production"]
+[sources.groups.dependencies]
+rake = { version = "~> 13", require = "rake/task" }
+[[sources]]
+url = "https://gems.example.com"
+[sources.dependencies]
+internal = "~> 2.0"

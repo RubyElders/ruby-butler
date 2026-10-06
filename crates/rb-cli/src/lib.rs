@@ -181,6 +181,25 @@ pub enum Commands {
     )]
     New,
 
+    /// 📄 Export Gemfile declarations into a project manifest without Bundler
+    #[command(
+        about = "📄 Export Gemfile declarations without Bundler",
+        next_help_heading = "Utility Commands"
+    )]
+    ExportGemfile {
+        /// Gemfile path (otherwise BUNDLE_GEMFILE, then gems.rb or Gemfile searched upward)
+        #[arg(value_hint = clap::ValueHint::FilePath)]
+        gemfile: Option<std::path::PathBuf>,
+
+        /// Write atomically to this file instead of stdout
+        #[arg(short, long, value_hint = clap::ValueHint::FilePath)]
+        output: Option<std::path::PathBuf>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value = "toml")]
+        format: ProjectFormat,
+    },
+
     /// 📋 Display Ruby Butler version information
     #[command(about = "📋 Display Ruby Butler version information")]
     Version,
@@ -212,6 +231,21 @@ pub enum Commands {
         #[arg(help = "Cursor position (COMP_POINT)")]
         point: String,
     },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum ProjectFormat {
+    Toml,
+    Kdl,
+}
+
+impl From<ProjectFormat> for rb_gemfile::ExportFormat {
+    fn from(format: ProjectFormat) -> Self {
+        match format {
+            ProjectFormat::Toml => Self::Toml,
+            ProjectFormat::Kdl => Self::Kdl,
+        }
+    }
 }
 
 #[derive(Subcommand)]

@@ -1,0 +1,32 @@
+{
+  "repo": "theforeman/foreman",
+  "sha": "a21273a13820103c2f569a4d5446806dfff3dae0",
+  "files_sha256": {
+    "Gemfile": "83100e5b2186bdc12c01f55e5005a574bd63e7fdb21e9044218280269d1895ea",
+    "LICENSE": "2535014d0a3dafa7940a2ed0ef7a7881000eebc14456ce687aa8c7cc278f06a7",
+    "bundler.d/assets.rb": "601e17ede96b8499b20cb399e832bb2e80e694e24a4d79cb123c5797e17f1072",
+    "bundler.d/console.rb": "bc29f5ed63422d2efdf3881c415fca7208c7f15d8cbacde3bdf7289686b5af41",
+    "bundler.d/development.rb": "a0dcbe136b4d277f51d9fad8002136178a40205dd3c3f8be551c763883bc2431",
+    "bundler.d/dynflow_sidekiq.rb": "49fc7c7efb7498452bb0b677df21a7cd4468d753cf0b6858c99c670f782c84df",
+    "bundler.d/ec2.rb": "ff54fb0c1d5c8f542984a2ac46b5f4b02076e9131da4808efc5813113de93248",
+    "bundler.d/facter.rb": "f004b8c5bc36e6a822a5c8d92bc5ee06e7f0aeaef7da0b32376712c9bbf020c5",
+    "bundler.d/journald.rb": "6d94f25eb02b7c16bf0bf6bbb0eeb585c24ae12e4d56c3cb1a61ab034659b2b4",
+    "bundler.d/jsonp.rb": "e98e9de9ae4eb551998b4a4ba7c3e891c7d2d5e9f3c88fb2924be8bff90681c2",
+    "bundler.d/libvirt.rb": "f413fb1451a0b8a073f11bd0b573d212a38f938f04aac9a964b039fbce659444",
+    "bundler.d/nulldb.rb": "801255245771db638843e340d5999178aaec08e072341f57eb75e70b5be3d12e",
+    "bundler.d/openid.rb": "ebc7f8eecf8735fcb5b9783f28c6b473e6c2da02aed78d3db95ab58811471738",
+    "bundler.d/openstack.rb": "f864ae613c09266d0ff4a2ac2ce8678bccdeedcd8af79ef0f7e9b423ff7ccee4",
+    "bundler.d/postgresql.rb": "64dc76665b4990e475fe8911a97ac1b77c394e4eb538bcf32619adbd4441977e",
+    "bundler.d/redis.rb": "bb658341848af85faa43c06ef53f8205832da31d1c05b18fa5c81d5eed15ef1f",
+    "bundler.d/service.rb": "1b0199e5b7d174769cffa7a57518a18ed0f98eae3daf23887856761d70317b52",
+    "bundler.d/telemetry.rb": "378c68487da292154edb9851149bf7bac83e02d2a5ac27ec18d6a189d71409b5",
+    "bundler.d/test.rb": "a15025cd18015f6844276e055697539d2f2e4a5f9d5084859de1741f4db63ff4",
+    "bundler.d/vmware.rb": "f0055800a2f426c2869eca1eb9a0442628f1d1b2190ef6c2330bdc52a54c69f6"
+  },
+  "direct_dependencies": null,
+  "locked_gem_names": null,
+  "remotes": [
+    "https://rubygems.org"
+  ],
+  "lockfile_note": "No root Gemfile.lock committed at this upstream revision."
+}

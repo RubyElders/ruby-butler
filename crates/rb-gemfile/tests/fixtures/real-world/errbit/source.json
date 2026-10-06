@@ -1,0 +1,16 @@
+{
+  "repo": "errbit/errbit",
+  "sha": "eec7c6e99b4145112698446e1958107850241ca6",
+  "files_sha256": {
+    ".ruby-version": "f6b1c526e9020e3805af187b44a8f2d22b9e21fe9f02a50cbaa8368f8faaf189",
+    "Gemfile": "30f8c7fb9bd975c2245b466c671f5cfd142f2da6681407a522a469c79302d87a",
+    "Gemfile.lock": "c05e506d9b5892a99053fc3b79ef6200fccb490a214e6a86ad7d42e3cf89dc04",
+    "LICENSE": "9d9230d09511ae03e5721bea8a0d8b7559a5092113dbc81d839d890a4cdc8eb5",
+    "UserGemfile": "2c0982c561aaad7d568157012a2fe86979ba51542cdc4b5b8cd07d1237264cec"
+  },
+  "direct_dependencies": 83,
+  "locked_gem_names": 216,
+  "remotes": [
+    "https://rubygems.org/"
+  ]
+}

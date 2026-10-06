@@ -1,0 +1,16 @@
+{
+  "repo": "forem/forem",
+  "sha": "b0db42193946c988e057430cfd4b13e4b76b9e82",
+  "files_sha256": {
+    "Gemfile": "0b738c86e5fb6eaaeed24eef43526311c5f8d9e58c8e58f8737918ce03302710",
+    "Gemfile.lock": "2b4dd737889c14143c6fc44e28954c8777e496cb7b3fdbeb9d96d3f2c1afeef5",
+    "LICENSE.md": "0523190ce40c0e0c6e1deb4208926030d72fc6bbbbf99d92722a565bbe955f90",
+    ".ruby-version": "5eee6c0c5c6901f5e523f0a434bca4106e1ff7136deb451f982b0bb1a7b13716"
+  },
+  "direct_dependencies": 167,
+  "locked_gem_names": 412,
+  "remotes": [
+    "https://github.com/forem/acts_as_follower.git",
+    "https://rubygems.org/"
+  ]
+}

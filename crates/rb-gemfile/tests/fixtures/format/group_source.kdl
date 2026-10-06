@@ -1,0 +1,7 @@
+group "development" {
+    group "test" {
+        source "https://gems.example.com" {
+            gem "internal" "~> 2.0" require=#false
+        }
+    }
+}

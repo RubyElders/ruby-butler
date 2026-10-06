@@ -1,0 +1,15 @@
+{
+  "repo": "mastodon/mastodon",
+  "sha": "0d413257191e343a313c5e74c203bd9a87a1bf2d",
+  "files_sha256": {
+    "Gemfile": "6e4094c8499e2b4c29508d6d76b14f4c6005336ed1627111052e01b6582cadb7",
+    "Gemfile.lock": "095c9b068c9f80d4481e553c4c733738fbdcf65392fcc2142c812f2030d06d74",
+    "LICENSE": "57c8ff33c9c0cfc3ef00e650a1cc910d7ee479a8bc509f6c9209a7c2a11399d6"
+  },
+  "direct_dependencies": 154,
+  "locked_gem_names": 345,
+  "remotes": [
+    "https://github.com/mastodon/webpush.git",
+    "https://rubygems.org/"
+  ]
+}

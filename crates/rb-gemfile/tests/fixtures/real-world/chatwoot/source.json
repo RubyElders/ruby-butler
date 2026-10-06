@@ -1,0 +1,14 @@
+{
+  "repo": "chatwoot/chatwoot",
+  "sha": "359c4d4ce72e3873710c010d2b00323cc9b06f80",
+  "files_sha256": {
+    "Gemfile": "8e850a219d4673653eeba21f045399f4dd336692caff2c69568397613739681e",
+    "Gemfile.lock": "c8bc2c87255f2e1852bded2d22bb1df6c2bc96622a8006b982f5b68b8b7ac7ba",
+    "LICENSE": "602d38a808315f221a5e72e2e90e40cb9300f09aa4b317a6a8f1a0c7a3d2175d"
+  },
+  "direct_dependencies": 152,
+  "locked_gem_names": 381,
+  "remotes": [
+    "https://rubygems.org/"
+  ]
+}

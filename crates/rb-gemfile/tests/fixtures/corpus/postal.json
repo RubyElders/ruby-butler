@@ -1,0 +1,24 @@
+{
+  "dependencies": {
+    "rails": {
+      "version": "= 7.1.6"
+    },
+    "execjs": {
+      "version": [
+        "~> 2.7",
+        "< 2.8"
+      ]
+    },
+    "coffee-rails": {
+      "version": "~> 5.0",
+      "groups": [
+        "development",
+        "assets"
+      ]
+    }
+  },
+  "absent": [
+    "manageiq-schema",
+    "idn-ruby"
+  ]
+}

@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  RUBY_TEST_VERSION: '3.4'
 
 jobs:
   lint:
@@ -90,6 +91,28 @@ jobs:
     - name: Run yamllint
       run: make lint-yaml
 
+  test-gemfile-ruby:
+    name: Gemfile Ruby Tests (${{ matrix.ruby }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        ruby: ['3.3', '3.4', '4.0']
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby }}
+        bundler: none
+
+    - name: Install Minitest
+      run: gem install minitest --version '~> 5.25' --no-document
+
+    - name: Test the Ruby evaluator
+      run: ruby crates/rb-gemfile/tests/ruby/evaluator_test.rb
+
   test-rust:
     name: Rust Tests
     runs-on: ${{ matrix.os }}
@@ -115,6 +138,12 @@ jobs:
 
     - name: Build
       run: cargo build --verbose
+
+    - name: Install Ruby for Gemfile evaluation tests
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ env.RUBY_TEST_VERSION }}
+        bundler: none
 
     - name: Run unit tests
       run: cargo test --verbose
@@ -341,6 +370,12 @@ jobs:
 
     - name: Install cargo-llvm-cov
       run: cargo install --force cargo-llvm-cov
+
+    - name: Install Ruby for Gemfile evaluation tests
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ env.RUBY_TEST_VERSION }}
+        bundler: none
 
     - name: Generate coverage report
       run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info

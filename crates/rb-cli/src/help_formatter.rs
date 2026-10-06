@@ -19,7 +19,13 @@ pub fn print_custom_help(cmd: &clap::Command) {
 
     let workflow_commands = ["run", "exec", "sync"];
     let diagnostic_commands = ["info"];
-    let utility_commands = ["new", "version", "help", "shell-integration"];
+    let utility_commands = [
+        "new",
+        "export-gemfile",
+        "version",
+        "help",
+        "shell-integration",
+    ];
 
     println!("{}", "Commands:".green().bold());
     for subcmd in cmd.get_subcommands() {

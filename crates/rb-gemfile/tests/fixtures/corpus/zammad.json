@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "rails": {
+      "version": "~> 8.1.0"
+    },
+    "debug": {
+      "platforms": [
+        "mri"
+      ],
+      "groups": [
+        "development",
+        "test"
+      ],
+      "require": false
+    },
+    "delayed_job": {
+      "git": "https://github.com/zammad-deps/delayed_job",
+      "branch": "threadsafe"
+    }
+  },
+  "absent": [
+    "manageiq-schema",
+    "ai-agents"
+  ]
+}

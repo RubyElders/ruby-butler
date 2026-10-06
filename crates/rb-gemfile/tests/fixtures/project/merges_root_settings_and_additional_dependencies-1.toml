@@ -1,0 +1,10 @@
+[project]
+name = "sample"
+[scripts]
+test = "rspec"
+[bundle]
+source = "https://rubygems.org"
+without = ["development"]
+[dependencies]
+rake = ">= 13"
+rack = "~> 3"

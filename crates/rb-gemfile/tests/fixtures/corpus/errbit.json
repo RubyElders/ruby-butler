@@ -1,0 +1,20 @@
+{
+  "dependencies": {
+    "rails": {
+      "version": "8.1.3.1"
+    },
+    "listen": {
+      "version": "~> 3.10",
+      "groups": [
+        "development"
+      ]
+    },
+    "airbrake": {
+      "require": false
+    }
+  },
+  "absent": [
+    "manageiq-schema",
+    "pg"
+  ]
+}

@@ -1,0 +1,18 @@
+gem "git-gem" git="https://github.com/example/gem" tag="v1.0"
+source "https://rubygems.org" default=#true {
+    gem "rails" "~> 8.0"
+    group "development" "test" {
+        gem "rake" "~> 13" require=#false
+    }
+    group "production" {
+        gem "rake" "~> 13" require="rake/task"
+    }
+}
+source "https://gems.example.com" {
+    gem "internal" "~> 2.0"
+}
+source "https://plugins.example.com" {
+    gem "plugin" {
+        platforms "ruby"
+    }
+}

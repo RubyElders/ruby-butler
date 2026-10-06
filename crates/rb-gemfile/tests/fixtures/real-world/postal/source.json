@@ -1,0 +1,14 @@
+{
+  "repo": "postalserver/postal",
+  "sha": "ced77a3860c23779889aec8dacd2642f20d10cea",
+  "files_sha256": {
+    "Gemfile": "dc1ae39e1d2279a95e0e331ffc164a01ba0dd739e48757cfc0d21fc5752dd5c2",
+    "Gemfile.lock": "da9a25a9214c4cff93cbfaf4254b225c65a48a963377d43f9bdb65044a0f297b"
+  },
+  "direct_dependencies": 50,
+  "locked_gem_names": 162,
+  "remotes": [
+    "https://rubygems.org/"
+  ],
+  "license_note": "No LICENSE or COPYING file found in the upstream tree at this revision."
+}
