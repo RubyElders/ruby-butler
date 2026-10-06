@@ -1,0 +1,7 @@
+[[sources]]
+url = "https://rubygems.org"
+[[sources.groups]]
+names = ["development"]
+[sources.groups.dependencies]
+rake = [{ version = "~> 13", require = ["rake/task"] }, { version = "~> 13", require = false }]
+debug = { require = false }

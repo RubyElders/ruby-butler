@@ -1,0 +1,12 @@
+gem 'keep', '>= 2'
+gem 'replace', '~> 1'
+@dependencies.reject! { |dependency| dependency.name == 'replace' }
+gem 'replace', '~> 3'
+names = @dependencies.to_a.map(&:name)
+raise 'missing declarations' unless names.sort == %w[keep replace]
+spec = Bundler.load_gemspec(File.expand_path('sample.gemspec', __dir__))
+spec.runtime_dependencies.each { |dependency| gem dependency.name, *dependency.requirement.as_list }
+@dependencies.reject! { |dependency| dependency.name == 'keep' }
+platforms(Gem::Version.new(Bundler::VERSION) >= Gem::Version.new('2.5') ? :windows : :mingw) do
+  gem 'tzinfo-data'
+end

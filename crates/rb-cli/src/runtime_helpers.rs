@@ -16,6 +16,24 @@ pub fn with_butler_runtime<F>(context: &mut CommandContext, f: F) -> Result<(), 
 where
     F: FnOnce(&ButlerRuntime) -> Result<(), ButlerError>,
 {
+    with_runtime(context, *context.config.no_bundler.get(), f)
+}
+
+pub fn with_ruby_runtime<F>(context: &mut CommandContext, f: F) -> Result<(), ButlerError>
+where
+    F: FnOnce(&ButlerRuntime) -> Result<(), ButlerError>,
+{
+    with_runtime(context, true, f)
+}
+
+fn with_runtime<F>(
+    context: &mut CommandContext,
+    skip_bundler: bool,
+    f: F,
+) -> Result<(), ButlerError>
+where
+    F: FnOnce(&ButlerRuntime) -> Result<(), ButlerError>,
+{
     let rubies_dir = context.config.rubies_dir.get().clone();
 
     let requested_version = context.config.ruby_version_for_runtime();
@@ -24,7 +42,7 @@ where
         rubies_dir,
         requested_version,
         Some(context.config.gem_home.get().clone()),
-        *context.config.no_bundler.get(),
+        skip_bundler,
     )?;
 
     if context.config.has_unresolved()
@@ -35,6 +53,30 @@ where
     }
 
     f(&butler_runtime)
+}
+
+pub fn export_gemfile_command_wrapper(
+    context: &mut CommandContext,
+    gemfile: Option<PathBuf>,
+    output: Option<PathBuf>,
+    format: crate::ProjectFormat,
+) -> Result<(), ButlerError> {
+    let gemfile = crate::commands::export_gemfile::find_gemfile(
+        &std::env::current_dir().map_err(|error| ButlerError::General(error.to_string()))?,
+        gemfile.as_deref(),
+        std::env::var_os("BUNDLE_GEMFILE").as_deref(),
+    )
+    .map_err(|error| ButlerError::General(error.to_string()))?;
+    let project_file = context.project_file.clone();
+    with_ruby_runtime(context, |runtime| {
+        crate::commands::export_gemfile::export_gemfile_command(
+            runtime,
+            &gemfile,
+            project_file.as_deref(),
+            output.as_deref(),
+            format.into(),
+        )
+    })
 }
 
 /// New command wrapper - no runtime needed

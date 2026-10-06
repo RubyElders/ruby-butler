@@ -1,0 +1,28 @@
+{
+  "dependencies": {
+    "rails": {
+      "version": [
+        "~>8.0.5",
+        ">=8.0.5.1"
+      ]
+    },
+    "pg": {
+      "version": ">=1.6.3.1",
+      "source": "https://rubygems.manageiq.org",
+      "require": false
+    },
+    "manageiq-schema": {
+      "git": "https://github.com/ManageIQ/manageiq-schema",
+      "branch": "master"
+    }
+  },
+  "optional_groups": [
+    "qpid_proton",
+    "systemd",
+    "appliance"
+  ],
+  "absent": [
+    "ai-agents",
+    "idn-ruby"
+  ]
+}

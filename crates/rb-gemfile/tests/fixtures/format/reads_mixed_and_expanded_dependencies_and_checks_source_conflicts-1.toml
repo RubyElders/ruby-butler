@@ -1,0 +1,8 @@
+[dependencies]
+rails = "~> 8.0"
+[dependencies.debug]
+groups = ["development"]
+require = false
+[dependencies."https://gems.example.com"]
+internal = "~> 2.0"
+extra = { version = [">= 1", "< 2"], require = false }

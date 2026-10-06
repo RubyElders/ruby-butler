@@ -1,0 +1,4 @@
+[bundle]
+source = "https://rubygems.org"
+[dependencies."https://gems.example.com/?name=\"special\""]
+"strange.name" = { version = [">= 1", "< 2"], groups = ["test", "development"], platforms = ["mri", "jruby"], require = ["a/b", "c\\d"], variants = [{groups=["other"], require=false}] }

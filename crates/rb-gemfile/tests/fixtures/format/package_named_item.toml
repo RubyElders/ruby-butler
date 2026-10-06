@@ -1,0 +1,10 @@
+[[gemspecs]]
+name = "sample"
+version = "1.0.0"
+platform = "ruby"
+path = "."
+required_ruby_version = [">= 3.3"]
+required_rubygems_version = [">= 0"]
+[gemspecs.runtime_dependencies]
+item = ["~> 1"]
+[gemspecs.development_dependencies]

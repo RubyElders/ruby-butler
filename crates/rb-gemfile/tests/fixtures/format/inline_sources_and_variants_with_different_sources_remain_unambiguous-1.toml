@@ -1,0 +1,5 @@
+[bundle]
+source = "https://rubygems.org"
+[dependencies]
+custom = {source="custom-registry"}
+mixed = {source="https://one.test", variants=[{source="https://two.test", groups=["test"]}]}

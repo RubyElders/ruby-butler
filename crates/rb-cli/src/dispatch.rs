@@ -8,8 +8,8 @@ use crate::runtime_helpers::CommandContext;
 use rb_core::butler::ButlerError;
 
 use crate::runtime_helpers::{
-    bash_complete_command, new_command_wrapper, shell_integration_command_wrapper,
-    with_butler_runtime,
+    bash_complete_command, export_gemfile_command_wrapper, new_command_wrapper,
+    shell_integration_command_wrapper, with_butler_runtime,
 };
 
 /// Dispatch command to appropriate handler
@@ -21,6 +21,11 @@ pub fn dispatch_command(
         Commands::Version => version_command(),
         Commands::Help { command: help_cmd } => help_command(help_cmd),
         Commands::New => new_command_wrapper(),
+        Commands::ExportGemfile {
+            gemfile,
+            output,
+            format,
+        } => export_gemfile_command_wrapper(context, gemfile, output, format),
         Commands::ShellIntegration { shell } => shell_integration_command_wrapper(shell),
         Commands::BashComplete { line, point } => bash_complete_command(context, &line, &point),
 

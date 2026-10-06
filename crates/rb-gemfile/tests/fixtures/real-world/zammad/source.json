@@ -1,0 +1,17 @@
+{
+  "repo": "zammad/zammad",
+  "sha": "4166a43ae0aec358b4b8d18da0a4f75adadcdfcd",
+  "files_sha256": {
+    "Gemfile": "198dba51985355b22548913b3a02d04e5df4552bfb23f033c0114f493395b1d9",
+    "Gemfile.lock": "2df4fac48e33b0ceff6d182ea009b6f77ba16ee7640847dafc9baf30f8f51905",
+    "LICENSE": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+  },
+  "direct_dependencies": 131,
+  "locked_gem_names": 318,
+  "remotes": [
+    "https://github.com/zammad-deps/autodiscover",
+    "https://github.com/zammad-deps/delayed_job",
+    "https://github.com/zammad-deps/delayed_job_active_record",
+    "https://rubygems.org/"
+  ]
+}

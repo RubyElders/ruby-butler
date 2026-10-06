@@ -1,0 +1,20 @@
+{
+  "dependencies": {
+    "rails": {
+      "version": ">= 0"
+    },
+    "sqlite3": {
+      "force_ruby_platform": true
+    },
+    "debug": {
+      "groups": [
+        "test",
+        "development"
+      ]
+    }
+  },
+  "absent": [
+    "manageiq-schema",
+    "pg"
+  ]
+}

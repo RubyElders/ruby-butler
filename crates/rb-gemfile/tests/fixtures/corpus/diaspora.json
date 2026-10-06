@@ -1,0 +1,27 @@
+{
+  "dependencies": {
+    "rails": {
+      "version": "6.1.7.10"
+    },
+    "mysql2": {
+      "version": "0.5.7",
+      "groups": [
+        "mysql"
+      ]
+    },
+    "pg": {
+      "version": "1.6.3",
+      "groups": [
+        "postgresql"
+      ]
+    }
+  },
+  "optional_groups": [
+    "mysql",
+    "postgresql"
+  ],
+  "absent": [
+    "manageiq-schema",
+    "ai-agents"
+  ]
+}

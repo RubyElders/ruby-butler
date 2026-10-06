@@ -1,0 +1,15 @@
+{
+  "repo": "lobsters/lobsters",
+  "sha": "0613f4d5dec85e4babcccbcfebe6782978875d29",
+  "files_sha256": {
+    ".ruby-version": "e1d49c569ae09b2ede16e2d83820a3809b35eb6c44c13ba9b5330598d6b8f43c",
+    "Gemfile": "665ccb2a58e0a90018b0e0e9dd902f20690ccb9246408503a8538cafe0135e91",
+    "Gemfile.lock": "9efe9531313688cd7da2cf15a03cbbf900955866e9d8a070a35b65b43b288d8a",
+    "LICENSE": "78ccbc4bf0878a34c891b49020e83f3501e98ac3c96146faf39f6de0cbb36752"
+  },
+  "direct_dependencies": 58,
+  "locked_gem_names": 180,
+  "remotes": [
+    "https://rubygems.org/"
+  ]
+}

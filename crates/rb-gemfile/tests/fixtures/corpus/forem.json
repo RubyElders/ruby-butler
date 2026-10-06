@@ -1,0 +1,23 @@
+{
+  "dependencies": {
+    "rails": {
+      "version": "8.0.5"
+    },
+    "acts_as_follower": {
+      "git": "https://github.com/forem/acts_as_follower.git",
+      "branch": "master"
+    },
+    "stackprof": {
+      "platforms": [
+        "ruby"
+      ],
+      "groups": [
+        "test"
+      ]
+    }
+  },
+  "absent": [
+    "manageiq-schema",
+    "idn-ruby"
+  ]
+}

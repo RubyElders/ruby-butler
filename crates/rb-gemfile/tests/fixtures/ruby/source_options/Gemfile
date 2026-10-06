@@ -1,0 +1,5 @@
+source 'https://rubygems.org', cooldown: 7
+source 'https://example.test', 'cooldown' => 5 do
+  gem 'scoped'
+end
+gem 'rake'

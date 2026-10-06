@@ -1,0 +1,29 @@
+{
+  "dependencies": {
+    "rails": {
+      "version": "7.2.3.1",
+      "groups": [
+        "default"
+      ]
+    },
+    "puma": {
+      "version": [
+        "~> 7.2",
+        ">= 7.2.1"
+      ]
+    },
+    "byebug": {
+      "platforms": [
+        "mri"
+      ],
+      "groups": [
+        "development",
+        "test"
+      ]
+    }
+  },
+  "absent": [
+    "manageiq-schema",
+    "idn-ruby"
+  ]
+}

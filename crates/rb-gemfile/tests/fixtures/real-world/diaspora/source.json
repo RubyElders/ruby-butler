@@ -1,0 +1,14 @@
+{
+  "repo": "diaspora/diaspora",
+  "sha": "f96527862dc1ba2e5b95c4196efb0d1f0cc4b6e5",
+  "files_sha256": {
+    "Gemfile": "6d84dbb1f9860b30f84779b466392ca72ff8c504769a23f00d388794ffd0de2e",
+    "Gemfile.lock": "9b88c8df726b2f8c15a7d919c80ba9e9d4319193664935c511403e78fb306d3e",
+    "LICENSE": "432d251a78dbc966e6add13f9f3b40a53daca222208e50cb514cfc77e7d85af6"
+  },
+  "direct_dependencies": 113,
+  "locked_gem_names": 284,
+  "remotes": [
+    "https://rubygems.org/"
+  ]
+}

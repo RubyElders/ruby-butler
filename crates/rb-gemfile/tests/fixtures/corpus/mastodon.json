@@ -1,0 +1,24 @@
+{
+  "dependencies": {
+    "rails": {
+      "version": "~> 8.1.0"
+    },
+    "webpush": {
+      "git": "https://github.com/mastodon/webpush.git",
+      "rev": "9631ac63045cfabddacc69fc06e919b4c13eb913"
+    },
+    "devise_pam_authenticatable2": {
+      "version": "~> 9.2",
+      "groups": [
+        "pam_authentication"
+      ]
+    }
+  },
+  "optional_groups": [
+    "pam_authentication"
+  ],
+  "absent": [
+    "manageiq-schema",
+    "ai-agents"
+  ]
+}
