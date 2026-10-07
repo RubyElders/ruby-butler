@@ -1,0 +1,33 @@
+{
+  "ruby": "3.4.10",
+  "rubygems": "3.6.9",
+  "bundler": "2.6.9",
+  "target": "x86_64-linux-gnu",
+  "packages": [
+    {
+      "name": "addressable",
+      "version": "2.9.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "bundler",
+      "version": "2.6.9",
+      "platform": "ruby"
+    },
+    {
+      "name": "ipaddr",
+      "version": "1.2.9",
+      "platform": "ruby"
+    },
+    {
+      "name": "json",
+      "version": "3.0.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "public_suffix",
+      "version": "7.0.5",
+      "platform": "ruby"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    addressable (2.9.0)
+      public_suffix (>= 2.0.2, < 8.0)
+    ipaddr (1.2.9)
+    json (3.0.2)
+    public_suffix (7.0.5)
+
+PLATFORMS
+  ruby
+  x86_64-linux
+  x86_64-linux-gnu
+
+DEPENDENCIES
+  addressable
+  ipaddr
+  json
+
+BUNDLED WITH
+   2.6.9

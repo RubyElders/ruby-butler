@@ -1,0 +1,152 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    activesupport (8.1.4)
+      base64
+      bigdecimal
+      concurrent-ruby (~> 1.0, >= 1.3.1)
+      connection_pool (>= 2.2.5)
+      drb
+      i18n (>= 1.6, < 2)
+      json
+      logger (>= 1.4.2)
+      minitest (>= 5.1)
+      securerandom (>= 0.3)
+      tzinfo (~> 2.0, >= 2.0.5)
+      uri (>= 0.13.1)
+    base64 (0.3.0)
+    bigdecimal (4.1.3)
+    concurrent-ruby (1.3.8)
+    connection_pool (3.0.2)
+    date (3.5.1)
+    drb (2.2.3)
+    dry-configurable (1.4.0)
+      dry-core (~> 1.0)
+      zeitwerk (~> 2.6)
+    dry-core (1.2.0)
+      concurrent-ruby (~> 1.0)
+      logger
+      zeitwerk (~> 2.6)
+    dry-inflector (1.3.1)
+    dry-logic (1.6.0)
+      bigdecimal
+      concurrent-ruby (~> 1.0)
+      dry-core (~> 1.1)
+      zeitwerk (~> 2.6)
+    dry-types (1.9.1)
+      bigdecimal (>= 3.0)
+      concurrent-ruby (~> 1.0)
+      dry-core (~> 1.0)
+      dry-inflector (~> 1.0)
+      dry-logic (~> 1.4)
+      zeitwerk (~> 2.6)
+    erubis (2.7.0)
+    grape (3.2.1)
+      activesupport (>= 7.2)
+      dry-configurable
+      dry-types (>= 1.1)
+      mustermann-grape (~> 1.1.0)
+      rack (>= 2)
+      zeitwerk
+    i18n (1.15.2)
+      concurrent-ruby (~> 1.0)
+    json (3.0.2)
+    logger (1.7.0)
+    mail (2.9.1)
+      logger
+      mini_mime (>= 0.1.1)
+      net-imap
+      net-pop
+      net-smtp
+    mime-types (3.7.0)
+      logger
+      mime-types-data (~> 3.2025, >= 3.2025.0507)
+    mime-types-data (3.2026.0929)
+    mini_mime (1.1.5)
+    minitest (6.0.6)
+      drb (~> 2.0)
+      prism (~> 1.5)
+    moneta (1.6.0)
+    mustermann (3.1.1)
+    mustermann-grape (1.1.0)
+      mustermann (>= 1.0.0)
+    net-imap (0.6.7)
+      date
+      net-protocol
+    net-pop (0.1.2)
+      net-protocol
+    net-protocol (0.4.0)
+      timeout
+    net-smtp (0.5.2)
+      net-protocol
+    padrino (0.16.1)
+      padrino-admin (= 0.16.1)
+      padrino-cache (= 0.16.1)
+      padrino-core (= 0.16.1)
+      padrino-gen (= 0.16.1)
+      padrino-helpers (= 0.16.1)
+      padrino-mailer (= 0.16.1)
+      padrino-support (= 0.16.1)
+    padrino-admin (0.16.1)
+      padrino-core (= 0.16.1)
+      padrino-helpers (= 0.16.1)
+    padrino-cache (0.16.1)
+      moneta (~> 1.6)
+      padrino-core (= 0.16.1)
+      padrino-helpers (= 0.16.1)
+    padrino-core (0.16.1)
+      padrino-support (= 0.16.1)
+      rackup (~> 2.1)
+      sinatra (~> 4)
+      thor (~> 1.0)
+    padrino-gen (0.16.1)
+      bundler (>= 1.0, < 5)
+      padrino-core (= 0.16.1)
+    padrino-helpers (0.16.1)
+      i18n (>= 0.6.7, < 2)
+      padrino-support (= 0.16.1)
+      tilt (>= 2.1, < 3)
+    padrino-mailer (0.16.1)
+      mail (~> 2.5)
+      mime-types (>= 3.1, < 4)
+      padrino-core (= 0.16.1)
+    padrino-support (0.16.1)
+    prism (1.9.0)
+    rack (3.2.7)
+    rack-protection (4.2.1)
+      base64 (>= 0.1.0)
+      logger (>= 1.6.0)
+      rack (>= 3.0.0, < 4)
+    rack-session (2.1.2)
+      base64 (>= 0.1.0)
+      rack (>= 3.0.0)
+    rackup (2.3.1)
+      rack (>= 3)
+    securerandom (0.4.1)
+    sinatra (4.2.1)
+      logger (>= 1.6.0)
+      mustermann (~> 3.0)
+      rack (>= 3.0.0, < 4)
+      rack-protection (= 4.2.1)
+      rack-session (>= 2.0.0, < 3)
+      tilt (~> 2.0)
+    thor (1.5.0)
+    tilt (2.9.0)
+    timeout (0.6.1)
+    tzinfo (2.0.6)
+      concurrent-ruby (~> 1.0)
+    uri (1.1.1)
+    zeitwerk (2.8.3)
+
+PLATFORMS
+  ruby
+  x86_64-linux
+  x86_64-linux-gnu
+
+DEPENDENCIES
+  erubis
+  grape
+  padrino
+
+BUNDLED WITH
+   2.6.9

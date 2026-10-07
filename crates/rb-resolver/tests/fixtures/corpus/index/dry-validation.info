@@ -1,0 +1,2 @@
+---
+0.11.0 concurrent-ruby:~> 1.0,dry-configurable:>= 0.1.3&~> 0.1,dry-core:>= 0.2.1&~> 0.2,dry-equalizer:~> 0.2,dry-logic:>= 0.4.0&~> 0.4,dry-types:~> 0.11.0|checksum:83acaf765b2f602b34d433da3629b4a1496019f2765d8a8f722bac8a2f39a43e,created_at:2017-06-30T20:10:13Z

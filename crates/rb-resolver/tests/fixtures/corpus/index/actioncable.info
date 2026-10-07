@@ -1,0 +1,2 @@
+---
+7.0.10 actionpack:= 7.0.10,activesupport:= 7.0.10,nio4r:~> 2.0,websocket-driver:>= 0.6.1|checksum:7aa02ea26d6cc21c33e604bb28a0759c5212653311bc42105f96f709e507afab,ruby:>= 2.7.0,created_at:2025-10-28T23:14:16Z

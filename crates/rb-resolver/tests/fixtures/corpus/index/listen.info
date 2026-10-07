@@ -1,0 +1,2 @@
+---
+3.10.1 logger:>= 0,rb-fsevent:>= 0.10.3&~> 0.10,rb-inotify:>= 0.9.10&~> 0.9|checksum:4c3f32855657f348747da4dd2372ff3790d90a6b1d3e4f21a3706adb2d04783c,ruby:>= 2.4.0,created_at:2026-10-01T20:47:45Z

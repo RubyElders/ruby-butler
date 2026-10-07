@@ -1,0 +1,32 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    bigdecimal (4.1.3)
+    faiss (0.6.4)
+      numo-narray-alt (>= 0.10)
+      rice (>= 4.11.5)
+    iodine (0.7.59)
+    numo-narray-alt (0.11.2)
+    oj (3.17.7)
+      bigdecimal (>= 3.0)
+      ostruct (>= 0.2)
+    ostruct (0.6.3)
+    rack (3.2.7)
+    rice (4.12.0)
+    roda (3.108.0)
+      rack
+
+PLATFORMS
+  ruby
+  x86_64-linux
+  x86_64-linux-gnu
+
+DEPENDENCIES
+  faiss (~> 0.6)
+  iodine (~> 0.7)
+  numo-narray-alt (~> 0.10)
+  oj (~> 3.16)
+  roda (~> 3.103)
+
+BUNDLED WITH
+   2.6.9

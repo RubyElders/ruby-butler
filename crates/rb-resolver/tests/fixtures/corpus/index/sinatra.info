@@ -1,0 +1,2 @@
+---
+4.2.1 logger:>= 1.6.0,mustermann:~> 3.0,rack:< 4&>= 3.0.0,rack-protection:= 4.2.1,rack-session:< 3&>= 2.0.0,tilt:~> 2.0|checksum:b7aeb9b11d046b552972ade834f1f9be98b185fa8444480688e3627625377080,ruby:>= 2.7.8,created_at:2025-10-10T15:20:36Z

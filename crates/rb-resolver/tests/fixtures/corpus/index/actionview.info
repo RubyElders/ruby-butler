@@ -1,0 +1,2 @@
+---
+7.0.10 activesupport:= 7.0.10,builder:~> 3.1,erubi:~> 1.4,rails-dom-testing:~> 2.0,rails-html-sanitizer:>= 1.2.0&~> 1.1|checksum:e5a9475ccfcde80dddf7ced701f44aedc4f8262286051db84ae2c48322ec000e,ruby:>= 2.7.0,created_at:2025-10-28T23:14:01Z

@@ -1,0 +1,2 @@
+---
+1.4.0 dry-core:>= 0.3.1&~> 0.3,dry-struct:~> 0.3,rom:~> 3.3,rom-mapper:~> 0.5|checksum:9cd20dd75af81995a901977d3d0b69432055908c49a7b1fe486ccded6f804394,created_at:2017-07-04T23:39:18Z

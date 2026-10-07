@@ -1,0 +1,79 @@
+[
+  {
+    "repository": "0x000000/microfrontends_template",
+    "path": "gemfiles/2021/0x000000/microfrontends_template/Gemfile",
+    "commit": "45734cd8ea5cd1cbd1c19722a3589c497dec57f2",
+    "sha256": "47df2928386ebb4411ccc28ada11af48d0a1320ee8e774f2a34bed7efc079d17",
+    "name": "hanami-1"
+  },
+  {
+    "repository": "AfolabiOlaoluwa/marley-spoon-roda",
+    "path": "gemfiles/2021/AfolabiOlaoluwa/marley-spoon-roda/Gemfile",
+    "commit": "3528391599f00e6cd980d0abb10194773cad1df3",
+    "sha256": "d2466e340c37c62a1a4c42aaf3a47423d8cb0d1433e91ead1edb5e2f5c774c06",
+    "name": "roda-contentful"
+  },
+  {
+    "repository": "Gaeuly/shorty-api",
+    "path": "gemfiles/2025/Gaeuly/shorty-api/Gemfile",
+    "commit": "74e223f52f00c826662900a63f7389abd30ace87",
+    "sha256": "ddbafbf2aac9885da79b543a830d33cce001decd5c46a573566e83d09ca710a8",
+    "name": "sinatra-sequel"
+  },
+  {
+    "repository": "ClaudiaRojasSoto/Hello_Rails",
+    "path": "gemfiles/2023/ClaudiaRojasSoto/Hello_Rails/Gemfile",
+    "commit": "72dde16ba7401f6eea4d93ee71cf1845da8f811c",
+    "sha256": "eb2c2ac7a3a653d08486f546d46a6afe7f04fe1478c4bc8f77da7883f19cd231",
+    "name": "rails-7"
+  },
+  {
+    "repository": "ruby-grape/grape-on-padrino",
+    "path": "gemfiles/2021/ruby-grape/grape-on-padrino/Gemfile",
+    "commit": "c23633361ae53f0a80d68e4b91feb2d30a9653c4",
+    "sha256": "ebc5ba0c07c59ef00f0a42c050e2fb555728c24b5cd24c1ca3fe104e5af2f865",
+    "name": "grape-padrino"
+  },
+  {
+    "repository": "railsgirls/guides.railsgirls.com",
+    "path": "gemfiles/2023/railsgirls/guides.railsgirls.com/Gemfile",
+    "commit": "5fedd28d154113c14b7f2da3499787e0eeade65c",
+    "sha256": "979b2e605a1fadb3a8f14e64019061366111bdf7c595770046d9d681d5929088",
+    "name": "jekyll"
+  },
+  {
+    "repository": "urbanadventurer/WhatWeb",
+    "path": "gemfiles/2021/urbanadventurer/WhatWeb/Gemfile",
+    "commit": "039304a828ab2b6234d1082af0bd8a6f5cb78a57",
+    "sha256": "e9bf29725518c2058b9e3ebcf880a8b0cebab378215fe7ca3d1bc7bb17a745e1",
+    "name": "whatweb"
+  },
+  {
+    "repository": "urbanadventurer/urlcrazy",
+    "path": "gemfiles/2025/urbanadventurer/urlcrazy/Gemfile",
+    "commit": "78bf6e855d6d83e387ae3b5c8ffc36f241b96f66",
+    "sha256": "b8d67877f3e432a457e46bf695f1648df2fc737790d3c86bed77874069491dfb",
+    "name": "async"
+  },
+  {
+    "repository": "Bulletdev/bulletonrails-ruby",
+    "path": "gemfiles/2026/Bulletdev/bulletonrails-ruby/Gemfile",
+    "commit": "b6bf0feb9c849440cb61640f362f96e139885227",
+    "sha256": "07eef38d96d4ca429c66c013e40fba199058f1b9887a0e58a1472057cb3ead67",
+    "name": "roda-ml"
+  },
+  {
+    "repository": "community/community",
+    "path": "gemfiles/2026/community/community/Gemfile",
+    "commit": "9b4ed8f9f9961d38041198da75b5d10a4f1d0bb6",
+    "sha256": "4dc1edfd3d9c339ae63f8c06259ed5011893ff9983087e1664f9cdf6e068bd98",
+    "name": "rails-tooling"
+  },
+  {
+    "repository": "spk/cotedeporc",
+    "path": "gemfiles/2021/spk/cotedeporc/Gemfile",
+    "commit": "04b48012a141ffc47a57f7922814000ba0bcbd42",
+    "sha256": "ef375e52f853fd1bcef922ca6b0c33f9afceac551dd554e935a1d132325ea155",
+    "name": "hanami-alpha"
+  }
+]

@@ -1,0 +1,2 @@
+---
+0.29.1 protocol-hpack:~> 1.4,protocol-http:~> 0.62|checksum:3f4ee667b5730b7d05c70d3771bd5d5cdbb31beedaa9d05f2bdac68c9c984d19,ruby:>= 3.3,created_at:2026-09-27T11:09:15Z

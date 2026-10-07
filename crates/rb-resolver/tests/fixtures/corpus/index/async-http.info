@@ -1,0 +1,2 @@
+---
+0.105.0 async:>= 2.35.1,async-pool:~> 0.12,io-endpoint:~> 0.18,io-stream:~> 0.14,protocol-http:~> 0.72,protocol-http1:~> 0.41,protocol-http2:~> 0.28,protocol-url:~> 0.2|checksum:55191969d5cf61be5fbc2e0aadd51d77085318ba192a5ff5e12e3aba0826906a,ruby:>= 3.3,created_at:2026-09-15T04:01:38Z

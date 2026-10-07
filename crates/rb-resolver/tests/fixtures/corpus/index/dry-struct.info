@@ -1,0 +1,2 @@
+---
+0.3.1 dry-configurable:~> 0.1,dry-core:~> 0.3,dry-equalizer:~> 0.2,dry-types:>= 0.9.0&~> 0.9,ice_nine:~> 0.11|checksum:22bee9a563e30f4f9b7d63508f30e183599fc9bdb4a81790a3110e3c0c100343,created_at:2017-06-30T10:03:35Z

@@ -1,0 +1,2 @@
+---
+7.0.10 actionpack:= 7.0.10,activerecord:= 7.0.10,activestorage:= 7.0.10,activesupport:= 7.0.10,globalid:>= 0.6.0,nokogiri:>= 1.8.5|checksum:ffadcbb9b21c09e9bfe946a79739d92abc92a9097eb1db7675e52484804c1c8c,ruby:>= 2.7.0,created_at:2025-10-28T23:14:31Z

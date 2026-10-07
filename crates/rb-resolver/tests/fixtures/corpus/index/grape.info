@@ -1,0 +1,2 @@
+---
+3.2.1 activesupport:>= 7.2,dry-configurable:>= 0,dry-types:>= 1.1,mustermann-grape:~> 1.1.0,rack:>= 2,zeitwerk:>= 0|checksum:448072f55904e5a4dca2e3781f0a373942514be65402cafb6177f5bc73db1b94,ruby:>= 3.2,created_at:2026-04-16T11:33:13Z

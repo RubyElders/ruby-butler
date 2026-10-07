@@ -1,0 +1,2 @@
+---
+4.2.1 base64:>= 0.1.0,logger:>= 1.6.0,rack:< 4&>= 3.0.0|checksum:cf6e2842df8c55f5e4d1a4be015e603e19e9bc3a7178bae58949ccbb58558bac,ruby:>= 2.7.8,created_at:2025-10-10T15:20:34Z

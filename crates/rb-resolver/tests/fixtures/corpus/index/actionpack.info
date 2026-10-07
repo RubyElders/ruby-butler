@@ -1,0 +1,2 @@
+---
+7.0.10 actionview:= 7.0.10,activesupport:= 7.0.10,racc:>= 0,rack:>= 2.2.4&~> 2.0,rack-test:>= 0.6.3,rails-dom-testing:~> 2.0,rails-html-sanitizer:>= 1.2.0&~> 1.0|checksum:4c524b3b401cc828efb3fcd6f3de56ac1ec0180843b74f54357f58b0256f9509,ruby:>= 2.7.0,created_at:2025-10-28T23:14:08Z

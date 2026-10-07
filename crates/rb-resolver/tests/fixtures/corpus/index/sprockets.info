@@ -1,0 +1,2 @@
+---
+4.4.1 concurrent-ruby:~> 1.1,logger:>= 0,rack:< 4&>= 2.2.4|checksum:fbd665edad0916de5c7abefef0fc616866a60c5e48ce2846f39ac3fc5df9e184,ruby:>= 2.5.0,created_at:2026-08-25T14:29:45Z

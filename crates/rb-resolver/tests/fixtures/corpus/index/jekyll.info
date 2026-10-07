@@ -1,0 +1,2 @@
+---
+4.4.1 addressable:~> 2.4,base64:~> 0.2,colorator:~> 1.0,csv:~> 3.0,em-websocket:~> 0.5,i18n:~> 1.0,jekyll-sass-converter:< 4.0&>= 2.0,jekyll-watch:~> 2.0,json:~> 2.6,kramdown:>= 2.3.1&~> 2.3,kramdown-parser-gfm:~> 1.0,liquid:~> 4.0,mercenary:>= 0.3.6&~> 0.3,pathutil:~> 0.9,rouge:< 5.0&>= 3.0,safe_yaml:~> 1.0,terminal-table:< 4.0&>= 1.8,webrick:~> 1.7|checksum:4c1144d857a5b2b80d45b8cf5138289579a9f8136aadfa6dd684b31fe2bc18c1,ruby:>= 2.7.0,rubygems:>= 2.7.0,created_at:2025-01-29T12:47:41Z

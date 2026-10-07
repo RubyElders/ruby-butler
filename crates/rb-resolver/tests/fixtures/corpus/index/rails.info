@@ -1,0 +1,2 @@
+---
+7.0.10 actioncable:= 7.0.10,actionmailbox:= 7.0.10,actionmailer:= 7.0.10,actionpack:= 7.0.10,actiontext:= 7.0.10,actionview:= 7.0.10,activejob:= 7.0.10,activemodel:= 7.0.10,activerecord:= 7.0.10,activestorage:= 7.0.10,activesupport:= 7.0.10,bundler:>= 1.15.0,railties:= 7.0.10|checksum:866eb2c53d3184543fdb770d7ea308e4ee518063226a9e176229f3c7a9537c25,ruby:>= 2.7.0,rubygems:>= 1.8.11,created_at:2025-10-28T23:14:41Z
