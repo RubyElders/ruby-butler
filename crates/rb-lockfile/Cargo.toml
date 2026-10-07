@@ -1,0 +1,9 @@
+[package]
+name = "rb-lockfile"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Standalone Bundler-compatible lockfile parsing and rendering"
+
+[dependencies]
+rb-gem-types = { path = "../rb-gem-types" }

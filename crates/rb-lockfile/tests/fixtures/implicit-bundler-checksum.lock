@@ -1,0 +1,16 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    rack (3.1.0)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  rack
+
+CHECKSUMS
+  bundler (4.0.18) sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+BUNDLED WITH
+   4.0.18

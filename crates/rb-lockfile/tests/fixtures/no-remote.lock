@@ -1,0 +1,12 @@
+GEM
+  specs:
+
+GEM
+  specs:
+    rack (3.1.0)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  rack
