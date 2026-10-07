@@ -1325,6 +1325,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "rb-lockfile"
+version = "0.3.1"
+dependencies = [
+ "rb-gem-types",
+]
+
+[[package]]
 name = "rb-progress"
 version = "0.3.1"
 dependencies = [

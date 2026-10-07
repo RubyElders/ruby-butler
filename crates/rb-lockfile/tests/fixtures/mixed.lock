@@ -1,0 +1,55 @@
+GIT
+  remote: https://github.com/example/widgets.git
+  revision: 0123456789abcdef0123456789abcdef01234567
+  branch: stable
+  submodules: true
+  glob: gems/*.gemspec
+  specs:
+    widget (1.2.0)
+      rack (>= 2)
+
+PATH
+  remote: ../local
+  glob: *.gemspec
+  specs:
+    local (0.1.0)
+      widget
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    rack (3.1.0)
+    ffi (1.0.0)
+      generic_dep (>= 1)
+    ffi (1.0.0-arm64-darwin)
+      native_dep (>= 2)
+    generic_dep (1.0)
+    native_dep (2.0)
+
+GEM
+  remote: https://gems.example.com/
+  specs:
+    internal (2.0.0)
+
+PLATFORMS
+  ruby
+  arm64-darwin
+
+DEPENDENCIES
+  ffi
+  internal!
+  local!
+  widget (~> 1.2)!
+
+CHECKSUMS
+  widget (1.2.0)
+  local (0.1.0)
+  rack (3.1.0) sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  ffi (1.0.0) sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  ffi (1.0.0-arm64-darwin) sha256=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+RUBY VERSION
+   ruby 3.1.2p20 (jruby 9.4.0.0)
+
+BUNDLED WITH
+   2.6.9
