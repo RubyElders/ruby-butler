@@ -1,0 +1,2 @@
+---
+4.4.1 addressable:~> 2.3,http-cookie:~> 1.0,http-form_data:~> 2.2,http-parser:~> 1.2.0|checksum:be10f1d054fcc732ac32410553767ac3e4141b4182a4d8f5bf93d23cedae1b7d,ruby:>= 2.3,created_at:2020-03-29T20:14:10Z

@@ -1,0 +1,33 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    bigdecimal (4.1.3)
+    hanami-api (0.1.0)
+      hanami-router (~> 2.0.alpha)
+    hanami-router (2.0.0.alpha2)
+      mustermann (~> 1.0)
+      mustermann-contrib (~> 1.0)
+      rack (~> 2.0)
+    hansi (0.2.1)
+    mustermann (1.1.2)
+      ruby2_keywords (~> 0.0.1)
+    mustermann-contrib (1.1.2)
+      hansi (~> 0.2.0)
+      mustermann (= 1.1.2)
+    rack (2.2.24)
+    ruby2_keywords (0.0.5)
+    sequel (5.109.0)
+      bigdecimal
+
+PLATFORMS
+  ruby
+  x86_64-linux
+  x86_64-linux-gnu
+
+DEPENDENCIES
+  hanami-api (= 0.1.0)
+  hanami-router (= 2.0.0.alpha2)
+  sequel
+
+BUNDLED WITH
+   2.6.9

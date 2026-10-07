@@ -1,0 +1,2 @@
+---
+1.3.4 bundler:< 3&>= 1.6,concurrent-ruby:~> 1.0,dry-cli:~> 0.5,hanami-assets:~> 1.3,hanami-controller:~> 1.3,hanami-helpers:~> 1.3,hanami-mailer:~> 1.3,hanami-router:~> 1.3,hanami-utils:~> 1.3,hanami-validations:< 3&>= 1.3,hanami-view:~> 1.3|checksum:be3cd443fcf9910c4fbb53427f4e6e65f0f1d4da658507691c1d3e7658b71052,ruby:>= 2.3.0,created_at:2021-05-02T17:02:56Z

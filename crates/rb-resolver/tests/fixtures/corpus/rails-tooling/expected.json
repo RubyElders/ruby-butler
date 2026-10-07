@@ -1,0 +1,98 @@
+{
+  "ruby": "3.4.10",
+  "rubygems": "3.6.9",
+  "bundler": "2.6.9",
+  "target": "x86_64-linux-gnu",
+  "packages": [
+    {
+      "name": "activesupport",
+      "version": "7.2.4",
+      "platform": "ruby"
+    },
+    {
+      "name": "base64",
+      "version": "0.3.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "benchmark",
+      "version": "0.5.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "bigdecimal",
+      "version": "4.1.3",
+      "platform": "ruby"
+    },
+    {
+      "name": "bundler",
+      "version": "2.6.9",
+      "platform": "ruby"
+    },
+    {
+      "name": "concurrent-ruby",
+      "version": "1.3.8",
+      "platform": "ruby"
+    },
+    {
+      "name": "connection_pool",
+      "version": "2.5.5",
+      "platform": "ruby"
+    },
+    {
+      "name": "drb",
+      "version": "2.2.3",
+      "platform": "ruby"
+    },
+    {
+      "name": "faraday",
+      "version": "2.14.4",
+      "platform": "ruby"
+    },
+    {
+      "name": "faraday-net_http",
+      "version": "3.4.4",
+      "platform": "ruby"
+    },
+    {
+      "name": "i18n",
+      "version": "1.15.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "json",
+      "version": "3.0.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "logger",
+      "version": "1.7.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "minitest",
+      "version": "5.27.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "net-http",
+      "version": "0.9.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "securerandom",
+      "version": "0.4.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "tzinfo",
+      "version": "2.0.6",
+      "platform": "ruby"
+    },
+    {
+      "name": "uri",
+      "version": "1.1.1",
+      "platform": "ruby"
+    }
+  ]
+}

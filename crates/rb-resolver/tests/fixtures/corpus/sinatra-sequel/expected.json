@@ -1,0 +1,78 @@
+{
+  "ruby": "3.4.10",
+  "rubygems": "3.6.9",
+  "bundler": "2.6.9",
+  "target": "x86_64-linux-gnu",
+  "packages": [
+    {
+      "name": "base64",
+      "version": "0.3.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "bigdecimal",
+      "version": "4.1.3",
+      "platform": "ruby"
+    },
+    {
+      "name": "bundler",
+      "version": "2.6.9",
+      "platform": "ruby"
+    },
+    {
+      "name": "logger",
+      "version": "1.7.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "mustermann",
+      "version": "3.1.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "nio4r",
+      "version": "2.7.5",
+      "platform": "ruby"
+    },
+    {
+      "name": "puma",
+      "version": "8.0.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "rack",
+      "version": "3.2.7",
+      "platform": "ruby"
+    },
+    {
+      "name": "rack-protection",
+      "version": "4.2.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "rack-session",
+      "version": "2.1.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "sequel",
+      "version": "5.109.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "sinatra",
+      "version": "4.2.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "sqlite3",
+      "version": "2.9.6",
+      "platform": "x86_64-linux-gnu"
+    },
+    {
+      "name": "tilt",
+      "version": "2.9.0",
+      "platform": "ruby"
+    }
+  ]
+}

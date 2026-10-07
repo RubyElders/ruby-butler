@@ -1,0 +1,11 @@
+Writing lockfile to <fixture>/Gemfile.lock
+Fetching gem metadata from https://rubygems.org/.........
+Resolving dependencies...
+Could not find compatible versions
+
+Because padrino >= 0.11.4, < 0.12.0.rc1 depends on padrino-gen = 0.11.4
+  and padrino-gen >= 0.10.1, < 0.15.0 depends on bundler ~> 1.0,
+  padrino >= 0.11.4, < 0.12.0.rc1 requires bundler ~> 1.0.
+So, because the current Bundler version (2.6.9) does not satisfy bundler ~> 1.0
+  and Gemfile depends on padrino = 0.11.4,
+  version solving has failed.

@@ -1,0 +1,2 @@
+---
+7.0.10 actionpack:= 7.0.10,actionview:= 7.0.10,activejob:= 7.0.10,activesupport:= 7.0.10,mail:>= 2.5.4&~> 2.5,net-imap:>= 0,net-pop:>= 0,net-smtp:>= 0,rails-dom-testing:~> 2.0|checksum:53bc7aac1659ef97a216c43002ea8286931d7b97f252b27152ac15de1b2585ef,ruby:>= 2.7.0,created_at:2025-10-28T23:14:13Z

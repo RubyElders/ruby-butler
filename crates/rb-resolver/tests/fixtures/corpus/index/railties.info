@@ -1,0 +1,2 @@
+---
+7.0.10 actionpack:= 7.0.10,activesupport:= 7.0.10,method_source:>= 0,rake:>= 12.2,thor:~> 1.0,zeitwerk:~> 2.5|checksum:d52a8b7a61ad941121a15a6596b2150e05c70b199c3afc9e9b73e63b3b1a57a7,ruby:>= 2.7.0,created_at:2025-10-28T23:14:38Z

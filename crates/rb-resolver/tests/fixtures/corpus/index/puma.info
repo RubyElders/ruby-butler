@@ -1,0 +1,3 @@
+---
+5.6.9 nio4r:~> 2.0|checksum:20701b2451080ec8d6d78d2e4b5a2913e6d0b865a51d704a4d60db8fd39a4228,ruby:>= 2.2,created_at:2024-09-19T05:41:46Z
+8.0.2 nio4r:~> 2.0|checksum:c8ed871dfbbe66448ea9ffd46692342d9804d4071522b52b5331b7b6e7b686fb,ruby:>= 3.0,created_at:2026-05-26T23:27:56Z

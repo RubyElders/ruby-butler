@@ -1,0 +1,108 @@
+{
+  "ruby": "3.4.10",
+  "rubygems": "3.6.9",
+  "bundler": "2.6.9",
+  "target": "x86_64-linux-gnu",
+  "packages": [
+    {
+      "name": "async",
+      "version": "2.46.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "async-dns",
+      "version": "1.4.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "async-http",
+      "version": "0.105.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "async-pool",
+      "version": "0.12.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "bundler",
+      "version": "2.6.9",
+      "platform": "ruby"
+    },
+    {
+      "name": "colorize",
+      "version": "1.1.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "console",
+      "version": "1.38.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "fiber-annotation",
+      "version": "0.2.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "fiber-local",
+      "version": "1.1.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "fiber-storage",
+      "version": "1.0.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "io-endpoint",
+      "version": "0.19.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "io-event",
+      "version": "1.22.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "io-stream",
+      "version": "0.14.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "json",
+      "version": "3.0.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "openssl",
+      "version": "4.0.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "protocol-hpack",
+      "version": "1.5.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "protocol-http",
+      "version": "0.72.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "protocol-http1",
+      "version": "0.41.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "protocol-http2",
+      "version": "0.29.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "protocol-url",
+      "version": "0.19.0",
+      "platform": "ruby"
+    }
+  ]
+}

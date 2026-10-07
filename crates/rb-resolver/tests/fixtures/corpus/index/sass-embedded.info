@@ -1,0 +1,16 @@
+---
+1.105.1 google-protobuf:~> 4.31,rake:~> 13.3|checksum:2025547ac561a16d0977d9b5da39455ce89648a902cfbbab7c35cc740a78e561,ruby:>= 3.2,created_at:2026-09-29T22:30:50Z
+1.105.1-x86_64-linux-musl google-protobuf:~> 4.31|checksum:be8897b9e2e27e9a6eac30e198ec7c9479b255f0a9da3109d4749e544ed75a11,ruby:>= 3.2,created_at:2026-09-29T22:30:55Z
+1.105.1-x86_64-linux-gnu google-protobuf:~> 4.31|checksum:9038bc2256d7ecbfd352c15b77a3c8b6f0b72b763348d26564b5c0a123f48351,ruby:>= 3.2,created_at:2026-09-29T22:30:59Z
+1.105.1-x86_64-linux-android google-protobuf:~> 4.31|checksum:b4bb07305ac4171ab7c327b43f1a75d63d8b88b460416c195d9aab038f12c084,ruby:>= 3.2,created_at:2026-09-29T22:31:02Z
+1.105.1-x86_64-darwin google-protobuf:~> 4.31|checksum:8cd6e33e1511f76f3f65001998cba419cffbccdeb699c6abedb36fd24dc3d46f,ruby:>= 3.2,created_at:2026-09-29T22:31:06Z
+1.105.1-riscv64-linux-musl google-protobuf:~> 4.31|checksum:a6fb0a60eb243818066912e285ad25ec59ed0167be7ba745f4d85ea140c3f3b8,ruby:>= 3.2,created_at:2026-09-29T22:31:13Z
+1.105.1-riscv64-linux-gnu google-protobuf:~> 4.31|checksum:a2341c247099304f5fd57a58a31eba459fee64ea62dbe75fb2c2928cd1c097aa,ruby:>= 3.2,created_at:2026-09-29T22:31:16Z
+1.105.1-riscv64-linux-android google-protobuf:~> 4.31|checksum:37a66fea86e0eb24cc933a99a751bbd8d2bdb47d448fc1fc83ea40ba4a8682f4,ruby:>= 3.2,created_at:2026-09-29T22:31:19Z
+1.105.1-arm64-darwin google-protobuf:~> 4.31|checksum:e414773b18cd25851c292e34a2462eae04011fffc0eb94d5b65a40f29b1044ac,ruby:>= 3.2,created_at:2026-09-29T22:31:23Z
+1.105.1-arm-linux-musleabihf google-protobuf:~> 4.31|checksum:7e1c8b19c1304d7930e9c95d066b63fe19c3e50aea301c70981dfa543e80b4bf,ruby:>= 3.2,created_at:2026-09-29T22:31:27Z
+1.105.1-arm-linux-gnueabihf google-protobuf:~> 4.31|checksum:8c134162e7d8769a01a3775aff66b14e97677f3eda025dc353b0f994ad50e058,ruby:>= 3.2,created_at:2026-09-29T22:31:30Z
+1.105.1-arm-linux-androideabi google-protobuf:~> 4.31|checksum:845ef35a2a599f81f44a19782dce0593fdbcbda41e8dc8c46afbf069a7a4dcfd,ruby:>= 3.2,created_at:2026-09-29T22:31:32Z
+1.105.1-aarch64-linux-musl google-protobuf:~> 4.31|checksum:8f36f6de801adbaff3280f6758df790a4f97340ad10034df58cfda280c445c11,ruby:>= 3.2,created_at:2026-09-29T22:31:39Z
+1.105.1-aarch64-linux-gnu google-protobuf:~> 4.31|checksum:e86b54a8dc1ce0d348cf3e963b5f5650995666db9fdb534c4d6febaeaddc5c6b,ruby:>= 3.2,created_at:2026-09-29T22:31:42Z
+1.105.1-aarch64-linux-android google-protobuf:~> 4.31|checksum:1b2e7541c7f0ad49720d921ac03d0d52a5e142bb6edc55905b0b916831b7830b,ruby:>= 3.2,created_at:2026-09-29T22:31:48Z

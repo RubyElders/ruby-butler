@@ -1,0 +1,198 @@
+{
+  "ruby": "3.4.10",
+  "rubygems": "3.6.9",
+  "bundler": "2.6.9",
+  "target": "x86_64-linux-gnu",
+  "packages": [
+    {
+      "name": "activesupport",
+      "version": "8.1.4",
+      "platform": "ruby"
+    },
+    {
+      "name": "addressable",
+      "version": "2.9.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "base64",
+      "version": "0.3.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "bigdecimal",
+      "version": "4.1.3",
+      "platform": "ruby"
+    },
+    {
+      "name": "bundler",
+      "version": "2.6.9",
+      "platform": "ruby"
+    },
+    {
+      "name": "concurrent-ruby",
+      "version": "1.3.8",
+      "platform": "ruby"
+    },
+    {
+      "name": "connection_pool",
+      "version": "3.0.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "contentful",
+      "version": "2.20.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "contentful-management",
+      "version": "2.13.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "contentful_model",
+      "version": "1.3.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "domain_name",
+      "version": "0.6.20260921",
+      "platform": "ruby"
+    },
+    {
+      "name": "drb",
+      "version": "2.2.3",
+      "platform": "ruby"
+    },
+    {
+      "name": "erubi",
+      "version": "1.13.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "ffi",
+      "version": "1.17.4",
+      "platform": "x86_64-linux-gnu"
+    },
+    {
+      "name": "ffi-compiler",
+      "version": "1.4.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "http",
+      "version": "4.4.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "http-cookie",
+      "version": "1.1.6",
+      "platform": "ruby"
+    },
+    {
+      "name": "http-form_data",
+      "version": "2.3.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "http-parser",
+      "version": "1.2.3",
+      "platform": "ruby"
+    },
+    {
+      "name": "i18n",
+      "version": "1.15.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "json",
+      "version": "2.21.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "logger",
+      "version": "1.7.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "minitest",
+      "version": "6.0.6",
+      "platform": "ruby"
+    },
+    {
+      "name": "multi_json",
+      "version": "1.21.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "nio4r",
+      "version": "2.7.5",
+      "platform": "ruby"
+    },
+    {
+      "name": "prism",
+      "version": "1.9.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "public_suffix",
+      "version": "7.0.5",
+      "platform": "ruby"
+    },
+    {
+      "name": "puma",
+      "version": "5.6.9",
+      "platform": "ruby"
+    },
+    {
+      "name": "rack",
+      "version": "3.2.7",
+      "platform": "ruby"
+    },
+    {
+      "name": "rack-unreloader",
+      "version": "1.8.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "rake",
+      "version": "13.4.2",
+      "platform": "ruby"
+    },
+    {
+      "name": "redcarpet",
+      "version": "3.6.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "refrigerator",
+      "version": "1.9.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "roda",
+      "version": "3.108.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "securerandom",
+      "version": "0.4.1",
+      "platform": "ruby"
+    },
+    {
+      "name": "tilt",
+      "version": "2.9.0",
+      "platform": "ruby"
+    },
+    {
+      "name": "tzinfo",
+      "version": "2.0.6",
+      "platform": "ruby"
+    },
+    {
+      "name": "uri",
+      "version": "1.1.1",
+      "platform": "ruby"
+    }
+  ]
+}
