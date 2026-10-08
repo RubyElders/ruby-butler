@@ -1,0 +1,20 @@
+[
+  {
+    "archive": "rake-13.2.1.gem",
+    "source": "https://rubygems.org/gems/rake-13.2.1.gem",
+    "sha256": "46cb38dae65d7d74b6020a4ac9d48afed8eb8149c040eccf0523bec91907059d",
+    "metadata_sha256": "63d14c45aaab8b9671de83c10cd91f2eedfcb6ea418d580c462324c272fbef95"
+  },
+  {
+    "archive": "json-2.7.2-java.gem",
+    "source": "https://rubygems.org/gems/json-2.7.2-java.gem",
+    "sha256": "138e3038b5361b3d06ee2e8aa2be00bed0d0de4ef5f1553fc5935e5b93aca7ee",
+    "metadata_sha256": "7381e612013aa6523b3956885e4dead63bcc9227d9c5b7c2b650986875ff5226"
+  },
+  {
+    "archive": "bigdecimal-3.1.8.gem",
+    "source": "https://rubygems.org/gems/bigdecimal-3.1.8.gem",
+    "sha256": "a89467ed5a44f8ae01824af49cbc575871fa078332e8f77ea425725c1ffe27be",
+    "metadata_sha256": "771b83eb836e5e663a9cd132c653ab4ac743b67a00c540c07e45634862c38720"
+  }
+]

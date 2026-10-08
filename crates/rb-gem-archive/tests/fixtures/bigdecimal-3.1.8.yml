@@ -1,0 +1,69 @@
+--- !ruby/object:Gem::Specification
+name: bigdecimal
+version: !ruby/object:Gem::Version
+  version: 3.1.8
+platform: ruby
+authors:
+- Kenta Murata
+- Zachary Scott
+- Shigeo Kobayashi
+autorequire: 
+bindir: bin
+cert_chain: []
+date: 2024-05-07 00:00:00.000000000 Z
+dependencies: []
+description: This library provides arbitrary-precision decimal floating-point number
+  class.
+email:
+- mrkn@mrkn.jp
+executables: []
+extensions:
+- ext/bigdecimal/extconf.rb
+extra_rdoc_files: []
+files:
+- LICENSE
+- bigdecimal.gemspec
+- ext/bigdecimal/bigdecimal.c
+- ext/bigdecimal/bigdecimal.h
+- ext/bigdecimal/bits.h
+- ext/bigdecimal/extconf.rb
+- ext/bigdecimal/feature.h
+- ext/bigdecimal/missing.c
+- ext/bigdecimal/missing.h
+- ext/bigdecimal/missing/dtoa.c
+- ext/bigdecimal/static_assert.h
+- lib/bigdecimal.rb
+- lib/bigdecimal/jacobian.rb
+- lib/bigdecimal/ludcmp.rb
+- lib/bigdecimal/math.rb
+- lib/bigdecimal/newton.rb
+- lib/bigdecimal/util.rb
+- sample/linear.rb
+- sample/nlsolve.rb
+- sample/pi.rb
+homepage: https://github.com/ruby/bigdecimal
+licenses:
+- Ruby
+- BSD-2-Clause
+metadata:
+  changelog_uri: https://github.com/ruby/bigdecimal/blob/master/CHANGES.md
+post_install_message: 
+rdoc_options: []
+require_paths:
+- lib
+required_ruby_version: !ruby/object:Gem::Requirement
+  requirements:
+  - - ">="
+    - !ruby/object:Gem::Version
+      version: 2.5.0
+required_rubygems_version: !ruby/object:Gem::Requirement
+  requirements:
+  - - ">="
+    - !ruby/object:Gem::Version
+      version: '0'
+requirements: []
+rubygems_version: 3.5.9
+signing_key: 
+specification_version: 4
+summary: Arbitrary-precision decimal floating-point number library.
+test_files: []
