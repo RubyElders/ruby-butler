@@ -1,0 +1,73 @@
+--- !ruby/object:Gem::Specification
+name: json
+version: !ruby/object:Gem::Version
+  version: 2.7.2
+platform: java
+authors:
+- Daniel Luz
+autorequire:
+bindir: bin
+cert_chain: []
+date: 2024-04-04 00:00:00.000000000 Z
+dependencies: []
+description: A JSON implementation as a JRuby extension.
+email: dev+ruby@mernen.com
+executables: []
+extensions: []
+extra_rdoc_files: []
+files:
+- LICENSE
+- lib/json.rb
+- lib/json/add/bigdecimal.rb
+- lib/json/add/complex.rb
+- lib/json/add/core.rb
+- lib/json/add/date.rb
+- lib/json/add/date_time.rb
+- lib/json/add/exception.rb
+- lib/json/add/ostruct.rb
+- lib/json/add/range.rb
+- lib/json/add/rational.rb
+- lib/json/add/regexp.rb
+- lib/json/add/set.rb
+- lib/json/add/struct.rb
+- lib/json/add/symbol.rb
+- lib/json/add/time.rb
+- lib/json/common.rb
+- lib/json/ext.rb
+- lib/json/ext/generator.jar
+- lib/json/ext/parser.jar
+- lib/json/generic_object.rb
+- lib/json/pure.rb
+- lib/json/pure/generator.rb
+- lib/json/pure/parser.rb
+- lib/json/version.rb
+homepage: https://flori.github.io/json
+licenses:
+- Ruby
+metadata:
+  bug_tracker_uri: https://github.com/flori/json/issues
+  changelog_uri: https://github.com/flori/json/blob/master/CHANGES.md
+  documentation_uri: https://flori.github.io/json/doc/index.html
+  homepage_uri: https://flori.github.io/json
+  source_code_uri: https://github.com/flori/json
+  wiki_uri: https://github.com/flori/json/wiki
+post_install_message:
+rdoc_options: []
+require_paths:
+- lib
+required_ruby_version: !ruby/object:Gem::Requirement
+  requirements:
+  - - ">="
+    - !ruby/object:Gem::Version
+      version: '2.3'
+required_rubygems_version: !ruby/object:Gem::Requirement
+  requirements:
+  - - ">="
+    - !ruby/object:Gem::Version
+      version: '0'
+requirements: []
+rubygems_version: 3.3.26
+signing_key:
+specification_version: 4
+summary: JSON Implementation for Ruby
+test_files: []

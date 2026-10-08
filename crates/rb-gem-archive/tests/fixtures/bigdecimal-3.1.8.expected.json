@@ -1,0 +1,41 @@
+{
+  "name": "bigdecimal",
+  "version": "3.1.8",
+  "platform": "ruby",
+  "dependencies": {},
+  "ruby": ">= 2.5.0",
+  "rubygems": ">= 0",
+  "require_paths": [
+    "lib"
+  ],
+  "executables": [],
+  "bindir": "bin",
+  "extensions": [
+    "ext/bigdecimal/extconf.rb"
+  ],
+  "files": [
+    "LICENSE",
+    "bigdecimal.gemspec",
+    "ext/bigdecimal/bigdecimal.c",
+    "ext/bigdecimal/bigdecimal.h",
+    "ext/bigdecimal/bits.h",
+    "ext/bigdecimal/extconf.rb",
+    "ext/bigdecimal/feature.h",
+    "ext/bigdecimal/missing.c",
+    "ext/bigdecimal/missing.h",
+    "ext/bigdecimal/missing/dtoa.c",
+    "ext/bigdecimal/static_assert.h",
+    "lib/bigdecimal.rb",
+    "lib/bigdecimal/jacobian.rb",
+    "lib/bigdecimal/ludcmp.rb",
+    "lib/bigdecimal/math.rb",
+    "lib/bigdecimal/newton.rb",
+    "lib/bigdecimal/util.rb",
+    "sample/linear.rb",
+    "sample/nlsolve.rb",
+    "sample/pi.rb"
+  ],
+  "metadata": {
+    "changelog_uri": "https://github.com/ruby/bigdecimal/blob/master/CHANGES.md"
+  }
+}

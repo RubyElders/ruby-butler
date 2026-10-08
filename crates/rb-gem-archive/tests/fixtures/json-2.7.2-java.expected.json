@@ -1,0 +1,49 @@
+{
+  "name": "json",
+  "version": "2.7.2",
+  "platform": "java",
+  "dependencies": {},
+  "ruby": ">= 2.3",
+  "rubygems": ">= 0",
+  "require_paths": [
+    "lib"
+  ],
+  "executables": [],
+  "bindir": "bin",
+  "extensions": [],
+  "files": [
+    "LICENSE",
+    "lib/json.rb",
+    "lib/json/add/bigdecimal.rb",
+    "lib/json/add/complex.rb",
+    "lib/json/add/core.rb",
+    "lib/json/add/date.rb",
+    "lib/json/add/date_time.rb",
+    "lib/json/add/exception.rb",
+    "lib/json/add/ostruct.rb",
+    "lib/json/add/range.rb",
+    "lib/json/add/rational.rb",
+    "lib/json/add/regexp.rb",
+    "lib/json/add/set.rb",
+    "lib/json/add/struct.rb",
+    "lib/json/add/symbol.rb",
+    "lib/json/add/time.rb",
+    "lib/json/common.rb",
+    "lib/json/ext.rb",
+    "lib/json/ext/generator.jar",
+    "lib/json/ext/parser.jar",
+    "lib/json/generic_object.rb",
+    "lib/json/pure.rb",
+    "lib/json/pure/generator.rb",
+    "lib/json/pure/parser.rb",
+    "lib/json/version.rb"
+  ],
+  "metadata": {
+    "bug_tracker_uri": "https://github.com/flori/json/issues",
+    "changelog_uri": "https://github.com/flori/json/blob/master/CHANGES.md",
+    "documentation_uri": "https://flori.github.io/json/doc/index.html",
+    "homepage_uri": "https://flori.github.io/json",
+    "source_code_uri": "https://github.com/flori/json",
+    "wiki_uri": "https://github.com/flori/json/wiki"
+  }
+}
