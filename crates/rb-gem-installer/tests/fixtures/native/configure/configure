@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+prefix=${1#--prefix=}
+cat > Makefile <<MAKE
+all:
+	@echo building configure fixture
+install:
+	@mkdir -p "$prefix"
+	@echo 'CONFIGURE_BUILD_ANSWER = 42' > "$prefix/configure_output.rb"
+MAKE

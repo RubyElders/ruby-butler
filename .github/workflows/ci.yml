@@ -91,8 +91,24 @@ jobs:
     - name: Run yamllint
       run: make lint-yaml
 
-  test-gemfile-ruby:
-    name: Gemfile Ruby Tests (${{ matrix.ruby }}, ${{ matrix.os }})
+  lint-ruby:
+    name: Lint (Ruby)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ env.RUBY_TEST_VERSION }}
+        bundler-cache: true
+        working-directory: gems
+
+    - name: Lint Ruby gems
+      working-directory: gems
+      run: bundle exec rake lint
+
+  test-ruby:
+    name: Ruby Tests (${{ matrix.ruby }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -112,6 +128,36 @@ jobs:
 
     - name: Test the Ruby evaluator
       run: ruby crates/rb-gemfile/tests/ruby/evaluator_test.rb
+
+    - name: Test MicroGems
+      run: ruby gems/rb-microgems/test/all_test.rb
+
+    - name: Test the installer Ruby helper
+      run: ruby gems/rb-gem-installer/test/all_test.rb
+
+  test-native-builds:
+    name: Native Build Tests (Ruby ${{ matrix.ruby }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.3', '3.4', '4.0']
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      run: rustup install
+
+    - uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby }}
+        bundler: none
+
+    - name: Test gem installation and build compatibility
+      run: cargo test -p rb-gem-installer -p rb-microgems
+
+    - name: Build installer examples
+      run: cargo build -p rb-gem-installer --examples
 
   test-rust:
     name: Rust Tests

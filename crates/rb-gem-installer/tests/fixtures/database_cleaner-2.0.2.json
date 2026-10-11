@@ -1,0 +1,8 @@
+{
+  "source": "https://rubygems.org/downloads/database_cleaner-2.0.2.gem",
+  "sha256": "e356500b35c7113a16bd79adf6e6a3c1da8b615cbd3a67af06ed60f677860794",
+  "oracle": "RubyGems 4.0.20",
+  "files": {
+    "lib/database_cleaner.rb": "231cc228fac7fbebe036204514c42882b1ce1d5ae8bbd9a667a910755118e571"
+  }
+}

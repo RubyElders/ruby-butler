@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+require 'json'
+require 'rb_gem_installer'
+
+puts JSON.generate(RubyButler::GemInstaller::RubyConfig.read)
