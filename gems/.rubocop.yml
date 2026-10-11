@@ -1,0 +1,21 @@
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: enable
+  DisabledByDefault: true
+  Include:
+    - '**/*.rb'
+    - '**/*.gemspec'
+    - '**/Rakefile'
+    - '**/exe/*'
+
+Lint:
+  Enabled: true
+
+Layout:
+  Enabled: true
+
+Layout/LineLength:
+  Enabled: false
+
+Security:
+  Enabled: true

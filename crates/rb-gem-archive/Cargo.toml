@@ -7,6 +7,7 @@ description = "Standalone Ruby gem archive metadata reading"
 
 [dependencies]
 anyhow = "1.0"
+base64 = "0.22"
 flate2 = "1.1"
 rb-gem-types = { path = "../rb-gem-types" }
 serde_yaml_ng = "0.10"

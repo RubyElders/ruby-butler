@@ -94,3 +94,41 @@ fn signature_members_must_stay_bounded_and_belong_to_known_members() {
     members.push(("other.sig", b"signature bytes".to_vec()));
     assert!(read(common::container(&members).as_slice()).is_err());
 }
+
+#[test]
+fn binary_tagged_legacy_checksums_are_decoded_and_verified() {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    let mut members = common::members(include_bytes!("fixtures/metadata.yml"));
+    let checksum = format!(
+        "!binary U0hBMjU2:\n  metadata.gz: !binary {}\n  data.tar.gz: !binary {}\n",
+        STANDARD.encode(format!("{:x}", sha2::Sha256::digest(&members[0].1))),
+        STANDARD.encode(format!("{:x}", sha2::Sha256::digest(&members[1].1)))
+    );
+    members[2].1 = common::gzip(checksum.as_bytes());
+    assert_eq!(
+        read(common::container(&members).as_slice())
+            .unwrap()
+            .id
+            .name,
+        "dinner"
+    );
+    members[1].1.push(0);
+    assert!(read(common::container(&members).as_slice()).is_err());
+}
+
+#[test]
+fn binary_checksum_names_cannot_hide_duplicate_entries() {
+    let mut members = common::members(include_bytes!("fixtures/metadata.yml"));
+    let metadata = format!("{:x}", sha2::Sha256::digest(&members[0].1));
+    let data = format!("{:x}", sha2::Sha256::digest(&members[1].1));
+    let values = format!("  metadata.gz: {metadata}\n  data.tar.gz: {data}\n");
+    members[2].1 = common::gzip(format!("SHA256:\n{values}!binary U0hBMjU2:\n{values}").as_bytes());
+    let error = read(common::container(&members).as_slice()).unwrap_err();
+    assert!(error.to_string().contains("Duplicate checksum algorithm"));
+
+    members[2].1 = common::gzip(
+        format!("SHA256:\n{values}  !binary bWV0YWRhdGEuZ3o=: {metadata}\n").as_bytes(),
+    );
+    let error = read(common::container(&members).as_slice()).unwrap_err();
+    assert!(error.to_string().contains("Duplicate checksum member"));
+}

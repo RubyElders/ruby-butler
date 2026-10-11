@@ -1,0 +1,13 @@
+pub(crate) const MAX_ARCHIVE_BYTES: u64 = 1024 * 1024 * 1024;
+pub(crate) const MAX_PAYLOAD_BYTES: u64 = 1024 * 1024 * 1024;
+pub(crate) const MAX_FILES: usize = 100_000;
+pub(crate) const DATA_MEMBER: &str = "data.tar.gz";
+pub(crate) const READ_BUFFER_BYTES: usize = 8192;
+pub(crate) const MAX_LINK_DEPTH: usize = 40;
+pub(crate) const MAX_BUILD_OUTPUT_BYTES: usize = 1024 * 1024;
+pub(crate) const BUILD_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(25);
+pub(crate) const DEFAULT_BUILD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+pub(crate) const DEFAULT_BUILD_JOBS: usize = 2;
+pub(crate) const BUILD_CHANNEL_CAPACITY: usize = 64;
+pub(crate) const NATIVE_DIRECTORY: &str = ".rb-native";
+pub(crate) const BUILD_COMPLETE_MARKER: &str = "gem.build_complete";

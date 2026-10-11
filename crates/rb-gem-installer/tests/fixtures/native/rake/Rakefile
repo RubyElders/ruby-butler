@@ -1,0 +1,6 @@
+require 'fileutils'
+
+task :default do
+  FileUtils.mkdir_p(ENV.fetch('RUBYARCHDIR'))
+  File.write(File.join(ENV.fetch('RUBYARCHDIR'), 'rake_output.rb'), 'RAKE_BUILD_ANSWER = 42')
+end

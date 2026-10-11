@@ -3,9 +3,10 @@ use crate::{
     metadata,
 };
 use anyhow::{Context, Result, ensure};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use sha1::Sha1;
 use sha2::{Digest, Sha256, Sha512};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Default)]
 pub(crate) struct Digests {
@@ -40,34 +41,29 @@ pub(crate) fn verify(
         .as_mapping()
         .context("Invalid gem checksum map")?;
     ensure!(!algorithms.is_empty(), "Empty gem checksum map");
+    let mut seen_algorithms = BTreeSet::new();
     for (algorithm, values) in algorithms {
-        let algorithm = metadata::untag(algorithm)
-            .as_str()
-            .context("Invalid checksum algorithm")?;
+        let algorithm = text(algorithm)?;
         ensure!(
-            matches!(algorithm, "SHA1" | "SHA256" | "SHA512"),
+            seen_algorithms.insert(algorithm.clone()),
+            "Duplicate checksum algorithm"
+        );
+        ensure!(
+            matches!(algorithm.as_str(), "SHA1" | "SHA256" | "SHA512"),
             "Unsupported checksum algorithm: {algorithm}"
         );
         let values = metadata::untag(values)
             .as_mapping()
             .context("Invalid member checksum map")?;
-        for name in [METADATA_MEMBER, DATA_MEMBER] {
-            ensure!(
-                values.contains_key(serde_yaml_ng::Value::String(name.into())),
-                "Missing member checksum"
-            );
-        }
+        let mut names = BTreeSet::new();
         for (name, expected) in values {
-            let name = metadata::untag(name)
-                .as_str()
-                .context("Invalid checksum member")?;
-            let expected = metadata::untag(expected)
-                .as_str()
-                .context("Invalid member checksum")?;
+            let name = text(name)?;
+            ensure!(names.insert(name.clone()), "Duplicate checksum member");
+            let expected = text(expected)?;
             let actual = hashes
-                .get(name)
+                .get(&name)
                 .context("Checksum references missing member")?
-                .get(algorithm)
+                .get(algorithm.as_str())
                 .unwrap();
             ensure!(
                 expected.len() == actual.len() && expected.bytes().all(|c| c.is_ascii_hexdigit()),
@@ -78,6 +74,29 @@ pub(crate) fn verify(
                 "Gem member checksum mismatch: {name} ({algorithm})"
             );
         }
+        ensure!(
+            names.contains(METADATA_MEMBER) && names.contains(DATA_MEMBER),
+            "Missing member checksum"
+        );
     }
     Ok(())
+}
+
+fn text(value: &serde_yaml_ng::Value) -> Result<String> {
+    let content = metadata::untag(value)
+        .as_str()
+        .context("Invalid checksum text")?;
+    if let serde_yaml_ng::Value::Tagged(tagged) = value
+        && (tagged.tag == "binary" || tagged.tag == "tag:yaml.org,2002:binary")
+    {
+        let encoded: String = content
+            .chars()
+            .filter(|c| !c.is_ascii_whitespace())
+            .collect();
+        let bytes = STANDARD
+            .decode(encoded)
+            .context("Invalid binary checksum encoding")?;
+        return String::from_utf8(bytes).context("Non-UTF8 checksum text");
+    }
+    Ok(content.to_owned())
 }

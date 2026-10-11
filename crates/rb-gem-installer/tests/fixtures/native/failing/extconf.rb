@@ -1,0 +1,1 @@
+raise 'second extension failed'
