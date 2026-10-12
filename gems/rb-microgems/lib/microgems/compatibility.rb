@@ -14,6 +14,12 @@ if ENV['RB_MICROGEMS_MANIFEST']
   MicroGems.configure(JSON.parse(File.read(ENV.fetch('RB_MICROGEMS_MANIFEST'))))
 end
 
+if ENV['RB_MICROGEMS_LOAD_PATHS']
+  JSON.parse(ENV.fetch('RB_MICROGEMS_LOAD_PATHS')).reverse_each do |path|
+    $LOAD_PATH.unshift(path) unless $LOAD_PATH.include?(path)
+  end
+end
+
 if ENV['RB_MICROGEMS_CURRENT']
   name, version = JSON.parse(ENV.fetch('RB_MICROGEMS_CURRENT'))
   MicroGems.activate(name, "= #{version}")

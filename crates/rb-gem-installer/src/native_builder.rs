@@ -17,7 +17,7 @@ use std::{
 pub struct NativeBuilder {
     pub(crate) options: BuildOptions,
     pub(crate) ruby: RubyConfig,
-    compatibility: Option<(PathBuf, PathBuf, String)>,
+    compatibility: Option<(PathBuf, PathBuf, String, String)>,
 }
 
 impl NativeBuilder {
@@ -80,6 +80,7 @@ impl NativeBuilder {
             compatibility.load_path().to_path_buf(),
             compatibility.manifest_path().to_path_buf(),
             serde_json::to_string(&[&metadata.id.name, &metadata.id.version.to_string()])?,
+            serde_json::to_string(&configured.options.load_paths)?,
         ));
         configured.build_declared(metadata, &root, &mut events)
     }
@@ -102,6 +103,7 @@ impl NativeBuilder {
             architecture: self.ruby.get("arch").into(),
             extensions: Vec::new(),
             artifacts: Vec::new(),
+            extension_directory: None,
             elapsed: Default::default(),
         };
         if metadata.extensions.is_empty() {
@@ -111,6 +113,7 @@ impl NativeBuilder {
             .join(self.ruby.get("arch"))
             .join(self.ruby.get("ruby_version"));
         let native_relative = payload_path::relative(&native_relative)?;
+        report.extension_directory = Some(native_relative.clone());
         let destination = root.join(&native_relative);
         ensure!(
             !destination.exists(),
@@ -231,11 +234,13 @@ impl NativeBuilder {
             command.env(format!("RBCONFIG_{key}"), value);
         }
         let mut paths = self.options.load_paths.clone();
-        if let Some((directory, manifest, current)) = &self.compatibility {
-            paths.insert(0, directory.clone());
+        if let Some((directory, manifest, current, load_paths)) = &self.compatibility {
+            paths.clear();
+            paths.push(directory.clone());
             command
                 .env("RB_MICROGEMS_MANIFEST", manifest)
                 .env("RB_MICROGEMS_CURRENT", current)
+                .env("RB_MICROGEMS_LOAD_PATHS", load_paths)
                 .env("RUBYOPT", "--disable=gems -rmicrogems/compatibility");
         }
         if let Ok(paths) = std::env::join_paths(&paths) {
@@ -247,9 +252,6 @@ impl NativeBuilder {
     pub(crate) fn ruby_command(&self, directory: &Path) -> Command {
         let mut command = self.command(&self.ruby.executable, directory);
         command.arg("--disable=gems");
-        for path in &self.options.load_paths {
-            command.arg("-I").arg(path);
-        }
         command
     }
 

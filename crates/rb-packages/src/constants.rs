@@ -1,0 +1,35 @@
+pub(crate) const DEFAULT_SOURCE: &str = "https://rubygems.org/";
+pub(crate) const STATE_DIRECTORY: &str = ".rb";
+pub(crate) const GEM_HOME_DIRECTORY: &str = "bundle";
+pub(crate) const SNAPSHOT_FILE: &str = "gemfile.snapshot.json";
+pub(crate) const MANIFEST_FILE: &str = "rbproject.toml";
+pub(crate) const INSTALL_RECEIPT: &str = "installation.json";
+pub(crate) const DEFAULT_WORKERS: usize = 4;
+pub(crate) const SPECIFICATIONS_DIRECTORY: &str = "specifications";
+pub(crate) const GEMS_DIRECTORY: &str = "gems";
+pub(crate) const EXTENSIONS_DIRECTORY: &str = "extensions";
+pub(crate) const BIN_DIRECTORY: &str = "bin";
+pub(crate) const BUILD_COMPLETE_MARKER: &str = "gem.build_complete";
+pub(crate) const PROJECT_LOCK: &str = "prepare.lock";
+pub(crate) const INSTALL_LOCK: &str = ".install.lock";
+pub(crate) const CHECKSUM_CHARACTERS: usize = 64;
+pub(crate) const READ_BUFFER_BYTES: usize = 8192;
+pub(crate) const MAX_OUTPUT_LINE_BYTES: usize = 1024 * 1024;
+
+pub(crate) const DEFAULT_GEMSPEC_GLOB: &str = "{,*,*/*}.gemspec";
+
+pub(crate) const GIT_OBJECT_ID_LENGTHS: [usize; 2] = [40, 64];
+pub(crate) const GIT_SHORT_REVISION_LENGTH: usize = 12;
+pub(crate) const GIT_CACHE_DIRECTORY: &str = "git";
+pub(crate) const GIT_REPOSITORY_DIRECTORY: &str = "repository.git";
+pub(crate) const GIT_CHECKOUTS_DIRECTORY: &str = "checkouts";
+pub(crate) const CACHE_LOCK_FILE: &str = "cache.lock";
+pub(crate) const DEFAULT_GIT_REFERENCE: &str = "refs/rb/default";
+pub(crate) const SOURCE_ARCHIVES_DIRECTORY: &str = "source-archives";
+pub(crate) const BUNDLER_DIRECTORY: &str = "bundler";
+pub(crate) const SOURCE_PATHS_DIRECTORY: &str = "paths";
+pub(crate) const SOURCE_STAMP_FILE: &str = ".rb-source";
+pub(crate) const RUNTIME_DIRECTORY: &str = "runtime";
+pub(crate) const GEMFILE_FILE: &str = "Gemfile";
+pub(crate) const GEM_METADATA_MEMBER: &str = "metadata.gz";
+pub(crate) const GEM_PAYLOAD_MEMBER: &str = "data.tar.gz";

@@ -44,13 +44,15 @@ impl Evaluator {
         let directory = tempfile::tempdir()?;
         let result = directory.path().join("manifest.json");
         for (name, source) in SOURCES {
-            std::fs::write(directory.path().join(name), source)?;
+            let path = directory.path().join(name);
+            std::fs::create_dir_all(path.parent().unwrap())?;
+            std::fs::write(path, source)?;
         }
         let ruby = self.ruby_executable()?;
         let output = Command::new(ruby)
             .envs(&self.environment)
             .env_remove("RUBYOPT")
-            .arg(directory.path().join("evaluate.rb"))
+            .arg(directory.path().join("exe/rb-evaluate-gemfile"))
             .arg(&gemfile)
             .arg(&result)
             .current_dir(gemfile.parent().unwrap())
@@ -106,12 +108,32 @@ pub(crate) fn gemfile_path(path: &Path) -> io::Result<PathBuf> {
 }
 
 pub(crate) const SOURCES: &[(&str, &str)] = &[
-    ("evaluate.rb", include_str!("../assets/evaluate.rb")),
-    ("gemfile.rb", include_str!("../assets/gemfile.rb")),
-    ("sources.rb", include_str!("../assets/sources.rb")),
-    ("gemspec.rb", include_str!("../assets/gemspec.rb")),
     (
-        "compatibility.rb",
-        include_str!("../assets/compatibility.rb"),
+        "exe/rb-evaluate-gemfile",
+        include_str!("../../../gems/rb-gemfile/exe/rb-evaluate-gemfile"),
+    ),
+    (
+        "lib/rb_gemfile.rb",
+        include_str!("../../../gems/rb-gemfile/lib/rb_gemfile.rb"),
+    ),
+    (
+        "lib/rb_gemfile/version.rb",
+        include_str!("../../../gems/rb-gemfile/lib/rb_gemfile/version.rb"),
+    ),
+    (
+        "lib/rb_gemfile/gemfile.rb",
+        include_str!("../../../gems/rb-gemfile/lib/rb_gemfile/gemfile.rb"),
+    ),
+    (
+        "lib/rb_gemfile/sources.rb",
+        include_str!("../../../gems/rb-gemfile/lib/rb_gemfile/sources.rb"),
+    ),
+    (
+        "lib/rb_gemfile/gemspec.rb",
+        include_str!("../../../gems/rb-gemfile/lib/rb_gemfile/gemspec.rb"),
+    ),
+    (
+        "lib/rb_gemfile/compatibility.rb",
+        include_str!("../../../gems/rb-gemfile/lib/rb_gemfile/compatibility.rb"),
     ),
 ];

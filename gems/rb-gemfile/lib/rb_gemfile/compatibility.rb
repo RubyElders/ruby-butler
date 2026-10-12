@@ -10,6 +10,8 @@ module Bundler
   end
 
   module Plugin
+    DSL = Class.new
+
     def self.index
       self
     end

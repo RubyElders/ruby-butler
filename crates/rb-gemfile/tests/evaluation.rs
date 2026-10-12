@@ -168,10 +168,6 @@ fn rejects_unsupported_or_ambiguous_declarations() {
         ),
         ("gem 'rake', git: 'url', path: '.'", "Conflicting sources"),
         ("gem 'rake', branch: 'main'", "Git options require"),
-        (
-            "gem 'rake', git: 'url', branch: 'main', tag: 'v1'",
-            "Conflicting Git selectors",
-        ),
         ("eval_gemfile 'Gemfile'", "Recursive eval_gemfile"),
         ("source 'one'; source 'two'", "Multiple global sources"),
         (
@@ -702,4 +698,66 @@ fn compatibility_helpers_preserve_manifest_and_input_tracking() {
         toml::from_str::<Manifest>(&evaluation.manifest.to_toml().unwrap()).unwrap(),
         evaluation.manifest
     );
+}
+
+#[test]
+fn rejects_combined_git_selectors_and_git_options_without_git() {
+    for declaration in [
+        "gem 'fixture', git: 'url', branch: 'main', tag: 'v1'",
+        "gem 'fixture', git: 'url', branch: 'main', ref: 'abc'",
+        "gem 'fixture', git: 'url', tag: 'v1', ref: 'abc'",
+        "gem 'fixture', ref: 'abc'",
+        "gem 'fixture', tag: 'v1'",
+        "gem 'fixture', submodules: true",
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        write(root.path(), "Gemfile", declaration);
+        let error = evaluator()
+            .evaluate(root.path().join("Gemfile"))
+            .unwrap_err();
+        let expected = if declaration.contains("git:") {
+            "Conflicting Git selectors"
+        } else {
+            "Git options require"
+        };
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+    for options in [
+        "branch='main',tag='v1'",
+        "branch='main',rev='abc'",
+        "tag='v1',rev='abc'",
+    ] {
+        let toml = format!("[dependencies]\nfixture={{git='url',{options}}}\n");
+        assert!(
+            toml::from_str::<Manifest>(&toml)
+                .unwrap_err()
+                .to_string()
+                .contains("Specify only one")
+        );
+        let kdl = format!(
+            "gem \"fixture\" git=\"url\" {}\n",
+            options.replace(',', " ").replace('\'', "\"")
+        );
+        assert!(
+            Manifest::from_kdl(&kdl)
+                .unwrap_err()
+                .to_string()
+                .contains("Specify only one")
+        );
+    }
+}
+
+#[test]
+fn plugin_dsl_guard_keeps_normal_gemfile_dependencies() {
+    let root = tempfile::tempdir().unwrap();
+    write(
+        root.path(),
+        "Gemfile",
+        include_str!("fixtures/ruby/plugin_dsl_guard.rb"),
+    );
+    let manifest = evaluator()
+        .evaluate(root.path().join("Gemfile"))
+        .unwrap()
+        .manifest;
+    assert_eq!(manifest.dependencies["fixture"].version, ["~> 3.0"]);
 }

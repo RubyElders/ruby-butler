@@ -18,6 +18,7 @@ pub struct SnapshotCache {
     path: PathBuf,
     inputs: Vec<PathBuf>,
     outputs: Vec<PathBuf>,
+    output_directories: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -40,6 +41,7 @@ impl SnapshotCache {
             path: path.into(),
             inputs: Vec::new(),
             outputs: Vec::new(),
+            output_directories: Vec::new(),
         }
     }
 
@@ -52,6 +54,11 @@ impl SnapshotCache {
     /// Excludes a generated file that the Gemfile must not read.
     pub fn output(mut self, path: impl Into<PathBuf>) -> Self {
         self.outputs.push(path.into());
+        self
+    }
+
+    pub fn output_directory(mut self, path: impl Into<PathBuf>) -> Self {
+        self.output_directories.push(path.into());
         self
     }
 
@@ -81,6 +88,21 @@ impl SnapshotCache {
             ));
         }
         let mut excluded = vec![path.clone()];
+        for output in &self.output_directories {
+            let output = absolute(output)?;
+            if output == directory
+                || gemfile.starts_with(&output)
+                || ruby.starts_with(&output)
+                || inputs.iter().any(|input| input.starts_with(&output))
+                || (output.exists() && !output.is_dir())
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Generated directory must not contain explicit inputs",
+                ));
+            }
+            excluded.push(output);
+        }
         for output in &self.outputs {
             let output = absolute(output)?;
             if output.is_dir() || output == gemfile || output == ruby || inputs.contains(&output) {
@@ -126,7 +148,7 @@ impl SnapshotCache {
         }
         let evaluation = evaluator.evaluate(&gemfile)?;
         let covered = evaluation.inputs.iter().all(|path| {
-            !excluded.contains(path)
+            !excluded.iter().any(|output| path.starts_with(output))
                 && (path.starts_with(directory)
                     || inputs
                         .iter()

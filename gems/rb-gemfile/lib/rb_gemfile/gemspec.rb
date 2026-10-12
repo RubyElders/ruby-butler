@@ -5,9 +5,11 @@ module RubyButler
       options = options.transform_keys(&:to_sym)
       unknown = options.keys - %i[engine engine_version file patchlevel]
       raise ArgumentError, "Unsupported ruby options: #{unknown.join(', ')}" unless unknown.empty?
+
       engine, engine_version, file, patchlevel = options.values_at(:engine, :engine_version, :file, :patchlevel)
       if file
         raise ArgumentError, "ruby accepts versions or file, not both" unless versions.empty?
+
         location = File.expand_path(file, File.dirname(@stack.last))
         @inputs << location unless @inputs.include?(location)
         text = read_file(location)
@@ -15,12 +17,14 @@ module RubyButler
         versions = [match ? match.captures.compact.first : text.strip]
       end
       raise ArgumentError, "ruby requires a version" if versions.empty?
+
       versions = versions.flatten
       Gem::Requirement.new(versions)
       raise ArgumentError, "engine and engine_version must be specified together" if engine.nil? != engine_version.nil?
       if engine == "ruby" && engine_version && versions != Array(engine_version)
         raise ArgumentError, "Ruby requirements must match engine_version for MRI"
       end
+
       @bundle.merge!(ruby: versions.map(&:to_s), engine: engine, engine_version: engine_version, patchlevel: patchlevel&.to_s)
     end
 
@@ -28,6 +32,7 @@ module RubyButler
       options = options.merge(keywords).transform_keys(&:to_sym)
       unknown = options.keys - %i[path name glob development_group require]
       raise ArgumentError, "Unsupported gemspec options: #{unknown.join(', ')}" unless unknown.empty?
+
       path = options.fetch(:path, ".")
       name = options[:name]
       glob = options[:glob]
@@ -37,6 +42,7 @@ module RubyButler
       specs.select! { |spec| spec.name == name } if name
       groups = specs.group_by { |spec| [spec.name, spec.version] }
       raise ArgumentError, "Expected one gemspec in #{directory}, found #{groups.length}" unless groups.length == 1
+
       choices = groups.values.first
       spec = choices.find { |candidate| candidate.platform.to_s == Gem::Platform.local.to_s } ||
              choices.find { |candidate| candidate.platform.to_s == "ruby" } || choices.first
@@ -74,6 +80,7 @@ module RubyButler
         end
       end
       raise ArgumentError, "Unable to evaluate #{path}" unless spec.is_a?(Gem::Specification)
+
       spec.loaded_from = path
       spec.validate if validate
       spec

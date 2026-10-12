@@ -10,6 +10,20 @@ use std::{
 
 const FILES: &[(&str, &str)] = &[
     (
+        "lib/rb_gem_installer/source_specifications.rb",
+        include_str!(
+            "../../../gems/rb-gem-installer/lib/rb_gem_installer/source_specifications.rb"
+        ),
+    ),
+    (
+        "lib/rb_gem_installer/runtime.rb",
+        include_str!("../../../gems/rb-gem-installer/lib/rb_gem_installer/runtime.rb"),
+    ),
+    (
+        "lib/rb_gem_installer/specification.rb",
+        include_str!("../../../gems/rb-gem-installer/lib/rb_gem_installer/specification.rb"),
+    ),
+    (
         "lib/rb_gem_installer.rb",
         include_str!("../../../gems/rb-gem-installer/lib/rb_gem_installer.rb"),
     ),
