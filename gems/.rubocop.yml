@@ -19,3 +19,7 @@ Layout/LineLength:
 
 Security:
   Enabled: true
+
+Security/Eval:
+  Exclude:
+    - 'rb-gemfile/lib/rb_gemfile/gemspec.rb'

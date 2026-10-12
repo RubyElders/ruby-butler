@@ -127,7 +127,7 @@ jobs:
       run: gem install minitest --version '~> 5.25' --no-document
 
     - name: Test the Ruby evaluator
-      run: ruby crates/rb-gemfile/tests/ruby/evaluator_test.rb
+      run: ruby gems/rb-gemfile/test/all_test.rb
 
     - name: Test MicroGems
       run: ruby gems/rb-microgems/test/all_test.rb
@@ -154,10 +154,10 @@ jobs:
         bundler: none
 
     - name: Test gem installation and build compatibility
-      run: cargo test -p rb-gem-installer -p rb-microgems
+      run: cargo test -p rb-gem-installer -p rb-microgems -p rb-packages
 
     - name: Build installer examples
-      run: cargo build -p rb-gem-installer --examples
+      run: cargo build -p rb-gem-installer -p rb-packages --examples
 
   test-rust:
     name: Rust Tests

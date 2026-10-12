@@ -1,7 +1,5 @@
-require_relative "gemfile"
-require_relative "sources"
-require_relative "gemspec"
-require_relative "compatibility"
+#!/usr/bin/env ruby
+require_relative '../lib/rb_gemfile'
 
 begin
   evaluator = RubyButler::Gemfile.new

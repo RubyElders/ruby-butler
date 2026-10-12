@@ -422,3 +422,47 @@ fn changing_condition_inputs_updates_exported_dependencies() {
         }
     }
 }
+
+#[test]
+fn generated_directory_is_excluded_but_cannot_hide_gemfile_inputs() {
+    let root = tempfile::tempdir().unwrap();
+    write(
+        root.path(),
+        "Gemfile",
+        "source 'https://rubygems.org'\ngem 'rake'\n",
+    );
+    let generated = root.path().join(".rb");
+    let cache = SnapshotCache::new(generated.join("snapshot.json")).output_directory(&generated);
+    assert!(
+        !cache
+            .evaluate(&evaluator(), root.path().join("Gemfile"))
+            .unwrap()
+            .reused
+    );
+    write(root.path(), ".rb/installed/data", "generated\n");
+    assert!(
+        cache
+            .evaluate(&evaluator(), root.path().join("Gemfile"))
+            .unwrap()
+            .reused
+    );
+    let invalid = SnapshotCache::new(generated.join("snapshot.json")).output_directory(root.path());
+    assert!(
+        invalid
+            .evaluate(&evaluator(), root.path().join("Gemfile"))
+            .is_err()
+    );
+    write(
+        root.path(),
+        "Gemfile",
+        "Bundler.read_file('.rb/installed/data')\nsource 'https://rubygems.org'\ngem 'rake'\n",
+    );
+    for _ in 0..2 {
+        assert!(
+            !cache
+                .evaluate(&evaluator(), root.path().join("Gemfile"))
+                .unwrap()
+                .reused
+        );
+    }
+}

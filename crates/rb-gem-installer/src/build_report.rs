@@ -6,5 +6,6 @@ pub struct BuildReport {
     pub architecture: String,
     pub extensions: Vec<PathBuf>,
     pub artifacts: Vec<PathBuf>,
+    pub extension_directory: Option<PathBuf>,
     pub elapsed: Duration,
 }

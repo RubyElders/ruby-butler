@@ -1,4 +1,5 @@
 task :test do
+  ruby File.join(__dir__, 'rb-gemfile/test/all_test.rb')
   ruby File.join(__dir__, 'rb-microgems/test/all_test.rb')
   ruby File.join(__dir__, 'rb-gem-installer/test/all_test.rb')
 end

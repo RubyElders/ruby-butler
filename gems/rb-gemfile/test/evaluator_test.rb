@@ -3,14 +3,11 @@ require "tmpdir"
 require "fileutils"
 require "open3"
 require "rbconfig"
-require_relative "../../assets/gemfile"
-require_relative "../../assets/sources"
-require_relative "../../assets/gemspec"
-require_relative "../../assets/compatibility"
+require_relative '../lib/rb_gemfile'
 
 class EvaluatorTest < Minitest::Test
-  FIXTURES = File.expand_path("../fixtures", __dir__)
-  ENTRYPOINT = File.expand_path("../../assets/evaluate.rb", __dir__)
+  FIXTURES = File.expand_path("../../../crates/rb-gemfile/tests/fixtures", __dir__)
+  ENTRYPOINT = File.expand_path("../exe/rb-evaluate-gemfile", __dir__)
 
   def setup
     @evaluator = RubyButler::Gemfile.new
@@ -33,6 +30,27 @@ class EvaluatorTest < Minitest::Test
     assert_same Bundler::Plugin, Bundler::Plugin.index
     assert_empty Bundler::Plugin.index.load_paths("bundler-inject")
     refute Gem.loaded_specs.key?("bundler-inject")
+  end
+
+  def test_rejects_combined_git_selectors
+    [{ branch: "main", tag: "v1" }, { branch: "main", ref: "abc" }, { tag: "v1", ref: "abc" }].each do |options|
+      error = assert_raises(ArgumentError) { @evaluator.gem("fixture", git: "https://example.test/fixture.git", **options) }
+      assert_match "Conflicting Git selectors", error.message
+    end
+  end
+
+  def test_git_options_require_a_git_source
+    [{ branch: "main" }, { ref: "abc" }, { tag: "v1" }, { submodules: true }].each do |options|
+      error = assert_raises(ArgumentError) { @evaluator.gem("fixture", **options) }
+      assert_match "Git options require", error.message
+    end
+  end
+
+  def test_plugin_dsl_guard_does_not_skip_normal_dependency_evaluation
+    @evaluator.eval_gemfile(File.join(FIXTURES, "ruby/plugin_dsl_guard.rb"))
+    assert_equal ["~> 3.0"], @evaluator.manifest.fetch(:dependencies).fetch("fixture").fetch(:version)
+    refute @evaluator.is_a?(Bundler::Plugin::DSL)
+    refute Gem.loaded_specs.key?("bundler")
   end
 
   def test_groups_sources_and_conditions

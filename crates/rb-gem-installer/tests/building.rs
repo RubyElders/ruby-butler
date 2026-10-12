@@ -709,3 +709,30 @@ fn mkrf_builder_generates_and_runs_its_rakefile() {
     assert!(root.path().join("Rakefile").is_file());
     require(root.path(), "require 'rake_output'; puts RAKE_BUILD_ANSWER");
 }
+
+#[cfg(unix)]
+#[test]
+fn current_gem_cannot_shadow_compatibility_bootstrap_dependencies() {
+    let root = tempfile::tempdir().unwrap();
+    copy_fixture("c", root.path());
+    fs::create_dir(root.path().join("lib")).unwrap();
+    fs::write(
+        root.path().join("lib/json.rb"),
+        "raise 'unfinished current gem loaded during bootstrap'\n",
+    )
+    .unwrap();
+    let mut metadata = metadata("extconf.rb");
+    metadata.id.name = "json".into();
+    let source = fs::read_to_string(root.path().join("extconf.rb"))
+        .unwrap()
+        .replace("fetch('dinner')", "fetch('json')");
+    fs::write(root.path().join("extconf.rb"), source).unwrap();
+    let report = builder().build(&metadata, root.path(), |_| {}).unwrap();
+    let directory = report.extension_directory.as_ref().unwrap();
+    assert!(
+        report
+            .artifacts
+            .iter()
+            .any(|path| path.starts_with(directory))
+    );
+}

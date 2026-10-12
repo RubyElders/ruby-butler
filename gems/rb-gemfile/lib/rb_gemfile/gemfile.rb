@@ -32,6 +32,7 @@ module RubyButler
 
     def plugin(name, *requirements, **options)
       raise ArgumentError, "Plugin options are unsupported" unless options.empty?
+
       requirements = Gem::Requirement.new(requirements.flatten.compact).as_list
       @bundle[:plugins] ||= []
       @bundle[:plugins] << { name: name, version: requirements }
@@ -45,6 +46,7 @@ module RubyButler
     def eval_gemfile(path, contents = nil)
       path = File.expand_path(path, @stack.empty? ? Dir.pwd : File.dirname(@stack.last))
       raise ArgumentError, "Recursive eval_gemfile: #{path}" if @stack.include?(path)
+
       @inputs << path unless @inputs.include?(path)
       @stack.push(path)
       begin
@@ -74,10 +76,12 @@ module RubyButler
       @git_sources.each do |key, expansion|
         if options.key?(key.to_sym)
           raise ArgumentError, "Conflicting Git sources for #{name}" if options[:git]
+
           expansion = expansion.call(options.delete(key.to_sym))
           expansion = { git: expansion } if expansion.is_a?(String)
           expansion = expansion.transform_keys(&:to_sym)
           raise ArgumentError, "Conflicting Git shortcut options for #{name}" unless (expansion.keys & options.keys).empty?
+
           options.merge!(expansion)
         end
       end
@@ -87,6 +91,7 @@ module RubyButler
       raise ArgumentError, "Gem names must be strings" unless name.is_a?(String)
       raise ArgumentError, "Empty gem name" if name.empty?
       raise ArgumentError, "Gem names cannot contain whitespace" if name.match?(/\s/)
+
       @declarations.delete(name) unless @dependencies.any? { |dependency| dependency.name == name }
       options[:require] = false if options.key?(:require) && options[:require].nil?
       requirements = requirements.flatten.compact.map(&:to_s)
@@ -109,6 +114,7 @@ module RubyButler
       end
       dependency.merge!(options.reject { |key, _| %i[group groups platform platforms install_if].include?(key) })
       raise ArgumentError, "Specify ref or rev, not both for #{name}" if dependency[:ref] && dependency[:rev]
+
       dependency[:rev] = dependency.delete(:ref) if dependency.key?(:ref)
       if dependency[:path]
         dependency[:path] = File.expand_path(dependency[:path], File.dirname(@stack.last))
@@ -118,6 +124,7 @@ module RubyButler
       if !dependency[:git] && %i[branch tag rev submodules].any? { |key| dependency.key?(key) }
         raise ArgumentError, "Git options require a Git source for #{name}"
       end
+
       dependency.merge!(version: requirements, groups: groups.empty? ? ["default"] : groups.map(&:to_s).uniq,
                         platforms: platforms.map(&:to_s).uniq,
                         enabled: (@context[:conditions] + Array(options[:install_if])).all? { |value| condition(value) } && environment_enabled?)
@@ -125,10 +132,12 @@ module RubyButler
         unless Gem::Requirement.new(current[:version]) == Gem::Requirement.new(dependency[:version])
           raise ArgumentError, "Conflicting declarations for #{name}"
         end
+
         source_keys = %i[source git path branch tag rev glob submodules]
         unless source_keys.all? { |key| current[key] == dependency[key] }
           raise ArgumentError, "Conflicting sources for #{name}"
         end
+
         primary = current.reject { |key, _| key == :variants }
         unless primary == dependency || Array(current[:variants]).include?(dependency)
           (current[:variants] ||= []) << dependency
@@ -164,6 +173,7 @@ module RubyButler
       value = @context[:environment]
       return true unless value
       return !!ENV[value.to_s] unless value.is_a?(Hash)
+
       value.all? do |name, expected|
         actual = ENV[name.to_s]
         actual && (expected.is_a?(Regexp) ? expected.match?(actual) : actual == expected)
@@ -176,6 +186,7 @@ module RubyButler
 
     def scoped(values)
       raise ArgumentError, "This declaration requires a block" unless block_given?
+
       previous = @context
       @context = previous.merge(values)
       begin

@@ -1374,6 +1374,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "rb-packages"
+version = "0.3.1"
+dependencies = [
+ "anyhow",
+ "dunce",
+ "flate2",
+ "rb-compact-index",
+ "rb-gem-archive",
+ "rb-gem-installer",
+ "rb-gem-types",
+ "rb-gemfile",
+ "rb-lockfile",
+ "rb-microgems",
+ "rb-resolver",
+ "rb-task",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tempfile",
+ "toml",
+ "url",
+]
+
+[[package]]
 name = "rb-progress"
 version = "0.3.1"
 dependencies = [
