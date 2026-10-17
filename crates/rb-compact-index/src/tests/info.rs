@@ -235,3 +235,81 @@ fn empty_or_unterminated_headers_are_rejected() {
         assert!(parse("app", body).is_err());
     }
 }
+
+#[test]
+fn missing_optional_lookup_is_cached_offline_and_rechecked_online() {
+    let server = Server::new();
+    server
+        .responses
+        .lock()
+        .unwrap()
+        .insert("/versions".into(), b"---\n".to_vec());
+    let cache = tempfile::tempdir().unwrap();
+    let client = Client::new(&server.source, cache.path(), false).unwrap();
+    assert!(client.info_or_empty("missing").unwrap().is_empty());
+    assert_eq!(
+        *server.requests.lock().unwrap(),
+        ["/info/missing", "/versions"]
+    );
+    let offline = Client::new(&server.source, cache.path(), true).unwrap();
+    assert!(offline.info_or_empty("missing").unwrap().is_empty());
+    server.responses.lock().unwrap().insert(
+        "/info/missing".into(),
+        format!("---\n1.0 |checksum:{}\n", "a".repeat(64)).into_bytes(),
+    );
+    let found = client.info_or_empty("missing").unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].version, "1.0");
+    drop(server);
+    assert_eq!(offline.info_or_empty("missing").unwrap(), found);
+}
+
+#[test]
+fn optional_lookup_does_not_hide_access_server_or_protocol_errors() {
+    for status in [
+        "401 Unauthorized",
+        "403 Forbidden",
+        "500 Internal Server Error",
+    ] {
+        let server = Server::new();
+        server
+            .statuses
+            .lock()
+            .unwrap()
+            .insert("/info/private".into(), status.into());
+        server
+            .responses
+            .lock()
+            .unwrap()
+            .insert("/versions".into(), b"---\n".to_vec());
+        let cache = tempfile::tempdir().unwrap();
+        let client = Client::new(&server.source, cache.path(), false).unwrap();
+        assert!(client.info_or_empty("private").is_err());
+        assert_eq!(*server.requests.lock().unwrap(), ["/info/private"]);
+        assert!(
+            Client::new(&server.source, cache.path(), true)
+                .unwrap()
+                .info_or_empty("private")
+                .is_err()
+        );
+    }
+    let server = Server::new();
+    server
+        .statuses
+        .lock()
+        .unwrap()
+        .insert("/versions".into(), "403 Forbidden".into());
+    let cache = tempfile::tempdir().unwrap();
+    assert!(
+        Client::new(&server.source, cache.path(), false)
+            .unwrap()
+            .info_or_empty("private")
+            .is_err()
+    );
+    assert!(
+        Client::new(&server.source, cache.path(), true)
+            .unwrap()
+            .info_or_empty("private")
+            .is_err()
+    );
+}

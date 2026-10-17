@@ -1,5 +1,5 @@
 use rb_gem_types::{PackageId, Platform, Requirement, Version};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Resolution inputs and locked package preferences.
 #[derive(Clone, Debug)]
@@ -9,6 +9,7 @@ pub struct ResolveRequest {
     pub target: Platform,
     pub locked: Vec<PackageId>,
     pub allow_prereleases: bool,
+    pub force_ruby: BTreeSet<String>,
 }
 
 impl ResolveRequest {
@@ -19,6 +20,7 @@ impl ResolveRequest {
             target,
             locked: Vec::new(),
             allow_prereleases: false,
+            force_ruby: BTreeSet::new(),
         }
     }
 }

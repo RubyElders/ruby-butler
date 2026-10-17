@@ -5,6 +5,7 @@ pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 pub(crate) const ARCHIVE_BUFFER_BYTES: usize = 64 * 1024;
 pub(crate) const MAX_ARCHIVE_BYTES: u64 = 1024 * 1024 * 1024;
+pub(crate) const MAX_VERSIONS_BYTES: u64 = 128 * 1024 * 1024;
 pub(crate) const MAX_COMPACT_INFO_BYTES: u64 = 32 * 1024 * 1024;
 pub(crate) const MAX_COMPRESSED_INDEX_BYTES: u64 = 16 * 1024 * 1024;
 pub(crate) const MAX_DECOMPRESSED_INDEX_BYTES: u64 = 32 * 1024 * 1024;
@@ -12,6 +13,8 @@ pub(crate) const MAX_GEM_METADATA_BYTES: u64 = 16 * 1024 * 1024;
 pub(crate) const MAX_FALLBACK_ARCHIVE_BYTES: u64 = 256 * 1024 * 1024;
 
 pub(crate) const INDEX_CACHE_DIRECTORY: &str = "index";
+pub(crate) const REGISTRY_METADATA_DIRECTORY: &str = "registry";
+pub(crate) const VERSIONS_CACHE_FILE: &str = "versions.json";
 pub(crate) const ARCHIVE_CACHE_DIRECTORY: &str = "gems";
 pub(crate) const FULL_INFO_CACHE_SUFFIX: &str = ".full-platforms.json";
 

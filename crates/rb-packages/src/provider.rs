@@ -1,12 +1,10 @@
-use crate::constants::DEFAULT_SOURCE;
 use anyhow::{Context, Result, ensure};
-use rb_compact_index::{Client, GemInfo};
+use rb_compact_index::GemInfo;
 use rb_gem_types::{PackageId, Platform};
 use rb_resolver::Package;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     path::{Path, PathBuf},
-    sync::Mutex,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -127,124 +125,6 @@ impl PackageIndex for MemoryIndex {
             .get(&record.checksum)
             .cloned()
             .context("Archive is not available in the memory index")
-    }
-}
-
-pub struct RegistryIndex {
-    clients: BTreeMap<String, Client>,
-    default: Option<String>,
-    explicit: BTreeSet<String>,
-    metadata: Mutex<BTreeMap<String, Vec<PackageRecord>>>,
-    routes: Mutex<BTreeMap<String, String>>,
-}
-
-impl RegistryIndex {
-    pub fn new(manifest: &rb_gemfile::Manifest, cache: &Path, offline: bool) -> Result<Self> {
-        let locations: BTreeSet<_> = manifest
-            .dependencies
-            .values()
-            .flat_map(|dependency| std::iter::once(dependency).chain(&dependency.variants))
-            .filter(|dependency| dependency.enabled)
-            .filter_map(|dependency| dependency.source.as_deref())
-            .map(source_url)
-            .collect::<Result<_>>()?;
-        let default = if let Some(source) = &manifest.bundle.source {
-            Some(source_url(source)?)
-        } else if locations.len() == 1 {
-            locations.first().cloned()
-        } else if locations.is_empty() {
-            Some(source_url(DEFAULT_SOURCE)?)
-        } else {
-            None
-        };
-        let mut clients = BTreeMap::new();
-        if let Some(source) = &default {
-            clients.insert(source.clone(), Client::new(source, cache, offline)?);
-        }
-        let mut routes = BTreeMap::new();
-        for (name, dependency) in &manifest.dependencies {
-            let declarations = std::iter::once(dependency).chain(&dependency.variants);
-            for declaration in declarations.filter(|d| d.enabled) {
-                if declaration.git.is_some() || declaration.path.is_some() {
-                    continue;
-                }
-                let source = source_url(
-                    declaration
-                        .source
-                        .as_deref()
-                        .or(default.as_deref())
-                        .context("Dependency needs an explicit source")?,
-                )?;
-                if let Some(previous) = routes.insert(name.clone(), source.clone()) {
-                    ensure!(previous == source, "Conflicting sources for {name}");
-                }
-                if !clients.contains_key(&source) {
-                    clients.insert(source.clone(), Client::new(&source, cache, offline)?);
-                }
-            }
-        }
-        Ok(Self {
-            clients,
-            default,
-            explicit: routes.keys().cloned().collect(),
-            routes: Mutex::new(routes),
-            metadata: Mutex::new(BTreeMap::new()),
-        })
-    }
-}
-
-impl PackageIndex for RegistryIndex {
-    fn candidates(&self, name: &str) -> Result<Vec<PackageRecord>> {
-        let mut metadata = self.metadata.lock().unwrap();
-        if let Some(records) = metadata.get(name) {
-            return Ok(records.clone());
-        }
-        let source = self
-            .routes
-            .lock()
-            .unwrap()
-            .get(name)
-            .cloned()
-            .or_else(|| self.default.clone())
-            .context("Transitive dependency has no unambiguous source")?;
-        let records: Vec<_> = self.clients[&source]
-            .info(name)?
-            .into_iter()
-            .map(|info| PackageRecord::from_info(name, &source, info))
-            .collect::<Result<_>>()?;
-        if self.default.is_none() {
-            let mut routes = self.routes.lock().unwrap();
-            for dependency in records
-                .iter()
-                .flat_map(|record| record.package.dependencies.keys())
-            {
-                if self.explicit.contains(dependency) {
-                    continue;
-                }
-                if let Some(previous) = routes.get(dependency) {
-                    ensure!(
-                        previous == &source,
-                        "Ambiguous transitive source for {dependency}"
-                    );
-                }
-                routes.insert(dependency.clone(), source.clone());
-            }
-        }
-        metadata.insert(name.into(), records.clone());
-        Ok(records)
-    }
-    fn archive(&self, record: &PackageRecord) -> Result<PathBuf> {
-        let crate::PackageSource::Registry(source) = &record.source else {
-            anyhow::bail!("Not a registry archive");
-        };
-        self.clients
-            .get(source)
-            .context("Unknown package source")?
-            .download(
-                &record.package.id.name,
-                &record.archive_version,
-                &record.checksum,
-            )
     }
 }
 

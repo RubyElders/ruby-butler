@@ -1,5 +1,7 @@
 pub(crate) const DEFAULT_SOURCE: &str = "https://rubygems.org/";
 pub(crate) const STATE_DIRECTORY: &str = ".rb";
+pub(crate) const AUTH_CONFIG_DIRECTORY: &str = "rb";
+pub(crate) const AUTH_CONFIG_FILE: &str = "auth.toml";
 pub(crate) const GEM_HOME_DIRECTORY: &str = "bundle";
 pub(crate) const SNAPSHOT_FILE: &str = "gemfile.snapshot.json";
 pub(crate) const MANIFEST_FILE: &str = "rbproject.toml";

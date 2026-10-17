@@ -24,6 +24,17 @@ class CompatibilityTest < Minitest::Test
     assert_includes output, 'contracts passed'
   end
 
+  def test_gem_directory_matches_rubygems_with_default_and_custom_homes
+    [nil, @root, File.join(@root, '.'), File.join(@root, 'missing'), 'relative-gem-home'].each do |home|
+      environment = { 'GEM_HOME' => home }
+      expected, error, status = Open3.capture3(environment, RbConfig.ruby, '-rrubygems', '-e', 'puts Gem.dir')
+      assert status.success?, error
+      output, error, status = ruby_fixture('gem_directory.rb', environment: environment, compatibility: true)
+      assert status.success?, error
+      assert_equal expected, output
+    end
+  end
+
   def test_core_does_not_install_the_compatibility_namespace
     output, error, status = ruby_fixture('namespaces.rb', environment: @environment, compatibility: true)
     assert status.success?, error

@@ -296,3 +296,151 @@ fn platform_and_major_version_selectors_choose_only_applicable_roots() {
     assert_eq!(windows.packages[0].record.package.id.name, "windows-helper");
     assert_eq!(windows.packages.len(), 1);
 }
+
+#[test]
+fn equivalent_faker_releases_keep_their_archives_and_locked_checksums() {
+    let mut index = MemoryIndex::default();
+    for info in rb_compact_index::parse("faker", include_str!("fixtures/faker.info")).unwrap() {
+        add(
+            &mut index,
+            rb_packages::PackageRecord::from_info("faker", "https://rubygems.org", info).unwrap(),
+        );
+    }
+    add(&mut index, record("i18n", "1.0", &[]));
+    let request = manifest("https://rubygems.org", "faker = '= 2.0'");
+    let runtime = runtime();
+    for spelling in ["2.0", "2.0.0"] {
+        let mut pinned = MemoryIndex {
+            packages: index.packages.clone(),
+            ..Default::default()
+        };
+        pinned
+            .packages
+            .get_mut("faker")
+            .unwrap()
+            .retain(|r| r.archive_version == spelling);
+        let initial = plan(&request, &runtime, None, &pinned, &PlanOptions::default()).unwrap();
+        for mode in [LockMode::Prefer, LockMode::Locked] {
+            let result = plan(
+                &request,
+                &runtime,
+                Some(&initial.lockfile),
+                &index,
+                &PlanOptions {
+                    mode,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let faker = result
+                .packages
+                .iter()
+                .find(|p| p.record.package.id.name == "faker")
+                .unwrap();
+            assert_eq!(faker.record.archive_version, spelling);
+            assert_eq!(
+                faker.record.checksum,
+                initial
+                    .packages
+                    .iter()
+                    .find(|p| p.record.package.id.name == "faker")
+                    .unwrap()
+                    .record
+                    .checksum
+            );
+            assert!(!result.lock_changed);
+        }
+    }
+    add(&mut index, record("faker", "3.0", &[]));
+    let result = plan(
+        &manifest("https://rubygems.org", "faker = '>= 3'"),
+        &runtime,
+        None,
+        &index,
+        &PlanOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(result.packages.len(), 1);
+    assert_eq!(result.packages[0].record.archive_version, "3.0");
+}
+
+#[test]
+fn updating_multiple_targets_resolves_native_dependencies_and_installs_only_local_packages() {
+    let mut index = MemoryIndex::default();
+    for version in ["1", "2"] {
+        for (platform, dependency) in [
+            ("x86_64-linux", "linux-helper"),
+            ("arm64-darwin", "darwin-helper"),
+        ] {
+            let mut gem = record("native", version, &[(dependency, &format!("= {version}"))]);
+            gem.package.id.platform = rb_gem_types::Platform::parse(platform);
+            gem.archive_version = format!("{version}-{platform}");
+            add(&mut index, gem);
+        }
+        add(&mut index, record("linux-helper", version, &[]));
+        add(&mut index, record("darwin-helper", version, &[]));
+    }
+    let mut runtime = runtime();
+    runtime.platform = "x86_64-linux".into();
+    let request = manifest("https://rubygems.org", "native = '>= 1'");
+    let mut original = plan(
+        &manifest("https://rubygems.org", "native = '= 1'"),
+        &runtime,
+        None,
+        &index,
+        &PlanOptions::default(),
+    )
+    .unwrap()
+    .lockfile;
+    original.platforms.push("arm64-darwin".into());
+    let updated = plan(
+        &request,
+        &runtime,
+        Some(&original),
+        &index,
+        &PlanOptions {
+            mode: LockMode::Update,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(updated.lockfile.platforms.len(), 2);
+    assert!(updated.lockfile.platforms.contains(&"arm64-darwin".into()));
+    let native: Vec<_> = updated
+        .lockfile
+        .sources
+        .iter()
+        .flat_map(|s| &s.packages)
+        .filter(|p| p.name == "native")
+        .collect();
+    assert_eq!(native.len(), 2);
+    assert!(native.iter().all(|p| p.version.to_string() == "2"));
+    assert!(
+        updated
+            .lockfile
+            .sources
+            .iter()
+            .flat_map(|s| &s.packages)
+            .any(|p| p.name == "darwin-helper")
+    );
+    assert_eq!(updated.packages.len(), 2);
+    assert!(
+        updated
+            .packages
+            .iter()
+            .all(|p| p.install && p.record.package.id.name != "darwin-helper")
+    );
+    let frozen = plan(
+        &request,
+        &runtime,
+        Some(&updated.lockfile),
+        &index,
+        &PlanOptions {
+            mode: LockMode::Locked,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(frozen.lockfile, updated.lockfile);
+    assert!(!frozen.lock_changed);
+}

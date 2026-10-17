@@ -3,49 +3,53 @@ use pubgrub::{
     DefaultStringReporter, Dependencies, DependencyProvider, PackageResolutionStatistics,
     PubGrubError, Ranges, Reporter,
 };
-use rb_gem_types::{PackageId, Platform, Requirement, Version};
+use rb_gem_types::{PackageId, Requirement, Version};
 use std::{cell::RefCell, collections::BTreeMap, fmt};
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum Name {
     Root,
-    Gem(String),
+    Gem(usize, String),
+    Release(String),
 }
 
 impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Root => f.write_str("<project>"),
-            Self::Gem(name) => name.fmt(f),
+            Self::Gem(_, name) | Self::Release(name) => name.fmt(f),
         }
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-struct Candidate {
-    version: Version,
-    platform: Platform,
+enum Candidate {
+    Root,
+    Release(Version),
+    Package(PackageId),
 }
 
 impl Candidate {
     fn package(package: &Package) -> Self {
-        Self {
-            version: package.id.version.clone(),
-            platform: package.id.platform.clone(),
-        }
+        Self::Package(package.id.clone())
+    }
+
+    fn release(package: &Package) -> Self {
+        Self::Release(package.id.version.clone())
     }
 
     fn root() -> Self {
-        Self {
-            version: "0".parse().unwrap(),
-            platform: Platform::parse("ruby"),
-        }
+        Self::Root
     }
 }
 
 impl fmt::Display for Candidate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} [{}]", self.version, self.platform)
+        match self {
+            Self::Root => f.write_str("<project>"),
+            Self::Release(version) => version.fmt(f),
+            Self::Package(id) => write!(f, "{} [{}]", id.version, id.platform),
+        }
     }
 }
 
@@ -53,25 +57,39 @@ pub fn resolve<P: PackageProvider>(
     provider: &P,
     request: &ResolveRequest,
 ) -> Result<Vec<Package>, ResolveError> {
+    resolve_targets(provider, std::slice::from_ref(request)).map(|mut results| results.remove(0))
+}
+
+/// Resolves platform-specific closures with one shared release per gem name.
+pub fn resolve_targets<P: PackageProvider>(
+    provider: &P,
+    requests: &[ResolveRequest],
+) -> Result<Vec<Vec<Package>>, ResolveError> {
     let solver = Solver {
         provider,
-        request,
+        requests,
+        available: RefCell::new(BTreeMap::new()),
         packages: RefCell::new(BTreeMap::new()),
     };
     let solution =
         pubgrub::resolve(&solver, Name::Root, Candidate::root()).map_err(|error| match error {
             PubGrubError::NoSolution(mut tree) => {
                 tree.collapse_no_versions();
-                let roots = request
-                    .roots
+                let environments = requests
                     .iter()
-                    .map(|(name, requirement)| format!("{name} ({requirement})"))
+                    .map(|request| {
+                        let roots = request
+                            .roots
+                            .iter()
+                            .map(|(name, requirement)| format!("{name} ({requirement})"))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!("Ruby {} on {} with {roots}", request.ruby, request.target)
+                    })
                     .collect::<Vec<_>>()
-                    .join(", ");
+                    .join("; ");
                 ResolveError::NoSolution(format!(
-                    "Dependency resolution failed for Ruby {} on {} with {roots}: {}",
-                    request.ruby,
-                    request.target,
+                    "Dependency resolution failed for {environments}: {}",
                     DefaultStringReporter::report(&tree)
                 ))
             }
@@ -80,29 +98,32 @@ pub fn resolve<P: PackageProvider>(
             | PubGrubError::ErrorInShouldCancel(source) => source,
         })?;
     let packages = solver.packages.borrow();
-    let mut result = Vec::new();
+    let mut result = vec![Vec::new(); requests.len()];
     for (name, candidate) in solution {
-        if let Name::Gem(name) = name {
-            let package = packages[&name]
+        if let Name::Gem(target, name) = name {
+            let package = packages[&(target, name)]
                 .iter()
                 .find(|package| Candidate::package(package) == candidate)
                 .unwrap();
-            result.push(package.clone());
+            result[target].push(package.clone());
         }
     }
-    result.sort_by(|a, b| a.id.name.cmp(&b.id.name));
+    for packages in &mut result {
+        packages.sort_by(|a, b| a.id.name.cmp(&b.id.name));
+    }
     Ok(result)
 }
 
 struct Solver<'a, P> {
     provider: &'a P,
-    request: &'a ResolveRequest,
-    packages: RefCell<BTreeMap<String, Vec<Package>>>,
+    requests: &'a [ResolveRequest],
+    available: RefCell<BTreeMap<String, Vec<Package>>>,
+    packages: RefCell<BTreeMap<(usize, String), Vec<Package>>>,
 }
 
 impl<P: PackageProvider> Solver<'_, P> {
-    fn fetch(&self, name: &str) -> Result<(), ResolveError> {
-        if self.packages.borrow().contains_key(name) {
+    fn fetch_available(&self, name: &str) -> Result<(), ResolveError> {
+        if self.available.borrow().contains_key(name) {
             return Ok(());
         }
         let mut unique = BTreeMap::<PackageId, Package>::new();
@@ -121,9 +142,7 @@ impl<P: PackageProvider> Solver<'_, P> {
                 });
             }
             if let Some(previous) = unique.get(&package.id) {
-                if previous != &package
-                    || previous.id.version.to_string() != package.id.version.to_string()
-                {
+                if previous != &package {
                     return Err(ResolveError::InvalidMetadata {
                         package: name.into(),
                         reason: format!("conflicting records for {}", package.id),
@@ -133,50 +152,69 @@ impl<P: PackageProvider> Solver<'_, P> {
                 unique.insert(package.id.clone(), package);
             }
         }
-        let mut packages: Vec<_> = unique
-            .into_values()
+        self.available
+            .borrow_mut()
+            .insert(name.into(), unique.into_values().collect());
+        Ok(())
+    }
+
+    fn fetch(&self, target: usize, name: &str) -> Result<(), ResolveError> {
+        let key = (target, name.to_owned());
+        if self.packages.borrow().contains_key(&key) {
+            return Ok(());
+        }
+        self.fetch_available(name)?;
+        let request = &self.requests[target];
+        let mut packages: Vec<_> = self.available.borrow()[name]
+            .iter()
             .filter(|package| {
-                package.id.platform.matches(&self.request.target)
-                    && package.ruby.matches(&self.request.ruby)
+                package.id.platform.matches(&request.target)
+                    && package.ruby.matches(&request.ruby)
+                    && (!request.force_ruby.contains(name) || package.id.platform.os == "ruby")
             })
+            .cloned()
             .collect();
         packages.sort_by(|a, b| {
             b.id.version
                 .cmp(&a.id.version)
                 .then_with(|| {
                     a.id.platform
-                        .score(&self.request.target)
-                        .cmp(&b.id.platform.score(&self.request.target))
+                        .score(&request.target)
+                        .cmp(&b.id.platform.score(&request.target))
                 })
                 .then_with(|| a.id.platform.cmp(&b.id.platform))
+                .then_with(|| b.id.version.as_str().cmp(a.id.version.as_str()))
         });
-        self.packages.borrow_mut().insert(name.into(), packages);
+        self.packages.borrow_mut().insert(key, packages);
         Ok(())
     }
 
-    fn locked_version(&self, id: &PackageId) -> bool {
-        self.request
+    fn locked_version(&self, target: usize, id: &PackageId) -> bool {
+        self.requests[target]
             .locked
             .iter()
-            .any(|locked| locked.name == id.name && locked.version == id.version)
+            .any(|locked| locked.name == id.name && locked.version.as_str() == id.version.as_str())
     }
 
     fn range(
         &self,
+        target: usize,
         name: &str,
         requirement: &Requirement,
     ) -> Result<Ranges<Candidate>, ResolveError> {
-        self.fetch(name)?;
+        self.fetch(target, name)?;
+        let request = &self.requests[target];
         let packages = self.packages.borrow();
-        let only_prereleases = packages[name]
+        let packages = &packages[&(target, name.to_owned())];
+        let only_prereleases = packages
             .iter()
             .all(|package| package.id.version.prerelease());
         let mut range = Ranges::empty();
-        for package in &packages[name] {
-            let prerelease_allowed = self.request.allow_prereleases
+        for package in packages {
+            let prerelease_allowed = request.allow_prereleases
                 || requirement.prerelease()
                 || only_prereleases
-                || self.locked_version(&package.id);
+                || self.locked_version(target, &package.id);
             if requirement.matches(&package.id.version)
                 && (!package.id.version.prerelease() || prerelease_allowed)
             {
@@ -204,26 +242,37 @@ impl<P: PackageProvider> DependencyProvider for Solver<'_, P> {
         name: &Name,
         range: &Self::VS,
     ) -> Result<Option<Candidate>, ResolveError> {
-        let Name::Gem(name) = name else {
-            return Ok(Some(Candidate::root()));
-        };
-        self.fetch(name)?;
-        let packages = self.packages.borrow();
-        let eligible: Vec<_> = packages[name]
-            .iter()
-            .filter(|package| range.contains(&Candidate::package(package)))
-            .collect();
-        let locked = &self.request.locked;
-        let chosen = eligible
-            .iter()
-            .find(|package| locked.contains(&package.id))
-            .or_else(|| {
-                eligible
+        match name {
+            Name::Root => Ok(Some(Candidate::root())),
+            Name::Release(name) => {
+                self.fetch_available(name)?;
+                Ok(self.available.borrow()[name]
                     .iter()
-                    .find(|package| self.locked_version(&package.id))
-            })
-            .or_else(|| eligible.first());
-        Ok(chosen.map(|package| Candidate::package(package)))
+                    .map(Candidate::release)
+                    .filter(|candidate| range.contains(candidate))
+                    .max())
+            }
+            Name::Gem(target, name) => {
+                let target = *target;
+                self.fetch(target, name)?;
+                let packages = self.packages.borrow();
+                let eligible: Vec<_> = packages[&(target, name.clone())]
+                    .iter()
+                    .filter(|package| range.contains(&Candidate::package(package)))
+                    .collect();
+                let locked = &self.requests[target].locked;
+                let chosen = eligible
+                    .iter()
+                    .find(|package| locked.contains(&package.id))
+                    .or_else(|| {
+                        eligible
+                            .iter()
+                            .find(|package| self.locked_version(target, &package.id))
+                    })
+                    .or_else(|| eligible.first());
+                Ok(chosen.map(|package| Candidate::package(package)))
+            }
+        }
     }
 
     fn get_dependencies(
@@ -231,21 +280,39 @@ impl<P: PackageProvider> DependencyProvider for Solver<'_, P> {
         name: &Name,
         version: &Candidate,
     ) -> Result<Dependencies<Name, Self::VS, String>, ResolveError> {
-        let dependencies = match name {
-            Name::Root => self.request.roots.clone(),
-            Name::Gem(name) => {
-                self.fetch(name)?;
-                self.packages.borrow()[name]
+        let mut result = Vec::new();
+        match name {
+            Name::Root => {
+                for (target, request) in self.requests.iter().enumerate() {
+                    for (name, requirement) in &request.roots {
+                        result.push((
+                            Name::Gem(target, name.clone()),
+                            self.range(target, name, requirement)?,
+                        ));
+                    }
+                }
+            }
+            Name::Release(_) => {}
+            Name::Gem(target, name) => {
+                self.fetch(*target, name)?;
+                let package = self.packages.borrow()[&(*target, name.clone())]
                     .iter()
                     .find(|package| Candidate::package(package) == *version)
                     .unwrap()
-                    .dependencies
-                    .clone()
+                    .clone();
+                for (dependency, requirement) in &package.dependencies {
+                    result.push((
+                        Name::Gem(*target, dependency.clone()),
+                        self.range(*target, dependency, requirement)?,
+                    ));
+                }
+                if self.requests.len() > 1 {
+                    result.push((
+                        Name::Release(name.clone()),
+                        Ranges::singleton(Candidate::release(&package)),
+                    ));
+                }
             }
-        };
-        let mut result = Vec::new();
-        for (name, requirement) in dependencies {
-            result.push((Name::Gem(name.clone()), self.range(&name, &requirement)?));
         }
         Ok(Dependencies::Available(result.into_iter().collect()))
     }

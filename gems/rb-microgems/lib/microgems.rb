@@ -93,6 +93,13 @@ module MicroGems
     def suffixes = ['', '.rb', ".#{RbConfig::CONFIG.fetch('DLEXT')}"]
     def binary_mode = 'rb'
 
+    # Datadog needs Gem.dir to calculate relative native library paths.
+    def dir
+      home = ENV['GEM_HOME'] || File.join(RbConfig::CONFIG.fetch('rubylibprefix'), 'gems', RbConfig::CONFIG.fetch('ruby_version'))
+      home = home.tr(File::ALT_SEPARATOR, File::SEPARATOR) if File::ALT_SEPARATOR
+      File.directory?(home) ? File.realpath(home) : home
+    end
+
     def bin_path(name, executable, *requirements)
       spec = Specification.find_by_name(name, *requirements)
       raise MicroGems::Exception,

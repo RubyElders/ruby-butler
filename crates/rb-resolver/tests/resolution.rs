@@ -220,3 +220,22 @@ fn pessimistic_requirements_exclude_the_next_release_prerelease() {
         "1.9"
     );
 }
+
+#[test]
+fn equivalent_releases_can_backtrack_without_merging_dependencies() {
+    let records = [
+        package("faker", "2.0", &[("i18n", "= 1")]),
+        package("faker", "2.0.0", &[("i18n", "= 2")]),
+        package("i18n", "1", &[]),
+        package("i18n", "2", &[]),
+    ];
+    for candidates in [records.to_vec(), records.into_iter().rev().collect()] {
+        let index = InMemoryIndex::new(candidates);
+        let result = resolve(&index, &request(&[("faker", "= 2.0"), ("i18n", "= 1")])).unwrap();
+        assert_eq!(result[0].id.version.to_string(), "2.0");
+        let result = resolve(&index, &request(&[("faker", "= 2.0"), ("i18n", "= 2")])).unwrap();
+        assert_eq!(result[0].id.version.to_string(), "2.0.0");
+        let result = resolve(&index, &request(&[("faker", "= 2.0")])).unwrap();
+        assert_eq!(result[0].id.version.to_string(), "2.0.0");
+    }
+}

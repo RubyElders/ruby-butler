@@ -4,6 +4,7 @@ pub(super) struct Server {
     pub(super) source: String,
     pub(super) responses: Arc<Mutex<BTreeMap<String, Vec<u8>>>>,
     pub(super) requests: Arc<Mutex<Vec<String>>>,
+    pub(super) request_headers: Arc<Mutex<Vec<String>>>,
     pub(super) headers: Arc<Mutex<BTreeMap<String, String>>>,
     pub(super) statuses: Arc<Mutex<BTreeMap<String, String>>>,
     pub(super) revalidate: Arc<AtomicBool>,
@@ -18,6 +19,8 @@ impl Server {
         let source = format!("http://{}/", listener.local_addr().unwrap());
         let responses = Arc::new(Mutex::new(BTreeMap::<String, Vec<u8>>::new()));
         let requests = Arc::new(Mutex::new(Vec::new()));
+        let request_headers = Arc::new(Mutex::new(Vec::new()));
+        let captured_headers = request_headers.clone();
         let headers = Arc::new(Mutex::new(BTreeMap::<String, String>::new()));
         let statuses = Arc::new(Mutex::new(BTreeMap::<String, String>::new()));
         let revalidate = Arc::new(AtomicBool::new(true));
@@ -33,6 +36,7 @@ impl Server {
                 };
                 let request = read_request(&mut stream).unwrap();
                 let request = String::from_utf8_lossy(&request);
+                captured_headers.lock().unwrap().push(request.to_string());
                 let path = request.split_whitespace().nth(1).unwrap_or("").to_string();
                 log.lock().unwrap().push(path.clone());
                 let response = data.lock().unwrap().get(&path).cloned();
@@ -70,6 +74,7 @@ impl Server {
             source,
             responses,
             requests,
+            request_headers,
             headers,
             statuses,
             revalidate,

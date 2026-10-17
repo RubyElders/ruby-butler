@@ -30,6 +30,10 @@ locked identity, then a locked version, then the newest version with the best
 platform score. Locks are preferences, so conflicts can move to another version.
 Results are sorted by gem name, independently of provider order.
 
+`resolve_targets` accepts multiple requests and returns one closure per target,
+with a shared release for each gem and platform-specific dependencies.
+`force_ruby` selects source gems for the named dependencies in a request.
+
 Prereleases are eligible when requested explicitly, locked, enabled through
 `allow_prereleases`, or when all Ruby/platform-compatible candidates are
 prereleases. Provider results are fetched once per gem per resolution; identical

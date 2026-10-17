@@ -144,3 +144,21 @@ fn platform_display_round_trips_canonical_components() {
     assert_eq!(Platform::parse("x86_64-ruby").os, "unknown");
     assert_eq!(Platform::parse("x86_64-haiku").os, "unknown");
 }
+
+#[test]
+fn archive_identity_preserves_equivalent_version_spellings() {
+    let releases: Vec<_> = ["2.0", "2.0.0"]
+        .into_iter()
+        .map(|value| PackageId {
+            name: "faker".into(),
+            version: version(value),
+            platform: Platform::parse("ruby"),
+        })
+        .collect();
+    assert_eq!(releases[0].version, releases[1].version);
+    assert_ne!(releases[0], releases[1]);
+    assert_eq!(releases.iter().cloned().collect::<HashSet<_>>().len(), 2);
+    assert_eq!(releases.iter().cloned().collect::<BTreeSet<_>>().len(), 2);
+    assert_eq!(releases[0].full_name(), "faker-2.0");
+    assert_eq!(releases[1].full_name(), "faker-2.0.0");
+}

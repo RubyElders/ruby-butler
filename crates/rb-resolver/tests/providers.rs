@@ -119,10 +119,14 @@ fn mismatched_provider_names_are_errors_not_unsatisfiable_requirements() {
 }
 
 #[test]
-fn equal_versions_with_different_archive_spellings_are_rejected() {
+fn equal_versions_with_different_archive_spellings_remain_individually_lockable() {
     let index = InMemoryIndex::new([package("app", "1", &[]), package("app", "1.0", &[])]);
-    let error = resolve(&index, &request(&[("app", ">= 0")])).unwrap_err();
-    assert!(matches!(error, ResolveError::InvalidMetadata { .. }));
+    for spelling in ["1", "1.0"] {
+        let mut input = request(&[("app", ">= 0")]);
+        input.locked.push(package("app", spelling, &[]).id);
+        let result = resolve(&index, &input).unwrap();
+        assert_eq!(result[0].id.version.to_string(), spelling);
+    }
 }
 
 #[test]

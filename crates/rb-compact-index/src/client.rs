@@ -24,7 +24,7 @@ use std::{
 pub struct Client {
     pub(crate) source: String,
     pub(crate) cache: PathBuf,
-    offline: bool,
+    pub(crate) offline: bool,
     pub(crate) client: HttpClient,
 }
 
@@ -67,7 +67,38 @@ impl Client {
         &self.source
     }
 
+    pub fn with_credentials(mut self, credentials: &str) -> Result<Self> {
+        let mut headers = header::HeaderMap::new();
+        let credentials = if credentials.contains(':') {
+            credentials.to_owned()
+        } else {
+            format!("{credentials}:")
+        };
+        let mut authorization = header::HeaderValue::from_str(&format!(
+            "Basic {}",
+            base64::engine::general_purpose::STANDARD.encode(credentials)
+        ))?;
+        authorization.set_sensitive(true);
+        headers.insert(header::AUTHORIZATION, authorization);
+        self.client = HttpClient::builder()
+            .timeout(REQUEST_TIMEOUT)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .user_agent(concat!("rb-compact-index/", env!("CARGO_PKG_VERSION")))
+            .default_headers(headers)
+            .build()?;
+        Ok(self)
+    }
+
     pub fn info(&self, name: &str) -> Result<Vec<GemInfo>> {
+        self.fetch_info(name, false)
+    }
+
+    /// Returns no candidates for a missing gem on a working compact-index server.
+    pub fn info_or_empty(&self, name: &str) -> Result<Vec<GemInfo>> {
+        self.fetch_info(name, true)
+    }
+
+    fn fetch_info(&self, name: &str, allow_missing: bool) -> Result<Vec<GemInfo>> {
         validate_name(name)?;
         let directory = self
             .cache
@@ -117,6 +148,17 @@ impl Client {
             if versions.status() == reqwest::StatusCode::NOT_FOUND {
                 return self.full_info(name, &directory);
             }
+            versions.error_for_status()?;
+            if allow_missing {
+                atomic_write(
+                    &path,
+                    &serde_json::to_vec(&CachedInfo {
+                        etag: None,
+                        body: "---\n".into(),
+                    })?,
+                )?;
+                return Ok(Vec::new());
+            }
         }
         let response = response.error_for_status()?;
         let etag = response
@@ -124,24 +166,7 @@ impl Client {
             .get(header::ETAG)
             .and_then(|v| v.to_str().ok())
             .map(str::to_owned);
-        let digest = response
-            .headers()
-            .get("repr-digest")
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned);
-        let bytes = limited_read(response, MAX_COMPACT_INFO_BYTES)?;
-        if let Some(digest) = digest
-            && let Some(value) = digest
-                .split(',')
-                .find_map(|part| part.trim().strip_prefix("sha-256="))
-        {
-            let expected =
-                base64::engine::general_purpose::STANDARD.decode(value.trim_matches([':', '"']))?;
-            ensure!(
-                sha2::Sha256::digest(&bytes).as_slice() == expected,
-                "Index digest mismatch for {name}"
-            );
-        }
+        let bytes = read_index(response, MAX_COMPACT_INFO_BYTES)?;
         let body = String::from_utf8(bytes)?;
         let gems = parse(name, &body)?;
         atomic_write(&path, &serde_json::to_vec(&CachedInfo { etag, body })?)?;
@@ -189,4 +214,26 @@ impl Client {
         archive.persist(&path)?;
         Ok(path)
     }
+}
+
+pub(crate) fn read_index(response: reqwest::blocking::Response, limit: u64) -> Result<Vec<u8>> {
+    let digest = response
+        .headers()
+        .get("repr-digest")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    let bytes = limited_read(response, limit)?;
+    if let Some(digest) = digest
+        && let Some(value) = digest
+            .split(',')
+            .find_map(|part| part.trim().strip_prefix("sha-256="))
+    {
+        let expected =
+            base64::engine::general_purpose::STANDARD.decode(value.trim_matches([':', '"']))?;
+        ensure!(
+            sha2::Sha256::digest(&bytes).as_slice() == expected,
+            "Index digest mismatch"
+        );
+    }
+    Ok(bytes)
 }

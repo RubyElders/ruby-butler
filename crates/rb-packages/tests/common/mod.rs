@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+pub mod server;
 use flate2::{Compression, write::GzEncoder};
 use rb_gem_types::{PackageId, Platform};
 use rb_packages::{MemoryIndex, PackageRecord, RubyEnvironment};
