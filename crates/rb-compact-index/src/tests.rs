@@ -16,10 +16,12 @@ use std::{
     thread,
 };
 
+mod authentication;
 mod download;
 mod fixtures;
 mod full_index;
 mod info;
 mod server;
+mod versions;
 
 use server::Server;

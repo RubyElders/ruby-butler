@@ -122,8 +122,10 @@ impl SourceIndex {
                     .push(package);
             }
         }
+        let mut registry = RegistryIndex::new(&input.manifest, cache, offline)?;
+        registry.load_credentials(&input.root, offline)?;
         Ok(Self {
-            registry: RegistryIndex::new(&input.manifest, cache, offline)?,
+            registry,
             packages,
             roots: input
                 .manifest

@@ -574,3 +574,93 @@ fn ruby_output_assertions_accept_windows_line_endings() {
     assert!(output.status.success());
     assert_eq!(stdout(&output), "42\n");
 }
+
+#[test]
+fn refreshed_multi_target_lock_runs_with_frozen_bundler_without_installing_foreign_roots() {
+    let root = tempfile::tempdir().unwrap();
+    let mut index = MemoryIndex::default();
+    add_archive(
+        &mut index,
+        root.path(),
+        "teacup",
+        &[],
+        &[],
+        &[("lib/teacup.rb", b"TEACUP = 42\n")],
+    );
+    add_archive(
+        &mut index,
+        root.path(),
+        "foreign-helper",
+        &[],
+        &[],
+        &[(
+            "lib/foreign-helper.rb",
+            b"raise 'foreign dependency loaded'\n",
+        )],
+    );
+    let runtime = runtime();
+    let windows =
+        runtime.target().os.starts_with("mingw") || runtime.target().os.starts_with("mswin");
+    let (selector, foreign) = if windows {
+        ("ruby", "x86_64-linux")
+    } else {
+        ("windows", "x64-mingw-ucrt")
+    };
+    let manifest = manifest(
+        "https://rubygems.org",
+        &format!("teacup = '>= 0'\nforeign-helper = {{platforms=['{selector}']}}"),
+    );
+    fs::write(root.path().join("Gemfile"), format!("source 'https://rubygems.org'\ngem 'teacup'\nplatforms :{selector} do\n  gem 'foreign-helper'\nend\n")).unwrap();
+    let previous = rb_lockfile::Lockfile {
+        platforms: vec![runtime.platform.clone(), foreign.into()],
+        ..Default::default()
+    };
+    let plan = plan(
+        &manifest,
+        &runtime,
+        Some(&previous),
+        &index,
+        &PlanOptions {
+            mode: rb_packages::LockMode::Update,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(plan.packages.len(), 1);
+    assert_eq!(plan.lockfile.platforms.len(), 2);
+    assert!(
+        plan.lockfile
+            .sources
+            .iter()
+            .flat_map(|source| &source.packages)
+            .any(|package| package.name == "foreign-helper")
+    );
+    let lock = plan.lockfile.render().unwrap();
+    fs::write(root.path().join("Gemfile.lock"), &lock).unwrap();
+    let bundle = install(
+        root.path(),
+        &plan,
+        &runtime,
+        Arc::new(index),
+        InstallOptions::new(&runtime.executable),
+        TaskEvents::default(),
+    )
+    .unwrap();
+    assert_eq!(bundle.installed, 1);
+    let output = run(
+        &runtime,
+        &bundle,
+        root.path(),
+        "require 'bundler'; Bundler.settings.set_local(:frozen, true); require 'bundler/setup'; require 'teacup'; raise 'foreign gem activated' if Gem.loaded_specs.key?('foreign-helper'); puts TEACUP",
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(stdout(&output), "42\n");
+    assert_eq!(
+        fs::read_to_string(root.path().join("Gemfile.lock")).unwrap(),
+        lock
+    );
+}

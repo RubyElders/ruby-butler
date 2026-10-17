@@ -15,6 +15,9 @@ for gem in client.info("rack")? {
 
 | API | Purpose |
 | --- | --- |
+| `Client::names` | Discover registry gem names, with an offline cache. |
+| `Client::with_credentials` | Apply HTTP Basic credentials to registry requests. |
+| `Client::info_or_empty` | Look up candidates, allowing confirmed missing gems. |
 | `Client::info` | Fetch a gem's versions, dependency requirements and metadata. |
 | `Client::download` | Fetch an archive with an expected SHA-256 checksum. |
 | `parse` | Parse a compact-index response without HTTP or cache access. |

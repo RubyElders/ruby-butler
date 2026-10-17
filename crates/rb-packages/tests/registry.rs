@@ -1,92 +1,14 @@
 mod common;
+use common::server::Server;
 use rb_task::{TaskEvent, TaskEventSink, TaskEvents};
 use std::{
     collections::BTreeMap,
     fs,
     io::{Read, Write},
-    net::TcpListener,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
-
-struct Server {
-    url: String,
-    requests: Arc<Mutex<Vec<String>>>,
-    stop: Arc<AtomicBool>,
-    thread: Option<thread::JoinHandle<()>>,
-}
-
-impl Server {
-    fn new(responses: BTreeMap<String, Vec<u8>>) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        listener.set_nonblocking(true).unwrap();
-        let url = format!("http://{}/", listener.local_addr().unwrap());
-        let requests = Arc::new(Mutex::new(Vec::new()));
-        let stop = Arc::new(AtomicBool::new(false));
-        let recorded = requests.clone();
-        let finished = stop.clone();
-        let thread = thread::spawn(move || {
-            while !finished.load(Ordering::Relaxed) {
-                let (mut socket, _) = match listener.accept() {
-                    Ok(pair) => pair,
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        thread::sleep(Duration::from_millis(5));
-                        continue;
-                    }
-                    Err(error) => panic!("{error}"),
-                };
-                socket.set_nonblocking(false).unwrap();
-                socket
-                    .set_read_timeout(Some(Duration::from_secs(2)))
-                    .unwrap();
-                let mut request = Vec::new();
-                let mut buffer = [0; 1024];
-                while !request.windows(4).any(|v| v == b"\r\n\r\n") {
-                    let count = socket.read(&mut buffer).unwrap();
-                    if count == 0 {
-                        break;
-                    }
-                    request.extend_from_slice(&buffer[..count]);
-                }
-                let path = String::from_utf8(request)
-                    .unwrap()
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap()
-                    .to_owned();
-                recorded.lock().unwrap().push(path.clone());
-                let body = responses.get(&path).unwrap();
-                write!(
-                    socket,
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                    body.len()
-                )
-                .unwrap();
-                socket.write_all(body).unwrap();
-            }
-        });
-        Self {
-            url,
-            requests,
-            stop,
-            thread: Some(thread),
-        }
-    }
-}
-
-impl Drop for Server {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
-        let result = self.thread.take().unwrap().join();
-        if !std::thread::panicking() {
-            result.unwrap();
-        }
-    }
-}
 
 #[derive(Default)]
 struct Events(Mutex<Vec<TaskEvent>>);

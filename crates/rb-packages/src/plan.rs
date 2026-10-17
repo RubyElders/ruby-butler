@@ -1,7 +1,7 @@
 use crate::{PackageIndex, PackageRecord, RubyEnvironment, provider::source_url};
 use anyhow::{Context, Result, ensure};
 use rb_gem_types::{PackageId, Platform, Requirement};
-use rb_lockfile::{Dependency, LockedPackage, Lockfile, Source, SourceKind};
+use rb_lockfile::{LockedPackage, Lockfile, Source, SourceKind};
 use rb_resolver::{Package, PackageProvider, ResolveRequest};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -45,7 +45,6 @@ struct Provider<'a> {
     records: Mutex<BTreeMap<String, Vec<PackageRecord>>>,
     sources: BTreeMap<String, rb_gemfile::Dependency>,
     default_source: Option<String>,
-    force_ruby: BTreeSet<String>,
     pins: BTreeMap<String, Vec<crate::source_pin::SourcePin>>,
     strict: bool,
     runtime: &'a RubyEnvironment,
@@ -87,9 +86,6 @@ impl PackageProvider for Provider<'_> {
                     }
                 })
                 .collect::<Result<_>>()?;
-        }
-        if self.force_ruby.contains(name) {
-            records.retain(|r| r.package.id.platform.os == "ruby");
         }
         if self.strict {
             records.retain(|record| {
@@ -175,63 +171,44 @@ pub fn plan(
             return Ok(plan);
         }
     }
-    let mut roots: BTreeMap<String, Requirement> = BTreeMap::new();
-    let mut install_roots = BTreeSet::new();
-    let mut sources = BTreeMap::new();
-    let mut force_ruby = BTreeSet::new();
-    let mut declarations = BTreeMap::new();
-    for (name, dependency) in &manifest.dependencies {
-        for declaration in std::iter::once(dependency).chain(&dependency.variants) {
-            declaration.validate().map_err(anyhow::Error::msg)?;
-            if !declaration.enabled {
+    let mut targets = vec![runtime.clone()];
+    if options.mode != LockMode::Locked
+        && let Some(previous) = previous
+    {
+        for platform in &previous.platforms {
+            if targets.iter().any(|target| &target.platform == platform) {
                 continue;
             }
-            let applies = platform_applies(&declaration.platforms, runtime)?;
-
-            let constraint: Requirement = declaration.version.join(", ").parse()?;
-            let value = if let Some(previous) = roots.get(name) {
-                format!("{previous}, {constraint}").parse()?
+            let mut target = runtime.clone();
+            target.platform = platform.clone();
+            target.engine = if target.target().os == "java" {
+                "jruby".into()
+            } else if runtime.engine == "jruby" {
+                "ruby".into()
             } else {
-                constraint.clone()
+                runtime.engine.clone()
             };
-            if let Some(previous) = declarations.get(name) {
-                let previous: &Dependency = previous;
+            targets.push(target);
+        }
+    }
+    let target_plans = targets
+        .iter()
+        .map(|target| crate::target_plan::TargetPlan::new(manifest, target, options))
+        .collect::<Result<Vec<_>>>()?;
+    let declarations = target_plans[0].declarations.clone();
+    let install_roots = target_plans[0].install_roots.clone();
+    let mut sources = BTreeMap::new();
+    for target in &target_plans {
+        for (name, source) in &target.sources {
+            if let Some(previous) = sources.insert(name.clone(), source.clone()) {
                 ensure!(
-                    previous.requirement == constraint,
-                    "Different requirements across declarations for {name} need multi-target planning"
-                );
-            }
-            declarations.insert(
-                name.clone(),
-                Dependency {
-                    requirement: constraint,
-                    pinned: declaration.source.is_some()
-                        || declaration.git.is_some()
-                        || declaration.path.is_some(),
-                },
-            );
-            if !applies {
-                continue;
-            }
-            roots.insert(name.clone(), value);
-            if let Some(previous) = sources.insert(name.clone(), declaration.clone()) {
-                ensure!(
-                    previous.git == declaration.git
-                        && previous.path == declaration.path
-                        && previous.source == declaration.source
+                    previous.source == source.source
+                        && previous.git == source.git
+                        && previous.path == source.path
                         && crate::package_source::git_options(&previous)
-                            == crate::package_source::git_options(declaration),
+                            == crate::package_source::git_options(source),
                     "Conflicting sources for {name}"
                 );
-            }
-            if declaration.force_ruby_platform == Some(true) {
-                force_ruby.insert(name.clone());
-            }
-            if declaration.groups.iter().any(|g| {
-                !options.without.contains(g)
-                    && (!manifest.bundle.optional_groups.contains(g) || options.with.contains(g))
-            }) {
-                install_roots.insert(name.clone());
             }
         }
     }
@@ -280,31 +257,45 @@ pub fn plan(
         records: Mutex::new(BTreeMap::new()),
         sources,
         default_source: manifest.bundle.source.clone(),
-        force_ruby,
         pins,
         strict: options.mode == LockMode::Locked,
         runtime,
     };
-    let mut request = ResolveRequest::new(roots, runtime.version.clone(), runtime.target());
-    if options.mode != LockMode::Update {
-        request.locked = locked;
-    }
-    request.allow_prereleases = options.allow_prereleases;
-    let resolved = rb_resolver::resolve(&provider, &request)?;
+    let requests: Vec<_> = targets
+        .iter()
+        .zip(&target_plans)
+        .map(|(target, input)| {
+            let mut request =
+                ResolveRequest::new(input.roots.clone(), target.version.clone(), target.target());
+            if options.mode != LockMode::Update {
+                request.locked = locked.clone();
+            }
+            request.allow_prereleases = options.allow_prereleases;
+            request.force_ruby = input.force_ruby.clone();
+            request
+        })
+        .collect();
+    let resolved = rb_resolver::resolve_targets(&provider, &requests)?;
     let fetched = provider.records.into_inner().unwrap();
     let mut records = BTreeMap::new();
-    for package in resolved {
-        let record = fetched[&package.id.name]
-            .iter()
-            .find(|r| r.package == package)
-            .context("Resolved package metadata is missing")?
-            .clone();
-        records.insert(package.id.name.clone(), record);
+    let mut locked_records = BTreeMap::new();
+    for (target, packages) in resolved.into_iter().enumerate() {
+        for package in packages {
+            let record = fetched[&package.id.name]
+                .iter()
+                .find(|r| r.package == package)
+                .context("Resolved package metadata is missing")?
+                .clone();
+            locked_records.insert(package.id.clone(), record.clone());
+            if target == 0 {
+                records.insert(package.id.name.clone(), record);
+            }
+        }
     }
     if options.mode != LockMode::Update
         && let Some(previous) = previous
     {
-        for record in records.values() {
+        for record in locked_records.values() {
             for source in &previous.sources {
                 if !source.remotes.iter().any(|remote| {
                     crate::PackageSource::from_lock(source, remote, options.source_root.as_deref())
@@ -339,7 +330,10 @@ pub fn plan(
     }
     let mut lock = Lockfile {
         dependencies: declarations,
-        platforms: vec![runtime.platform.clone()],
+        platforms: targets
+            .iter()
+            .map(|target| target.platform.clone())
+            .collect(),
         bundled_with: runtime.bundler.clone(),
         ruby_version: (!manifest.bundle.ruby.is_empty()).then(|| {
             let mut ruby = format!("ruby {}", runtime.version);
@@ -356,7 +350,7 @@ pub fn plan(
     };
     let mut sections: BTreeMap<crate::PackageSource, Source> = BTreeMap::new();
     let mut checksums = BTreeMap::new();
-    for record in records.values() {
+    for record in locked_records.values() {
         let (_, platform) = record
             .archive_version
             .split_once('-')
@@ -407,31 +401,19 @@ pub fn plan(
     }
     lock.sources = sections.into_values().collect();
     lock.checksums = Some(checksums);
-    if let Some(previous) = previous {
-        for platform in &previous.platforms {
-            ensure!(
-                options.mode == LockMode::Locked
-                    || Platform::parse(platform).matches(&runtime.target())
-                    || platform == "ruby",
-                "Resolving a lock with other targets is not supported yet: {platform}"
-            );
-        }
-        if options.mode == LockMode::Locked {
-            ensure!(
-                previous
-                    .sources
-                    .iter()
-                    .all(|source| source.remotes.iter().all(|remote| {
-                        crate::PackageSource::from_lock(
-                            source,
-                            remote,
-                            options.source_root.as_deref(),
-                        )
+    if let Some(previous) = previous
+        && options.mode == LockMode::Locked
+    {
+        ensure!(
+            previous
+                .sources
+                .iter()
+                .all(|source| source.remotes.iter().all(|remote| {
+                    crate::PackageSource::from_lock(source, remote, options.source_root.as_deref())
                         .is_ok()
-                    })),
-                "Invalid locked source"
-            );
-        }
+                })),
+            "Invalid locked source"
+        );
     }
     if options.mode == LockMode::Locked {
         for record in records.values() {
@@ -463,51 +445,4 @@ pub fn plan(
         without: options.without.clone(),
         with: options.with.clone(),
     })
-}
-
-fn platform_applies(platforms: &[String], runtime: &RubyEnvironment) -> Result<bool> {
-    if platforms.is_empty() {
-        return Ok(true);
-    }
-    for selector in platforms {
-        let (name, version) = selector
-            .rsplit_once('_')
-            .filter(|(_, suffix)| suffix.chars().all(|c| c.is_ascii_digit()))
-            .map_or((selector.as_str(), None), |(name, version)| {
-                (name, Some(version))
-            });
-        let platform = runtime.target();
-        let windows = platform.os.starts_with("mingw")
-            || platform.os.starts_with("mswin")
-            || platform.os == "cygwin";
-        let applies = match name {
-            "ruby" => {
-                !windows
-                    && matches!(
-                        runtime.engine.as_str(),
-                        "ruby" | "rbx" | "maglev" | "truffleruby"
-                    )
-            }
-            "mri" => !windows && runtime.engine == "ruby",
-            "jruby" => runtime.engine == "jruby",
-            "truffleruby" => runtime.engine == "truffleruby",
-            "rbx" => !windows && runtime.engine == "rbx",
-            "maglev" => runtime.engine == "maglev",
-            "windows" | "mingw" | "x64_mingw" | "mswin" | "mswin64" => windows,
-            _ => anyhow::bail!("Unsupported Gemfile platform selector {selector}"),
-        };
-        let version_matches = version.is_none_or(|version| {
-            runtime
-                .version
-                .to_string()
-                .split('.')
-                .take(if version.len() == 1 { 1 } else { 2 })
-                .collect::<String>()
-                == version
-        });
-        if applies && version_matches {
-            return Ok(true);
-        }
-    }
-    Ok(false)
 }

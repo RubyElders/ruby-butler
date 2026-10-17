@@ -72,6 +72,10 @@ fn trim_zeros(segments: &mut Vec<Segment>) {
 }
 
 impl Version {
+    pub fn as_str(&self) -> &str {
+        &self.raw
+    }
+
     pub fn prerelease(&self) -> bool {
         self.segments.iter().any(|s| matches!(s, Segment::Text(_)))
     }
