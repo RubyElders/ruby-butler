@@ -466,3 +466,64 @@ fn generated_directory_is_excluded_but_cannot_hide_gemfile_inputs() {
         );
     }
 }
+
+#[test]
+fn fingerprints_track_declared_inputs_without_evaluating_them() {
+    let root = tempfile::tempdir().unwrap();
+    write(root.path(), "Gemfile", "raise 'must not execute'\n");
+    write(root.path(), "version", "1");
+    let cache =
+        SnapshotCache::new(root.path().join("state.json")).input(root.path().join("version"));
+    let first = cache
+        .fingerprint(&evaluator(), root.path().join("Gemfile"))
+        .unwrap();
+    write(
+        root.path(),
+        "unrelated",
+        "does not affect explicitly declared inputs",
+    );
+    assert_eq!(
+        first,
+        cache
+            .fingerprint(&evaluator(), root.path().join("Gemfile"))
+            .unwrap()
+    );
+    write(root.path(), "version", "2");
+    assert_ne!(
+        first,
+        cache
+            .fingerprint(&evaluator(), root.path().join("Gemfile"))
+            .unwrap()
+    );
+    assert!(!root.path().join("state.json").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn dangling_symlinks_track_target_creation_changes_and_removal() {
+    use std::os::unix::fs::symlink;
+    let root = tempfile::tempdir().unwrap();
+    let external = tempfile::tempdir().unwrap();
+    write(root.path(), "Gemfile", "gem 'rake'");
+    let target = external.path().join("assets");
+    symlink(&target, root.path().join("assets")).unwrap();
+    let cache = SnapshotCache::new(root.path().join(".rb/snapshot.json"));
+    let evaluator = evaluator();
+    let gemfile = root.path().join("Gemfile");
+    assert!(!cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    assert!(cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    write(external.path(), "assets/page", "first");
+    assert!(!cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    assert!(cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    write(external.path(), "assets/page", "second");
+    assert!(!cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    fs::remove_dir_all(&target).unwrap();
+    assert!(!cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    assert!(cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    fs::write(&target, "file target").unwrap();
+    assert!(!cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    fs::remove_file(&target).unwrap();
+    fs::remove_file(root.path().join("assets")).unwrap();
+    symlink(external.path().join("other"), root.path().join("assets")).unwrap();
+    assert!(!cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+}

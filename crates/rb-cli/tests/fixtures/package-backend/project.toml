@@ -1,0 +1,4 @@
+[project]
+name = 'backend-fixture'
+[scripts]
+probe = 'ruby -rbackend_fixture -e "puts BackendFixture::VALUE"'

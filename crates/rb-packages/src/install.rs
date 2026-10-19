@@ -71,11 +71,23 @@ pub fn install(
                 .filter(|p| p.install)
                 .map(|p| (p.record.package.id.name.clone(), p.record.clone()))
                 .collect();
+            let tools: Vec<_> = records
+                .get("rake")
+                .map(|rake| {
+                    std::iter::once(rake)
+                        .chain(
+                            dependencies(&records, "rake")
+                                .into_iter()
+                                .map(|name| &records[&name]),
+                        )
+                        .collect()
+                })
+                .unwrap_or_default();
             let mut slots = BTreeMap::new();
             for planned in plan.packages.iter().filter(|p| p.install) {
                 let record = &planned.record;
                 record.validate()?;
-                let mut receipt = Receipt::new(record, &runtime, &options.build)?;
+                let mut receipt = Receipt::new(record, &runtime, &options.build, &tools)?;
                 receipt.dependencies = dependencies(&records, &record.package.id.name)
                     .into_iter()
                     .map(|name| {
@@ -220,6 +232,21 @@ pub fn install(
     Executor::new(options.workers, events.clone()).run(graph, actions)?;
     let mut graph = TaskGraph::new();
     let mut actions: BTreeMap<_, TaskAction> = BTreeMap::new();
+    if let Some(rake) = slots.get("rake") {
+        let dependencies = rake.lock().unwrap().dependencies.clone();
+        for (name, slot) in slots.iter() {
+            let mut slot = slot.lock().unwrap();
+            if name != "rake"
+                && slot
+                    .metadata
+                    .as_ref()
+                    .is_some_and(crate::build_tools::requires_rake)
+            {
+                slot.dependencies.insert("rake".into());
+                slot.dependencies.extend(dependencies.iter().cloned());
+            }
+        }
+    }
     let mut pending: BTreeMap<_, _> = plan
         .packages
         .iter()

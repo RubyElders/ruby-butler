@@ -17,6 +17,8 @@ pub struct RubyEnvironment {
     pub abi: String,
     pub rubygems: Version,
     pub bundler: Option<Version>,
+    pub build_tools: Vec<rb_microgems::InstalledGem>,
+    pub configuration_inputs: Vec<PathBuf>,
 }
 
 impl RubyEnvironment {

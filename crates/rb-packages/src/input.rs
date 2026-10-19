@@ -14,24 +14,46 @@ pub struct ProjectInput {
     pub lockfile: PathBuf,
     pub bundler_gemfile: PathBuf,
     pub reused: bool,
+    pub(crate) evaluation_inputs: Vec<PathBuf>,
 }
 
 impl ProjectInput {
     pub fn load(root: impl AsRef<Path>, ruby: impl AsRef<Path>) -> Result<Self> {
+        Self::load_with_project_file(root, ruby, None)
+    }
+
+    pub fn load_with_project_file(
+        root: impl AsRef<Path>,
+        ruby: impl AsRef<Path>,
+        project_file: Option<&Path>,
+    ) -> Result<Self> {
         let root = dunce::canonicalize(root)?;
-        let toml = root.join("rbproject.toml");
-        let kdl = root.join("rbproject.kdl");
+        let selected = project_file
+            .map(|file| dunce::canonicalize(root.join(file)))
+            .transpose()?;
+        let is_kdl = selected
+            .as_ref()
+            .is_some_and(|path| path.extension().is_some_and(|ext| ext == "kdl"));
+        let toml = selected
+            .clone()
+            .filter(|_| !is_kdl)
+            .unwrap_or_else(|| root.join("rbproject.toml"));
+        let kdl = selected
+            .filter(|_| is_kdl)
+            .unwrap_or_else(|| root.join("rbproject.kdl"));
         ensure!(
-            !(toml.exists() && kdl.exists()),
+            project_file.is_some() || !(toml.exists() && kdl.exists()),
             "Choose one rbproject format"
         );
-        let project = if toml.exists() {
+        let project = if toml.exists() && !is_kdl {
             Some(fs::read_to_string(toml)?)
         } else {
             None
         };
         let gemfile = std::env::var_os("BUNDLE_GEMFILE")
-            .map(|name| root.join(name))
+            .filter(|name| !name.is_empty())
+            .map(|name| std::env::current_dir().map(|cwd| cwd.join(name)))
+            .transpose()?
             .or_else(|| {
                 ["gems.rb", "Gemfile"]
                     .into_iter()
@@ -44,16 +66,23 @@ impl ProjectInput {
             .transpose()?
             .as_ref()
             .is_some_and(|v| v.get("dependencies").is_some() || v.get("sources").is_some());
-        let (mut manifest, reused, gemfile) = if kdl.exists() {
-            (Manifest::from_kdl(&fs::read_to_string(kdl)?)?, false, None)
+        let kdl_manifest = if is_kdl || (project_file.is_none() && kdl.exists()) {
+            parse_kdl_project(&fs::read_to_string(kdl)?)?
+        } else {
+            None
+        };
+        let mut evaluation_inputs = Vec::new();
+        let (mut manifest, reused, gemfile) = if let Some(manifest) = kdl_manifest {
+            (manifest, false, None)
         } else if has_dependencies {
             (parse_project(project.as_ref().unwrap())?, false, None)
         } else {
             let gemfile = gemfile.context("No rbproject dependencies, gems.rb or Gemfile found")?;
             let state = root.join(STATE_DIRECTORY);
             fs::create_dir_all(&state)?;
-            let snapshot = SnapshotCache::new(state.join(SNAPSHOT_FILE)).output_directory(&state);
+            let snapshot = snapshot_cache(&root, SNAPSHOT_FILE);
             let cached = snapshot.evaluate(&Evaluator::new(ruby.as_ref()), &gemfile)?;
+            evaluation_inputs = cached.evaluation.inputs.clone();
             let document = if let Some(settings) = project {
                 cached.evaluation.manifest.merge_project(&settings)?
             } else {
@@ -121,17 +150,53 @@ impl ProjectInput {
             lockfile,
             bundler_gemfile,
             reused,
+            evaluation_inputs,
         })
     }
 }
 
 fn parse_project(input: &str) -> Result<Manifest> {
     let mut value: toml::Value = input.parse()?;
-    value
-        .as_table_mut()
-        .context("Project must be a table")?
-        .remove("project");
+    let table = value.as_table_mut().context("Project must be a table")?;
+    table.remove("project");
+    table.remove("scripts");
     value
         .try_into()
         .context("Reading project dependency declarations")
+}
+
+fn parse_kdl_project(input: &str) -> Result<Option<Manifest>> {
+    let mut document: kdl::KdlDocument = input.parse()?;
+    document
+        .nodes_mut()
+        .retain(|node| !matches!(node.name().value(), "project" | "scripts"));
+    if document.nodes().is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(Manifest::from_kdl(&document.to_string())?))
+}
+
+pub(crate) fn snapshot_cache(root: &Path, filename: &str) -> SnapshotCache {
+    let cache = SnapshotCache::new(root.join(STATE_DIRECTORY).join(filename))
+        .output_directory(root.join(STATE_DIRECTORY))
+        .output(root.join("Gemfile.lock"))
+        .output(root.join("gems.locked"));
+    let cache = ["log", "tmp"].into_iter().fold(cache, |cache, directory| {
+        let path = root.join(directory);
+        if path.is_file() {
+            cache
+        } else {
+            cache.output_directory(path)
+        }
+    });
+    if let Some(file) = std::env::var_os("BUNDLE_GEMFILE").filter(|file| !file.is_empty()) {
+        let mut filename = std::env::current_dir()
+            .unwrap_or_else(|_| root.to_path_buf())
+            .join(file)
+            .into_os_string();
+        filename.push(".lock");
+        cache.output(PathBuf::from(filename))
+    } else {
+        cache
+    }
 }

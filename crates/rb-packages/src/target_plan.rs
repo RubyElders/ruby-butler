@@ -135,3 +135,50 @@ fn platform_applies(platforms: &[String], runtime: &RubyEnvironment) -> Result<b
     }
     Ok(false)
 }
+
+pub(crate) fn runtimes(
+    runtime: &RubyEnvironment,
+    previous: Option<&rb_lockfile::Lockfile>,
+    mode: crate::LockMode,
+) -> Vec<RubyEnvironment> {
+    let mut targets = vec![runtime.clone()];
+    if mode != crate::LockMode::Locked
+        && let Some(previous) = previous
+    {
+        for platform in &previous.platforms {
+            if targets.iter().any(|target| &target.platform == platform) {
+                continue;
+            }
+            let mut target = runtime.clone();
+            target.platform = platform.clone();
+            target.engine = if target.target().os == "java" {
+                "jruby".into()
+            } else if runtime.engine == "jruby" {
+                "ruby".into()
+            } else {
+                runtime.engine.clone()
+            };
+            targets.push(target);
+        }
+    }
+    targets
+}
+
+pub(crate) fn sources(plans: &[TargetPlan]) -> Result<BTreeMap<String, rb_gemfile::Dependency>> {
+    let mut sources = BTreeMap::new();
+    for target in plans {
+        for (name, source) in &target.sources {
+            if let Some(previous) = sources.insert(name.clone(), source.clone()) {
+                ensure!(
+                    previous.source == source.source
+                        && previous.git == source.git
+                        && previous.path == source.path
+                        && crate::package_source::git_options(&previous)
+                            == crate::package_source::git_options(source),
+                    "Different sources across targets for {name} are not supported"
+                );
+            }
+        }
+    }
+    Ok(sources)
+}

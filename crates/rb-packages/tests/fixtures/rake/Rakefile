@@ -1,0 +1,3 @@
+task :default do
+  File.write(File.join(ENV.fetch('RUBYARCHDIR'), 'polished.rb'), "POLISHED = #{Rake::VERSION.inspect}\n")
+end

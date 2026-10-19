@@ -234,7 +234,7 @@ impl Command {
         // Only use bundle exec if:
         // 1. Bundler runtime is configured
         // 2. The command is not a bundle command itself (bundle install, bundle check, etc.)
-        if let Some(_bundler_runtime) = butler_runtime.bundler_runtime() {
+        if butler_runtime.uses_bundler() {
             !self.is_bundle_command()
         } else {
             false

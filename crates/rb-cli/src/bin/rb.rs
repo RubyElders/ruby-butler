@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{CommandFactory, FromArgMatches};
 use rb_cli::config::TrackedConfig;
 use rb_cli::dispatch::dispatch_command;
 use rb_cli::error_display::{
@@ -33,7 +33,9 @@ fn handle_command_error(error: ButlerError, context: &CommandContext) -> ! {
 }
 
 fn main() {
-    let cli = Cli::parse();
+    let matches = Cli::command().get_matches();
+    let package_backend_source = matches.value_source("package_backend");
+    let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
 
     // Skip logging for bash completion (must be silent)
     if !matches!(cli.command, Some(Commands::BashComplete { .. })) {
@@ -55,7 +57,10 @@ fn main() {
         std::process::exit(0);
     };
 
-    let tracked_config = TrackedConfig::from_merged(&cli_parsed.config, &file_config);
+    let mut tracked_config = TrackedConfig::from_merged(&cli_parsed.config, &file_config);
+    if package_backend_source == Some(clap::parser::ValueSource::EnvVariable) {
+        tracked_config.package_backend.source = rb_cli::config::ConfigSource::EnvVar;
+    }
 
     if !tracked_config.work_dir.source.is_default() {
         let target_dir = tracked_config.work_dir.get();

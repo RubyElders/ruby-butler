@@ -7,6 +7,7 @@ description = "Standalone Ruby bundle planning and conventional installation"
 
 [dependencies]
 anyhow = "1"
+log = "0.4"
 dunce = "1"
 rb-compact-index = { path = "../rb-compact-index" }
 rb-gem-archive = { path = "../rb-gem-archive" }
@@ -23,6 +24,7 @@ serde_yaml_ng = "0.10"
 sha2 = "0.10"
 tempfile = "3"
 toml = "0.8"
+kdl = "6"
 url = "2"
 
 flate2 = "1"

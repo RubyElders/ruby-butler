@@ -171,47 +171,14 @@ pub fn plan(
             return Ok(plan);
         }
     }
-    let mut targets = vec![runtime.clone()];
-    if options.mode != LockMode::Locked
-        && let Some(previous) = previous
-    {
-        for platform in &previous.platforms {
-            if targets.iter().any(|target| &target.platform == platform) {
-                continue;
-            }
-            let mut target = runtime.clone();
-            target.platform = platform.clone();
-            target.engine = if target.target().os == "java" {
-                "jruby".into()
-            } else if runtime.engine == "jruby" {
-                "ruby".into()
-            } else {
-                runtime.engine.clone()
-            };
-            targets.push(target);
-        }
-    }
+    let targets = crate::target_plan::runtimes(runtime, previous, options.mode);
     let target_plans = targets
         .iter()
         .map(|target| crate::target_plan::TargetPlan::new(manifest, target, options))
         .collect::<Result<Vec<_>>>()?;
     let declarations = target_plans[0].declarations.clone();
     let install_roots = target_plans[0].install_roots.clone();
-    let mut sources = BTreeMap::new();
-    for target in &target_plans {
-        for (name, source) in &target.sources {
-            if let Some(previous) = sources.insert(name.clone(), source.clone()) {
-                ensure!(
-                    previous.source == source.source
-                        && previous.git == source.git
-                        && previous.path == source.path
-                        && crate::package_source::git_options(&previous)
-                            == crate::package_source::git_options(source),
-                    "Conflicting sources for {name}"
-                );
-            }
-        }
-    }
+    let sources = crate::target_plan::sources(&target_plans)?;
     let mut locked = Vec::new();
     let mut pins: BTreeMap<String, Vec<crate::source_pin::SourcePin>> = BTreeMap::new();
     if let Some(previous) = previous {

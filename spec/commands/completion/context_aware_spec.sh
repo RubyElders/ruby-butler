@@ -7,7 +7,7 @@ Describe "Ruby Butler Context-Aware Completion"
 
   Describe "Ruby version completion with custom rubies-dir"
     setup_custom_rubies() {
-      CUSTOM_RUBIES_DIR="$SHELLSPEC_TMPBASE/custom-rubies"
+      CUSTOM_RUBIES_DIR=$(mktemp -d "$SHELLSPEC_TMPBASE/custom-rubies.XXXXXXXX")
       mkdir -p "$CUSTOM_RUBIES_DIR/ruby-2.7.8/bin"
       mkdir -p "$CUSTOM_RUBIES_DIR/ruby-9.9.9/bin"
 
@@ -63,7 +63,7 @@ Describe "Ruby Butler Context-Aware Completion"
 
   Describe "Exec completion with -C flag (work-dir)"
     setup_custom_workdir() {
-      CUSTOM_WORKDIR="$SHELLSPEC_TMPBASE/custom-work"
+      CUSTOM_WORKDIR=$(mktemp -d "$SHELLSPEC_TMPBASE/custom-work.XXXXXXXX")
       mkdir -p "$CUSTOM_WORKDIR"
 
       # Create Gemfile for bundler project
@@ -123,8 +123,8 @@ Describe "Ruby Butler Context-Aware Completion"
 
   Describe "Combined flag context"
     setup_combined_context() {
-      CUSTOM_RUBIES_DIR="$SHELLSPEC_TMPBASE/ctx-rubies"
-      CUSTOM_WORKDIR="$SHELLSPEC_TMPBASE/ctx-work"
+      CUSTOM_RUBIES_DIR=$(mktemp -d "$SHELLSPEC_TMPBASE/ctx-rubies.XXXXXXXX")
+      CUSTOM_WORKDIR=$(mktemp -d "$SHELLSPEC_TMPBASE/ctx-work.XXXXXXXX")
 
       mkdir -p "$CUSTOM_RUBIES_DIR/ruby-8.8.8/bin"
       mkdir -p "$CUSTOM_WORKDIR"

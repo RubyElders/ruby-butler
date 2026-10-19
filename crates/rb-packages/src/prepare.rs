@@ -9,6 +9,8 @@ use std::{path::PathBuf, sync::Arc};
 #[derive(Clone, Debug)]
 pub struct PrepareOptions {
     pub project: PathBuf,
+    pub project_file: Option<PathBuf>,
+    pub record_state: bool,
     pub ruby: PathBuf,
     pub cache: PathBuf,
     pub offline: bool,
@@ -25,6 +27,8 @@ impl PrepareOptions {
         let ruby = ruby.into();
         Self {
             project: project.into(),
+            project_file: None,
+            record_state: false,
             cache: cache.into(),
             offline: false,
             plan: PlanOptions::default(),
@@ -43,26 +47,29 @@ pub struct PreparedBundle {
 pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBundle> {
     let project = options.project.clone();
     let _project_lock = crate::task::run("lock project", events.clone(), move |_| {
-        let state = project.join(crate::constants::STATE_DIRECTORY);
-        std::fs::create_dir_all(&state)?;
-        let lock = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(state.join(crate::constants::PROJECT_LOCK))?;
-        lock.lock()?;
-        Ok(lock)
+        crate::prepared_state::lock(&project)
     })?;
+    crate::prepared_state::invalidate(&options.project)?;
+    let candidate = options
+        .record_state
+        .then(|| {
+            crate::prepared_state::attempt(crate::prepared_state::Candidate::capture(&options))
+        })
+        .flatten();
+    let cache_options = options.clone();
     let ruby = options.ruby.clone();
     let runtime = crate::task::run("inspect Ruby", events.clone(), move |_| {
         RubyEnvironment::inspect(&ruby)
     })?;
     let project = options.project.clone();
     let ruby = options.ruby.clone();
+    let project_file = options.project_file.clone();
     let input = crate::task::run("load dependencies", events.clone(), move |_| {
-        ProjectInput::load(&project, &ruby)
+        ProjectInput::load_with_project_file(&project, &ruby, project_file.as_deref())
     })?;
+    let observed = candidate.as_ref().and_then(|candidate| {
+        crate::prepared_state::attempt(candidate.observe(&options, &input, &runtime))
+    });
     let source_input = input.clone();
     let source_runtime = runtime.clone();
     let mut plan_options = options.plan.clone();
@@ -127,9 +134,13 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
             Ok(())
         })?;
     }
-    Ok(PreparedBundle {
+    let prepared = PreparedBundle {
         input,
         plan,
         installed,
-    })
+    };
+    if let (Some(candidate), Some((paths, before))) = (candidate, observed) {
+        crate::prepared_state::attempt(candidate.publish(&cache_options, &prepared, paths, before));
+    }
+    Ok(prepared)
 }

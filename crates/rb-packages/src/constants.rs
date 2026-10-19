@@ -5,6 +5,7 @@ pub(crate) const AUTH_CONFIG_FILE: &str = "auth.toml";
 pub(crate) const GEM_HOME_DIRECTORY: &str = "bundle";
 pub(crate) const SNAPSHOT_FILE: &str = "gemfile.snapshot.json";
 pub(crate) const MANIFEST_FILE: &str = "rbproject.toml";
+pub(crate) const PREPARED_STATE: &str = "prepared.json";
 pub(crate) const INSTALL_RECEIPT: &str = "installation.json";
 pub(crate) const DEFAULT_WORKERS: usize = 4;
 pub(crate) const SPECIFICATIONS_DIRECTORY: &str = "specifications";

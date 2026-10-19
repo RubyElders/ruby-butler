@@ -1,8 +1,17 @@
-use super::sync_report::{Completion, report_sync, sync_reporter};
+use super::sync_report::Completion;
 use log::{debug, info};
 use rb_core::butler::{ButlerError, ButlerRuntime, Command};
 
 pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<(), ButlerError> {
+    let backend = crate::packages::select(crate::config::PackageBackendKind::Bundler, None, false);
+    exec_with_backend(butler, program_args, backend.as_ref())
+}
+
+pub(crate) fn exec_with_backend(
+    butler: ButlerRuntime,
+    program_args: Vec<String>,
+    backend: &dyn crate::packages::PackageBackend,
+) -> Result<(), ButlerError> {
     if program_args.is_empty() {
         return Err(ButlerError::General(
             "No program specified for execution.\nProper usage: rb exec <program> [arguments...]\nFor example: rb exec gem list\n             rb exec bundle install".to_string()
@@ -21,21 +30,18 @@ pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<
         program
     );
 
-    if let Some(bundler_runtime) = butler.bundler_runtime() {
-        match bundler_runtime.check_sync(&butler) {
-            Ok(false) => {
-                report_sync(sync_reporter(), Completion::Compact, |handler| {
-                    bundler_runtime.synchronize_with_events(&butler, handler)
-                })?;
-            }
-            Ok(true) => {
-                debug!("Bundler environment already synchronized");
-            }
-            Err(e) => {
-                debug!("Unable to verify bundler synchronization status: {}", e);
-            }
+    let butler = match backend
+        .check(&butler)
+        .map_err(|error| ButlerError::General(format!("{error:#}")))?
+    {
+        crate::packages::PackageStatus::Ready(runtime) => *runtime,
+        crate::packages::PackageStatus::NeedsPreparation => {
+            super::sync_report::report_packages(Completion::Compact, |events| {
+                backend.prepare(&butler, events)
+            })?
+            .runtime
         }
-    }
+    };
 
     debug!("Program: {}", program);
     debug!("Arguments: {:?}", args);

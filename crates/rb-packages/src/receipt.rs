@@ -23,6 +23,7 @@ impl Receipt {
         record: &PackageRecord,
         runtime: &RubyEnvironment,
         build: &BuildOptions,
+        tools: &[&PackageRecord],
     ) -> Result<Self> {
         Ok(Self {
             checksum: record.checksum.clone(),
@@ -32,7 +33,7 @@ impl Receipt {
             version: runtime.version.to_string(),
             platform: runtime.platform.clone(),
             abi: runtime.abi.clone(),
-            configuration_hash: configuration_hash(build)?,
+            configuration_hash: configuration_hash(build, runtime, tools)?,
             dependencies: BTreeMap::new(),
         })
     }
@@ -47,7 +48,11 @@ pub(crate) struct InstalledReceipt {
     pub(crate) extension: Option<PathBuf>,
 }
 
-fn configuration_hash(build: &BuildOptions) -> Result<String> {
+fn configuration_hash(
+    build: &BuildOptions,
+    runtime: &RubyEnvironment,
+    tools: &[&PackageRecord],
+) -> Result<String> {
     let mut environment: BTreeMap<_, _> = [
         "CC",
         "CXX",
@@ -88,7 +93,7 @@ fn configuration_hash(build: &BuildOptions) -> Result<String> {
         .map(|value| value.to_str().context("Build argument is not UTF-8"))
         .collect::<Result<_>>()?;
     let bytes = serde_json::to_vec(
-        &serde_json::json!({"arguments":arguments,"environment":environment,"load_paths":build.load_paths,"dependencies":build.dependencies,"make":build.make,"cargo":build.cargo,"cmake":build.cmake}),
+        &serde_json::json!({"arguments":arguments,"environment":environment,"load_paths":build.load_paths,"dependencies":build.dependencies,"make":build.make,"cargo":build.cargo,"cmake":build.cmake,"resolved_build_tools":tools.iter().map(|record| (&record.source, &record.archive_version, &record.checksum)).collect::<Vec<_>>(),"build_tools":runtime.build_tools}),
     )?;
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
