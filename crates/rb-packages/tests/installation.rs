@@ -664,3 +664,160 @@ fn refreshed_multi_target_lock_runs_with_frozen_bundler_without_installing_forei
         lock
     );
 }
+
+#[test]
+fn rake_extension_uses_a_build_tool_without_a_runtime_dependency() {
+    let root = tempfile::tempdir().unwrap();
+    let mut index = MemoryIndex::default();
+    add_archive(
+        &mut index,
+        root.path(),
+        "polished",
+        &[],
+        &["Rakefile"],
+        &[("Rakefile", include_bytes!("fixtures/rake/Rakefile"))],
+    );
+    let runtime = runtime();
+    let plan = plan(
+        &manifest("https://rubygems.org", "polished='>= 0'"),
+        &runtime,
+        None,
+        &index,
+        &PlanOptions::default(),
+    )
+    .unwrap();
+    let index = Arc::new(index);
+    let bundle = install(
+        root.path(),
+        &plan,
+        &runtime,
+        index.clone(),
+        InstallOptions::new(&runtime.executable),
+        TaskEvents::default(),
+    )
+    .unwrap();
+    let output = run(
+        &runtime,
+        &bundle,
+        root.path(),
+        "require 'polished'; puts POLISHED; raise if Gem.loaded_specs.key?('rake')",
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        stdout(&output).trim(),
+        runtime
+            .build_tools
+            .iter()
+            .find(|tool| tool.name == "rake")
+            .unwrap()
+            .version
+    );
+    let reused = install(
+        root.path(),
+        &plan,
+        &runtime,
+        index.clone(),
+        InstallOptions::new(&runtime.executable),
+        TaskEvents::default(),
+    )
+    .unwrap();
+    assert_eq!(reused.installed, 0);
+    assert_eq!(reused.reused, 1);
+    let mut changed = runtime.clone();
+    changed.build_tools[0]
+        .metadata
+        .insert("build-profile".into(), "changed".into());
+    let rebuilt = install(
+        root.path(),
+        &plan,
+        &changed,
+        index.clone(),
+        InstallOptions::new(&runtime.executable),
+        TaskEvents::default(),
+    )
+    .unwrap();
+    assert_eq!(rebuilt.installed, 1);
+    changed.build_tools.clear();
+    let error = install(
+        root.path(),
+        &plan,
+        &changed,
+        index,
+        InstallOptions::new(&runtime.executable),
+        TaskEvents::default(),
+    )
+    .unwrap_err();
+    assert!(format!("{error:#}").contains("Rakefile extension requires rake"));
+    assert!(
+        bundle
+            .gem_home
+            .join("gems/polished-1.0.0/lib/polished.rb")
+            .is_file()
+    );
+}
+
+#[test]
+fn rake_extension_uses_the_resolved_tool_before_the_bundled_tool() {
+    let root = tempfile::tempdir().unwrap();
+    let mut index = MemoryIndex::default();
+    add_archive(
+        &mut index,
+        root.path(),
+        "rake",
+        &[("tool-helper", ">= 0")],
+        &[],
+        &[("lib/rake.rb", include_bytes!("fixtures/rake/selected.rb"))],
+    );
+    add_archive(
+        &mut index,
+        root.path(),
+        "polished",
+        &[],
+        &["Rakefile"],
+        &[("Rakefile", include_bytes!("fixtures/rake/Rakefile"))],
+    );
+    add_archive(
+        &mut index,
+        root.path(),
+        "tool-helper",
+        &[],
+        &[],
+        &[("lib/tool-helper.rb", b"TOOL_VERSION='9.0.0'\n")],
+    );
+    let mut runtime = runtime();
+    runtime.build_tools.clear();
+    let plan = plan(
+        &manifest("https://rubygems.org", "polished='>= 0'\nrake='>= 0'"),
+        &runtime,
+        None,
+        &index,
+        &PlanOptions::default(),
+    )
+    .unwrap();
+    let bundle = install(
+        root.path(),
+        &plan,
+        &runtime,
+        Arc::new(index),
+        InstallOptions::new(&runtime.executable),
+        TaskEvents::default(),
+    )
+    .unwrap();
+    let output = run(
+        &runtime,
+        &bundle,
+        root.path(),
+        "require 'polished'; puts POLISHED",
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(stdout(&output), "9.0.0\n");
+    assert_eq!(bundle.installed, 3);
+}

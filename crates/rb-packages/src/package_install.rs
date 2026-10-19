@@ -49,6 +49,13 @@ pub(crate) fn install_slot(
                 );
             }
         }
+        if crate::build_tools::requires_rake(metadata)
+            && !build.dependencies.iter().any(|gem| gem.name == "rake")
+        {
+            let rake = runtime.build_tools.iter().find(|gem| gem.name == "rake")
+                .context("Rakefile extension requires rake; provide a build dependency or install rake with the selected Ruby")?;
+            build.dependencies.push(rake.clone());
+        }
         let report = if metadata.extensions.is_empty() {
             None
         } else {

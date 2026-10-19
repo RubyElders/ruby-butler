@@ -4,7 +4,7 @@ use rb_core::butler::{ButlerError, ButlerRuntime};
 use rb_core::project::{ProjectRuntime, RbprojectDetector};
 use std::path::PathBuf;
 
-use super::exec::exec_command;
+use super::exec::exec_with_backend;
 
 fn list_available_scripts(
     butler_runtime: ButlerRuntime,
@@ -152,6 +152,23 @@ pub fn run_command(
     args: Vec<String>,
     project_file: Option<PathBuf>,
 ) -> Result<(), ButlerError> {
+    let backend = crate::packages::select(crate::config::PackageBackendKind::Bundler, None, false);
+    run_with_backend(
+        butler_runtime,
+        script_name,
+        args,
+        project_file,
+        backend.as_ref(),
+    )
+}
+
+pub(crate) fn run_with_backend(
+    butler_runtime: ButlerRuntime,
+    script_name: Option<String>,
+    args: Vec<String>,
+    project_file: Option<PathBuf>,
+    backend: &dyn crate::packages::PackageBackend,
+) -> Result<(), ButlerError> {
     if script_name.is_none() {
         return list_available_scripts(butler_runtime, project_file);
     }
@@ -231,8 +248,8 @@ pub fn run_command(
 
     info!("Delegating to exec command with args: {:?}", full_args);
 
-    // Delegate to exec_command for consistent behavior (auto bundle exec, env composition)
-    exec_command(butler_runtime, full_args)
+    // Delegate to exec_with_backend for consistent behavior (auto bundle exec, env composition)
+    exec_with_backend(butler_runtime, full_args, backend)
 }
 
 /// Parse a command string into program and arguments

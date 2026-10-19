@@ -531,7 +531,7 @@ fn path_sources_with_distinct_globs_keep_distinct_compatibility_locations() {
 }
 
 #[test]
-fn platform_specific_git_source_is_rejected_before_acquisition() {
+fn inactive_platform_git_source_is_rejected_before_acquisition() {
     let root = tempfile::tempdir().unwrap();
     fs::write(
         root.path().join("Gemfile"),
@@ -541,6 +541,123 @@ fn platform_specific_git_source_is_rejected_before_acquisition() {
     let mut options = options(root.path());
     options.offline = true;
     let error = prepare(options, TaskEvents::default()).err().unwrap();
-    assert!(format!("{error:#}").contains("Platform-specific Git/path sources"));
+    assert!(
+        format!("{error:#}")
+            .contains("Git/path source for fixture has no applicable resolution target")
+    );
     assert!(!root.path().join(".rb/cache/git").exists());
+}
+
+#[test]
+fn active_platform_path_source_is_prepared() {
+    let root = tempfile::tempdir().unwrap();
+    source(root.path());
+    fs::write(
+        root.path().join("Gemfile"),
+        "gem 'fixture', path: 'source-repository', platforms: [:ruby, :windows]\n",
+    )
+    .unwrap();
+    let bundle = prepare(options(root.path()), TaskEvents::default()).unwrap();
+    assert_eq!(
+        require(&bundle, "require 'fixture'; puts Fixture::VERSION"),
+        "1.0.0\n"
+    );
+}
+
+#[test]
+fn platform_git_source_selects_a_pinned_local_repository() {
+    let root = tempfile::tempdir().unwrap();
+    let directory = source(root.path());
+    git(&directory, &["init", "-q"]);
+    let revision = commit(&directory);
+    fs::write(
+        root.path().join("Gemfile"),
+        format!(
+            "gem 'fixture', git: {:?}, ref: {revision:?}, platforms: [:ruby, :windows]\n",
+            directory.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    let bundle = prepare(options(root.path()), TaskEvents::default()).unwrap();
+    assert_eq!(
+        require(&bundle, "require 'fixture'; puts Fixture::VERSION"),
+        "1.0.0\n"
+    );
+    assert!(
+        bundle
+            .plan
+            .lockfile
+            .sources
+            .iter()
+            .any(|source| source.options.get("revision") == Some(&revision))
+    );
+}
+
+#[test]
+fn different_sources_across_targets_are_rejected_before_acquisition() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join("Gemfile"),
+        "gem 'fixture', git: 'https://ruby.example.test/repo', platforms: [:ruby, :windows]\n",
+    )
+    .unwrap();
+    let runtime = common::runtime();
+    let mut input = rb_packages::ProjectInput::load(root.path(), &runtime.executable).unwrap();
+    let mut alternate = input.manifest.dependencies["fixture"].clone();
+    alternate.git = Some("https://java.example.test/repo".into());
+    alternate.platforms = vec!["jruby".into()];
+    input
+        .manifest
+        .dependencies
+        .get_mut("fixture")
+        .unwrap()
+        .variants
+        .push(alternate);
+    let previous = rb_lockfile::Lockfile {
+        platforms: vec![runtime.platform.clone(), "java".into()],
+        ..Default::default()
+    };
+    let result = rb_packages::SourceIndex::new(
+        &input,
+        &runtime,
+        &root.path().join(".rb/cache"),
+        true,
+        Some(&previous),
+        LockMode::Update,
+    );
+    let error = result.err().unwrap();
+    assert!(
+        format!("{error:#}").contains("Different sources across targets for fixture"),
+        "{error:#}"
+    );
+    assert!(!root.path().join(".rb/cache/git").exists());
+}
+
+#[test]
+fn compatibility_gemfile_keeps_optional_groups_inactive() {
+    let root = tempfile::tempdir().unwrap();
+    let directory = source(root.path());
+    fs::write(
+        directory.join("helper.gemspec"),
+        include_str!("fixtures/sources/helper.gemspec"),
+    )
+    .unwrap();
+    fs::write(directory.join("lib/helper.rb"), "HELPER=42\n").unwrap();
+    fs::write(
+        root.path().join("Gemfile"),
+        include_str!("fixtures/sources/optional.Gemfile"),
+    )
+    .unwrap();
+    let bundle = prepare(options(root.path()), TaskEvents::default()).unwrap();
+    assert_eq!(
+        require(
+            &bundle,
+            "raise 'optional helper activated' if Gem.loaded_specs.key?('helper'); puts 'default only'"
+        ),
+        "default only\n"
+    );
+    let mut enabled = options(root.path());
+    enabled.plan.with.insert("extras".into());
+    let bundle = prepare(enabled, TaskEvents::default()).unwrap();
+    assert_eq!(require(&bundle, "require 'helper'; puts HELPER"), "42\n");
 }

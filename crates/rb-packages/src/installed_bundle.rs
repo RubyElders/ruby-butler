@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct InstalledBundle {
     pub gem_home: PathBuf,
     pub bundle_path: PathBuf,

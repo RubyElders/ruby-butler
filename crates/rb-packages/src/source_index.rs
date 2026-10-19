@@ -24,26 +24,41 @@ impl SourceIndex {
         previous: Option<&rb_lockfile::Lockfile>,
         mode: LockMode,
     ) -> Result<Self> {
-        ensure!(
-            input.manifest.dependencies.values().all(|dependency| {
-                std::iter::once(dependency)
-                    .chain(&dependency.variants)
-                    .all(|declaration| {
-                        !declaration.enabled
-                            || declaration.platforms.is_empty()
-                            || (declaration.git.is_none() && declaration.path.is_none())
-                    })
-            }),
-            "Platform-specific Git/path sources require multi-target source routing"
-        );
+        let targets = crate::target_plan::runtimes(runtime, previous, mode);
+        let plans = targets
+            .iter()
+            .map(|target| {
+                crate::target_plan::TargetPlan::new(
+                    &input.manifest,
+                    target,
+                    &crate::PlanOptions::default(),
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let roots = crate::target_plan::sources(&plans)?;
+        for (name, dependency) in &input.manifest.dependencies {
+            for declaration in std::iter::once(dependency)
+                .chain(&dependency.variants)
+                .filter(|declaration| {
+                    declaration.enabled && (declaration.git.is_some() || declaration.path.is_some())
+                })
+            {
+                ensure!(
+                    roots
+                        .get(name)
+                        .is_some_and(|active| active.git == declaration.git
+                            && active.path == declaration.path
+                            && crate::package_source::git_options(active)
+                                == crate::package_source::git_options(declaration)),
+                    "Git/path source for {name} has no applicable resolution target"
+                );
+            }
+        }
         let mut packages: BTreeMap<String, Vec<SourcePackage>> = BTreeMap::new();
         let mut seen = std::collections::BTreeSet::new();
-        for declaration in input
-            .manifest
-            .dependencies
+        for declaration in roots
             .values()
-            .flat_map(|d| std::iter::once(d).chain(&d.variants))
-            .filter(|d| d.enabled && (d.git.is_some() || d.path.is_some()))
+            .filter(|d| d.git.is_some() || d.path.is_some())
         {
             let key = serde_json::to_string(
                 &serde_json::json!({"git":declaration.git,"path":declaration.path,"options":crate::package_source::git_options(declaration)}),
@@ -127,17 +142,7 @@ impl SourceIndex {
         Ok(Self {
             registry,
             packages,
-            roots: input
-                .manifest
-                .dependencies
-                .iter()
-                .filter_map(|(name, d)| {
-                    std::iter::once(d)
-                        .chain(&d.variants)
-                        .find(|d| d.enabled)
-                        .map(|d| (name.clone(), d.clone()))
-                })
-                .collect(),
+            roots,
             affinity: std::sync::Mutex::new(BTreeMap::new()),
         })
     }

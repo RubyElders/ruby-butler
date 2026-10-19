@@ -120,9 +120,25 @@ pub struct ButlerRuntime {
     ruby_installations: Vec<RubyRuntime>,
     requested_ruby_version: Option<String>,
     gem_base_dir: Option<PathBuf>,
+    package_environment: HashMap<String, String>,
+    package_bin: Option<PathBuf>,
 }
 
 impl ButlerRuntime {
+    pub fn with_package_environment(
+        mut self,
+        environment: HashMap<String, String>,
+        bin: PathBuf,
+    ) -> Self {
+        self.package_environment = environment;
+        self.package_bin = Some(bin);
+        self
+    }
+
+    pub fn uses_bundler(&self) -> bool {
+        self.bundler_runtime.is_some() || self.package_bin.is_some()
+    }
+
     /// Create a simple ButlerRuntime with just Ruby and Gem runtimes (for backward compatibility)
     pub fn new(ruby_runtime: RubyRuntime, gem_runtime: Option<GemRuntime>) -> Self {
         debug!(
@@ -152,6 +168,8 @@ impl ButlerRuntime {
             ruby_installations: vec![],
             requested_ruby_version: None,
             gem_base_dir: None,
+            package_environment: HashMap::new(),
+            package_bin: None,
         }
     }
 
@@ -169,6 +187,8 @@ impl ButlerRuntime {
             ruby_installations: vec![],
             requested_ruby_version: None,
             gem_base_dir: None,
+            package_environment: HashMap::new(),
+            package_bin: None,
         }
     }
 
@@ -339,6 +359,8 @@ impl ButlerRuntime {
             ruby_installations,
             requested_ruby_version,
             gem_base_dir,
+            package_environment: HashMap::new(),
+            package_bin: None,
         })
     }
 
@@ -445,10 +467,11 @@ impl ButlerRuntime {
     /// NOTE: User gems are NOT available in bundler context for proper isolation.
     /// Use --no-bundler to opt out of bundler context and access user gems.
     pub fn bin_dirs(&self) -> Vec<PathBuf> {
-        let mut dirs = Vec::new();
+        let mut dirs = self.package_bin.iter().cloned().collect::<Vec<_>>();
 
         // Bundler runtime bin dir first (if in bundler context)
-        if let Some(ref bundler_runtime) = self.bundler_runtime
+        if self.package_bin.is_none()
+            && let Some(ref bundler_runtime) = self.bundler_runtime
             && let Some(bundler_bin) = RuntimeProvider::bin_dir(bundler_runtime)
         {
             debug!(
@@ -459,7 +482,7 @@ impl ButlerRuntime {
         }
 
         // Gem runtime bin dir (only if NOT in bundler context for isolation)
-        if self.bundler_runtime.is_none() {
+        if !self.uses_bundler() {
             if let Some(ref gem_runtime) = self.gem_runtime {
                 debug!(
                     "Adding gem bin directory to PATH: {}",
@@ -638,6 +661,7 @@ impl ButlerRuntime {
             debug!("No bundler runtime detected - skipping bundler environment variables");
         }
 
+        env.extend(self.package_environment.clone());
         debug!("Environment composition complete: {} variables", env.len());
         env
     }
@@ -762,5 +786,29 @@ mod tests {
             separator
         );
         assert_eq!(path, expected);
+    }
+
+    #[test]
+    fn prepared_package_environment_overrides_runtime_paths_without_global_mutation() {
+        let ruby = create_ruby_runtime("3.4.10", "/opt/ruby");
+        let original = ButlerRuntime::new(ruby, None);
+        let bin = PathBuf::from("/prepared/bin");
+        let prepared = original.clone().with_package_environment(
+            HashMap::from([
+                ("GEM_HOME".into(), "/prepared".into()),
+                ("GEM_PATH".into(), "/prepared".into()),
+                ("BUNDLE_GEMFILE".into(), "/project/.rb/Gemfile".into()),
+            ]),
+            bin.clone(),
+        );
+        let environment = prepared.env_vars(Some("/existing/bin".into()));
+        assert_eq!(environment["GEM_HOME"], "/prepared");
+        assert_eq!(environment["GEM_PATH"], "/prepared");
+        assert_eq!(environment["BUNDLE_GEMFILE"], "/project/.rb/Gemfile");
+        assert_eq!(prepared.bin_dirs()[0], bin);
+        assert!(environment["PATH"].starts_with("/prepared/bin"));
+        assert!(prepared.uses_bundler());
+        assert!(!original.uses_bundler());
+        assert!(!original.env_vars(None).contains_key("BUNDLE_GEMFILE"));
     }
 }

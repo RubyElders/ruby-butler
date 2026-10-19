@@ -36,7 +36,7 @@ pub(crate) fn render(manifest: &Manifest) -> Result<String> {
     }
     for group in &manifest.bundle.optional_groups {
         output.push_str(&format!(
-            "group {}, optional: true do\nend\n",
+            "group :{}, optional: true do\nend\n",
             literal(group)
         ));
     }

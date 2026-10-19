@@ -60,6 +60,23 @@ fn parse_kdl_config(content: &str) -> Result<RbConfig, ConfigError> {
 
     let mut config = RbConfig::default();
 
+    if let Some(node) = doc.get("package-backend") {
+        let value = node
+            .entries()
+            .first()
+            .and_then(|entry| entry.value().as_string())
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "package-backend requires a string",
+                )
+            })?;
+        config.package_backend = Some(
+            <super::PackageBackendKind as clap::ValueEnum>::from_str(value, false)
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?,
+        );
+    }
+
     // Parse rubies-dir
     if let Some(node) = doc.get("rubies-dir")
         && let Some(entry) = node.entries().first()

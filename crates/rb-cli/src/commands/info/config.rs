@@ -92,6 +92,10 @@ pub fn config_command(config: &TrackedConfig) -> Result<(), ButlerError> {
     );
     println!();
 
+    println!("Package Backend: {}", config.package_backend.get());
+    println!("  Source: {}", config.package_backend.source);
+    println!();
+
     println!("{}", "Configuration sources (in priority order):".dimmed());
     println!("  {} CLI arguments", "1.".dimmed());
     println!("  {} Configuration file", "2.".dimmed());

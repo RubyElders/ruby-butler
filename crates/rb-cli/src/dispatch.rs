@@ -1,9 +1,7 @@
 use crate::Commands;
 use crate::InfoCommands;
 use crate::commands::info::info_config_command;
-use crate::commands::{
-    exec_command, help_command, info_command, run_command, sync_command, version_command,
-};
+use crate::commands::{help_command, info_command, version_command};
 use crate::runtime_helpers::CommandContext;
 use rb_core::butler::ButlerError;
 
@@ -17,6 +15,11 @@ pub fn dispatch_command(
     command: Commands,
     context: &mut CommandContext,
 ) -> Result<(), ButlerError> {
+    let backend = crate::packages::select(
+        *context.config.package_backend.get(),
+        context.project_file.clone(),
+        *context.config.no_bundler.get(),
+    );
     match command {
         Commands::Version => version_command(),
         Commands::Help { command: help_cmd } => help_command(help_cmd),
@@ -32,13 +35,21 @@ pub fn dispatch_command(
         Commands::Run { script, args } => {
             let project_file = context.project_file.clone();
             with_butler_runtime(context, |runtime| {
-                run_command(runtime.clone(), script, args, project_file)
+                crate::commands::run::run_with_backend(
+                    runtime.clone(),
+                    script,
+                    args,
+                    project_file,
+                    backend.as_ref(),
+                )
             })
         }
-        Commands::Exec { args } => {
-            with_butler_runtime(context, |runtime| exec_command(runtime.clone(), args))
-        }
-        Commands::Sync => with_butler_runtime(context, |runtime| sync_command(runtime.clone())),
+        Commands::Exec { args } => with_butler_runtime(context, |runtime| {
+            crate::commands::exec::exec_with_backend(runtime.clone(), args, backend.as_ref())
+        }),
+        Commands::Sync => with_butler_runtime(context, |runtime| {
+            crate::commands::sync::sync_with_backend(runtime.clone(), backend.as_ref())
+        }),
 
         Commands::Info { command } => match command {
             InfoCommands::Config => info_config_command(&context.config),

@@ -4,6 +4,7 @@ pub mod config;
 pub mod dispatch;
 pub mod error_display;
 pub mod help_formatter;
+mod packages;
 pub mod runtime_helpers;
 
 use clap::builder::styling::{AnsiColor, Effects, Styles};

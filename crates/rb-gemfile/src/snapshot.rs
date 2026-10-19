@@ -62,6 +62,52 @@ impl SnapshotCache {
         self
     }
 
+    /// Hashes the declared filesystem and environment inputs without running Ruby.
+    pub fn fingerprint(
+        &self,
+        evaluator: &Evaluator,
+        input: impl AsRef<Path>,
+    ) -> io::Result<String> {
+        let input = gemfile_path(input.as_ref())?;
+        let ruby = evaluator.ruby_executable()?;
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|path| absolute(path))
+            .collect::<io::Result<Vec<_>>>()?;
+        let mut excluded = self
+            .outputs
+            .iter()
+            .chain(&self.output_directories)
+            .map(|path| absolute(path))
+            .collect::<io::Result<Vec<_>>>()?;
+        if excluded.iter().any(|output| {
+            input.starts_with(output)
+                || ruby.starts_with(output)
+                || inputs.iter().any(|path| path.starts_with(output))
+        }) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Generated outputs must not contain inputs",
+            ));
+        }
+        let path = absolute(&self.path)?;
+        let mut lock = path.as_os_str().to_owned();
+        lock.push(".lock");
+        let lock = PathBuf::from(lock);
+        if [&path, &lock]
+            .iter()
+            .any(|path| **path == input || **path == ruby || inputs.contains(path))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Snapshot files must not be inputs",
+            ));
+        }
+        excluded.extend([path, lock]);
+        fingerprint(evaluator, &input, &input, &inputs, &ruby, &excluded)
+    }
+
     pub fn evaluate(
         &self,
         evaluator: &Evaluator,
@@ -260,7 +306,14 @@ fn hash_path(
     if metadata.is_symlink() {
         field(hash, b"symlink");
         field(hash, format!("{:?}", fs::read_link(path)?).as_bytes());
-        let target = dunce::canonicalize(path)?;
+        let target = match dunce::canonicalize(path) {
+            Ok(target) => target,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                field(hash, b"missing target");
+                return Ok(());
+            }
+            Err(error) => return Err(error),
+        };
         if !visited.contains(&target) {
             hash_path(hash, &target, excluded, visited)?;
         }
@@ -278,6 +331,11 @@ fn hash_path(
         }
     } else if metadata.is_file() {
         field(hash, b"file");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            field(hash, &metadata.permissions().mode().to_le_bytes());
+        }
         field(hash, &fs::read(path)?);
     } else {
         return Err(io::Error::other(format!(

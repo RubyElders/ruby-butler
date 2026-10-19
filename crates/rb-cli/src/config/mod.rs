@@ -1,6 +1,8 @@
 pub mod loader;
 pub mod locator;
+mod package_backend;
 pub mod value;
+pub use package_backend::PackageBackendKind;
 
 use clap::Args;
 use serde::{Deserialize, Serialize};
@@ -60,6 +62,16 @@ pub struct RbConfig {
     #[serde(rename = "no-bundler", skip_serializing_if = "Option::is_none")]
     pub no_bundler: Option<bool>,
 
+    #[arg(
+        long,
+        global = true,
+        env = "RB_PACKAGE_BACKEND",
+        value_enum,
+        help = "Choose how dependencies are resolved and installed"
+    )]
+    #[serde(rename = "package-backend", skip_serializing_if = "Option::is_none")]
+    pub package_backend: Option<PackageBackendKind>,
+
     /// Specify working directory (run as if started in this directory)
     #[arg(
         short = 'C',
@@ -117,6 +129,10 @@ impl RbConfig {
             debug!("  Using no-bundler from CLI arguments: {}", no_bundler);
         }
 
+        if self.package_backend.is_none() {
+            self.package_backend = other.package_backend;
+        }
+
         if self.work_dir.is_none() {
             if let Some(ref dir) = other.work_dir {
                 debug!("  Using work-dir from config file: {}", dir.display());
@@ -136,6 +152,7 @@ pub struct TrackedConfig {
     pub ruby_version: Option<ConfigValue<String>>,
     pub gem_home: ConfigValue<PathBuf>,
     pub no_bundler: ConfigValue<bool>,
+    pub package_backend: ConfigValue<PackageBackendKind>,
     pub work_dir: ConfigValue<PathBuf>,
 }
 
@@ -260,7 +277,14 @@ impl TrackedConfig {
             default_work_dir,
         );
 
+        let package_backend = PackageBackendKind::resolve(
+            cli_config.package_backend,
+            std::env::var("RB_PACKAGE_BACKEND").ok().as_deref(),
+            file_config.package_backend,
+        );
+
         Self {
+            package_backend,
             rubies_dir,
             ruby_version,
             gem_home,
@@ -276,6 +300,7 @@ impl TrackedConfig {
             ruby_version: self.ruby_version.as_ref().map(|v| v.value.clone()),
             gem_home: Some(self.gem_home.value.clone()),
             no_bundler: Some(self.no_bundler.value),
+            package_backend: Some(self.package_backend.value),
             work_dir: Some(self.work_dir.value.clone()),
         }
     }
@@ -348,6 +373,7 @@ mod tests {
             ruby_version: Some("3.3.0".to_string()),
             gem_home: Some(PathBuf::from("/test/gems")),
             no_bundler: None,
+            package_backend: None,
             work_dir: None,
         };
 
@@ -366,6 +392,7 @@ mod tests {
             ruby_version: Some("3.2.0".to_string()),
             gem_home: None,
             no_bundler: None,
+            package_backend: None,
             work_dir: None,
         };
         let file_config = RbConfig {
@@ -373,6 +400,7 @@ mod tests {
             ruby_version: Some("3.3.0".to_string()),
             gem_home: Some(PathBuf::from("/file/gems")),
             no_bundler: Some(true),
+            package_backend: None,
             work_dir: None,
         };
 
@@ -393,6 +421,7 @@ mod tests {
             ruby_version: Some("3.2.0".to_string()),
             gem_home: None,
             no_bundler: None,
+            package_backend: None,
             work_dir: None,
         };
         let file_config = RbConfig {
@@ -400,6 +429,7 @@ mod tests {
             ruby_version: None,
             gem_home: Some(PathBuf::from("/file/gems")),
             no_bundler: None,
+            package_backend: None,
             work_dir: None,
         };
 
@@ -433,6 +463,7 @@ mod tests {
             ruby_version: Some("3.3.0".to_string()),
             gem_home: Some(PathBuf::from("/opt/gems")),
             no_bundler: None,
+            package_backend: None,
             work_dir: None,
         };
 

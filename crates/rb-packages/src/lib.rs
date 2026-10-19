@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod build_tools;
 mod bundler_credentials;
 mod constants;
 mod copy_tree;
@@ -15,6 +16,7 @@ mod package_install;
 mod package_source;
 mod plan;
 mod prepare;
+mod prepared_state;
 mod provider;
 mod receipt;
 mod registry_index;
@@ -40,6 +42,7 @@ pub use install_options::InstallOptions;
 pub use installed_bundle::InstalledBundle;
 pub use plan::{LockMode, PackagePlan, PlanOptions, PlannedPackage, plan};
 pub use prepare::{PrepareOptions, PreparedBundle, prepare};
+pub use prepared_state::prepared;
 pub use provider::{MemoryIndex, PackageIndex, PackageRecord};
 pub use registry_index::RegistryIndex;
 pub use runtime::RubyEnvironment;

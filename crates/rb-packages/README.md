@@ -1,6 +1,6 @@
 # rb-packages
 
-Standalone Ruby bundle preparation: read `rbproject.toml`/KDL or a trusted Gemfile, resolve dependencies, and install registry, Git and path gems into `.rb`, including native extensions. Work reports through `rb-task` events. The CLI is not connected yet.
+Standalone Ruby bundle preparation: read `rbproject.toml`/KDL or a trusted Gemfile, resolve dependencies, and install registry, Git and path gems into `.rb`, including native extensions. Work reports through `rb-task` events.
 
 ```rust,no_run
 use rb_packages::{PrepareOptions, prepare};
@@ -14,9 +14,11 @@ let environment = bundle.installed.environment();
 # Ok::<(), anyhow::Error>(())
 ```
 
-The returned environment supports real RubyGems and Bundler. Bundler does not resolve or install; RubyGems still handles runtime inspection and specification serialization. Gemfile conversion is cached under `.rb`; Gemfiles must not read generated bundle files. Path gems use snapshots - prepare again after edits. Git/path sources require gemspecs.
+`rb --package-backend native sync` opts into this pipeline; `RB_PACKAGE_BACKEND=native` also applies to `rb x` and `rb run`. Bundler remains the default backend. Native `x` and `run` reuse a validated environment from `.rb/prepared.json` without preparing again; explicit `sync` always prepares. Library callers enable `PrepareOptions.record_state` to use `prepared`.
 
-Existing lockfile platforms are resolved together when the lock needs refreshing; only the local platform is installed.
+The returned environment supports real RubyGems and Bundler. Bundler does not resolve or install; RubyGems still handles runtime inspection and specification serialization. Gemfile conversion is cached under `.rb`. Cached Gemfiles must depend on tracked files and environment; generated `.rb`, `log`, `tmp` directories and lockfiles are excluded. Path gems use snapshots - prepare again after edits. Git/path sources require gemspecs.
+
+Existing lockfile platforms are resolved together when the lock needs refreshing; only the local platform is installed. Git/path declarations may be platform-scoped when they apply to a resolution target and their sources agree across targets. Rakefile builds use the resolved Rake or a bundled Rake from the selected Ruby, without adding a runtime dependency.
 
 Transitive registry dependencies prefer the parent source, then fall back to the global source when absent. Competing scoped sources require an explicit declaration.
 
@@ -30,6 +32,6 @@ username = "USERNAME"
 
 Commands run directly, without a shell, from the config directory. Stdout supplies the token for HTTP Basic authentication; credentials stay in memory for the invocation and out of source URLs and lockfiles. Offline preparation does not run credential commands.
 
-Credential stores, platform-specific Git/path sources, custom lock paths, plugins and MicroGems application runtime are not supported yet.
+Credential stores, different sources for the same gem across targets, custom lock paths, plugins and MicroGems application runtime are not supported yet.
 
 Run `cargo test -p rb-packages`, or try `cargo run -p rb-packages --example prepare -- /path/to/app /path/to/ruby /path/to/cache`.

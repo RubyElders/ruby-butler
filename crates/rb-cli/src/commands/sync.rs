@@ -1,22 +1,19 @@
-use super::sync_report::{Completion, report_sync, sync_reporter};
-use log::debug;
+use super::sync_report::Completion;
 use rb_core::butler::{ButlerError, ButlerRuntime};
 
 pub fn sync_command(butler_runtime: ButlerRuntime) -> Result<(), ButlerError> {
-    debug!("Starting sync command");
+    let backend = crate::packages::select(crate::config::PackageBackendKind::Bundler, None, false);
+    sync_with_backend(butler_runtime, backend.as_ref())
+}
 
-    let bundler_runtime = match butler_runtime.bundler_runtime() {
-        Some(bundler) => bundler,
-        None => {
-            return Err(ButlerError::General(
-                "Bundler environment not detected.\n\nNo Gemfile found in the current directory or its ancestors.\nThe sync command requires a bundler-managed project to operate.\n\nTo create a new bundler project, create a Gemfile with: echo 'source \"https://rubygems.org\"' > Gemfile".to_string()
-            ));
-        }
-    };
-
-    report_sync(sync_reporter(), Completion::Tree, |handler| {
-        bundler_runtime.synchronize_with_events(&butler_runtime, handler)
-    })
+pub(crate) fn sync_with_backend(
+    runtime: ButlerRuntime,
+    backend: &dyn crate::packages::PackageBackend,
+) -> Result<(), ButlerError> {
+    super::sync_report::report_packages(Completion::Tree, |events| {
+        backend.prepare(&runtime, events)
+    })?;
+    Ok(())
 }
 
 #[cfg(test)]
