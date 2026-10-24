@@ -1,6 +1,6 @@
 use crate::{
     InstallOptions, InstalledBundle, PackageIndex, PackagePlan, PackageRecord, RubyEnvironment,
-    constants::{GEM_HOME_DIRECTORY, INSTALL_RECEIPT, STATE_DIRECTORY},
+    constants::INSTALL_RECEIPT,
     copy_tree::copy_tree,
     package_install::install_slot,
     receipt::{InstalledReceipt, Receipt},
@@ -10,6 +10,7 @@ use crate::{
 use anyhow::{Context, Result, ensure};
 use rb_task::{Executor, TaskAction, TaskEvents, TaskGraph};
 use std::{
+    cmp::Reverse,
     collections::BTreeMap,
     fs,
     path::Path,
@@ -34,17 +35,10 @@ pub fn install(
             let runtime = &init_runtime;
             let options = options.clone();
             ensure!(options.workers > 0, "Worker count must be positive");
-            let bundle = project.join(STATE_DIRECTORY).join(GEM_HOME_DIRECTORY);
-            let home = bundle.join(&runtime.engine).join(
-                runtime
-                    .version
-                    .to_string()
-                    .split('.')
-                    .take(2)
-                    .collect::<Vec<_>>()
-                    .join(".")
-                    + ".0",
-            );
+            let layout =
+                crate::BundleLayout::new(project, &runtime.engine, &runtime.version.to_string());
+            let bundle = layout.bundle;
+            let home = layout.gem_home;
             fs::create_dir_all(home.parent().context("Missing gem home parent")?)?;
             let lockfile = fs::OpenOptions::new()
                 .read(true)
@@ -230,6 +224,29 @@ pub fn install(
         );
     }
     Executor::new(options.workers, events.clone()).run(graph, actions)?;
+    let specification_slots = slots.clone();
+    let specification_runtime = runtime.clone();
+    crate::task::run(
+        "write installed specifications",
+        events.clone(),
+        move |_| {
+            let records: Vec<_> = specification_slots
+                .values()
+                .filter_map(|slot| {
+                    let slot = slot.lock().unwrap();
+                    if slot.reused {
+                        return None;
+                    }
+                    Some((
+                        slot.metadata.as_ref().unwrap().clone(),
+                        slot.receipt.archive_version.clone(),
+                        slot.staging.as_ref().unwrap().path().to_owned(),
+                    ))
+                })
+                .collect();
+            crate::specification::write_all(&specification_runtime.executable, &records)
+        },
+    )?;
     let mut graph = TaskGraph::new();
     let mut actions: BTreeMap<_, TaskAction> = BTreeMap::new();
     if let Some(rake) = slots.get("rake") {
@@ -253,9 +270,15 @@ pub fn install(
         .filter(|p| p.install)
         .map(|p| (p.record.package.id.name.clone(), p.record.clone()))
         .collect();
+    let mut dependents: BTreeMap<String, usize> = BTreeMap::new();
+    for slot in slots.values() {
+        for dependency in &slot.lock().unwrap().dependencies {
+            *dependents.entry(dependency.clone()).or_default() += 1;
+        }
+    }
     let mut completed = BTreeMap::new();
     while !pending.is_empty() {
-        let ready: Vec<_> = pending
+        let mut ready: Vec<_> = pending
             .iter()
             .filter(|(name, _)| {
                 let slot = slots[*name].lock().unwrap();
@@ -273,6 +296,18 @@ pub fn install(
             "Native build dependency cycle: {}",
             pending.keys().cloned().collect::<Vec<_>>().join(", ")
         );
+        ready.sort_by_cached_key(|name| {
+            let slot = slots[name].lock().unwrap();
+            let extensions = slot
+                .metadata
+                .as_ref()
+                .map_or(0, |metadata| metadata.extensions.len());
+            (
+                Reverse(extensions),
+                Reverse(dependents.get(name).copied().unwrap_or(0)),
+                name.clone(),
+            )
+        });
         for name in ready {
             let record = pending.remove(&name).unwrap();
             let dependency_ids: Vec<_> = {

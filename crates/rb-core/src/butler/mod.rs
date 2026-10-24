@@ -520,10 +520,15 @@ impl ButlerRuntime {
     /// NOTE: User gems are NOT available in bundler context for proper isolation.
     /// Use --no-bundler to opt out of bundler context and access user gems.
     pub fn gem_dirs(&self) -> Vec<PathBuf> {
-        let mut dirs = Vec::new();
+        let mut dirs = self
+            .package_environment
+            .get("GEM_PATH")
+            .map(|paths| std::env::split_paths(paths).collect::<Vec<_>>())
+            .unwrap_or_default();
 
         // Bundler runtime gem dir first (if in bundler context)
-        if let Some(ref bundler_runtime) = self.bundler_runtime
+        if self.package_bin.is_none()
+            && let Some(ref bundler_runtime) = self.bundler_runtime
             && let Some(bundler_gem) = RuntimeProvider::gem_dir(bundler_runtime)
         {
             debug!("Adding bundler gem directory: {}", bundler_gem.display());
@@ -531,7 +536,7 @@ impl ButlerRuntime {
         }
 
         // User gem home (only if NOT in bundler context for isolation)
-        if self.bundler_runtime.is_none() {
+        if !self.uses_bundler() {
             if let Some(ref gem_runtime) = self.gem_runtime {
                 debug!(
                     "Adding gem home directory: {}",
@@ -556,12 +561,17 @@ impl ButlerRuntime {
         dirs
     }
 
-    /// Returns the gem_home from GemRuntime if present, otherwise returns None
+    /// Returns the active package gem home, falling back to the user gem home.
     pub fn gem_home(&self) -> Option<PathBuf> {
         let result = self
-            .gem_runtime
-            .as_ref()
-            .map(|gem_runtime| gem_runtime.gem_home.clone());
+            .package_environment
+            .get("GEM_HOME")
+            .map(PathBuf::from)
+            .or_else(|| {
+                self.gem_runtime
+                    .as_ref()
+                    .map(|gem_runtime| gem_runtime.gem_home.clone())
+            });
 
         if let Some(ref gem_home) = result {
             debug!("Gem home directory: {}", gem_home.display());
@@ -806,6 +816,9 @@ mod tests {
         assert_eq!(environment["GEM_PATH"], "/prepared");
         assert_eq!(environment["BUNDLE_GEMFILE"], "/project/.rb/Gemfile");
         assert_eq!(prepared.bin_dirs()[0], bin);
+        assert_eq!(prepared.gem_home(), Some(PathBuf::from("/prepared")));
+        assert_eq!(prepared.gem_dirs()[0], PathBuf::from("/prepared"));
+        assert_eq!(prepared.gem_dirs().len(), 2);
         assert!(environment["PATH"].starts_with("/prepared/bin"));
         assert!(prepared.uses_bundler());
         assert!(!original.uses_bundler());

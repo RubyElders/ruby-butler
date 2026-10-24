@@ -19,6 +19,7 @@ pub struct Evaluator {
 pub struct Evaluation {
     pub manifest: Manifest,
     pub inputs: Vec<PathBuf>,
+    pub environment: Option<std::collections::BTreeSet<String>>,
     #[serde(default)]
     pub stdout: String,
     #[serde(default)]
@@ -108,6 +109,10 @@ pub(crate) fn gemfile_path(path: &Path) -> io::Result<PathBuf> {
 }
 
 pub(crate) const SOURCES: &[(&str, &str)] = &[
+    (
+        "lib/rb_gemfile/environment_inputs.rb",
+        include_str!("../../../gems/rb-gemfile/lib/rb_gemfile/environment_inputs.rb"),
+    ),
     (
         "exe/rb-evaluate-gemfile",
         include_str!("../../../gems/rb-gemfile/exe/rb-evaluate-gemfile"),

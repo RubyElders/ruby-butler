@@ -38,10 +38,13 @@ impl PrepareOptions {
     }
 }
 
+#[derive(Clone)]
 pub struct PreparedBundle {
     pub input: ProjectInput,
     pub plan: PackagePlan,
     pub installed: InstalledBundle,
+    pub fingerprint: String,
+    pub changed: bool,
 }
 
 pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBundle> {
@@ -50,12 +53,16 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
         crate::prepared_state::lock(&project)
     })?;
     crate::prepared_state::invalidate(&options.project)?;
-    let candidate = options
-        .record_state
-        .then(|| {
-            crate::prepared_state::attempt(crate::prepared_state::Candidate::capture(&options))
-        })
-        .flatten();
+    let candidate = if options.record_state {
+        let options = options.clone();
+        crate::task::run("check dependency inputs", events.clone(), move |_| {
+            Ok(crate::prepared_state::attempt(
+                crate::prepared_state::Candidate::capture(&options),
+            ))
+        })?
+    } else {
+        None
+    };
     let cache_options = options.clone();
     let ruby = options.ruby.clone();
     let runtime = crate::task::run("inspect Ruby", events.clone(), move |_| {
@@ -67,9 +74,18 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
     let input = crate::task::run("load dependencies", events.clone(), move |_| {
         ProjectInput::load_with_project_file(&project, &ruby, project_file.as_deref())
     })?;
-    let observed = candidate.as_ref().and_then(|candidate| {
-        crate::prepared_state::attempt(candidate.observe(&options, &input, &runtime))
-    });
+    let observed = if let Some(candidate) = candidate.clone() {
+        let options = options.clone();
+        let input = input.clone();
+        let runtime = runtime.clone();
+        crate::task::run("track preparation inputs", events.clone(), move |_| {
+            Ok(crate::prepared_state::attempt(
+                candidate.observe(&options, &input, &runtime),
+            ))
+        })?
+    } else {
+        None
+    };
     let source_input = input.clone();
     let source_runtime = runtime.clone();
     let mut plan_options = options.plan.clone();
@@ -103,6 +119,14 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
         options.plan.mode != LockMode::Locked || !plan.lock_changed,
         "Lockfile changed in locked mode"
     );
+    let fingerprint =
+        crate::freshness::fingerprint(&plan, &input.manifest, &runtime, &options.install)?;
+    let identity_file = input
+        .root
+        .join(crate::constants::STATE_DIRECTORY)
+        .join(crate::constants::GEM_HOME_DIRECTORY)
+        .join(crate::constants::BUNDLE_FINGERPRINT);
+    let previous_identity = std::fs::read_to_string(&identity_file).ok();
     let mut installed = crate::install(
         &input.root,
         &plan,
@@ -129,18 +153,31 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
     if plan.lock_changed {
         let lockfile = input.lockfile.clone();
         let rendered = plan.lockfile.render()?;
-        crate::task::run("write lockfile", events, move |_| {
+        crate::task::run("write lockfile", events.clone(), move |_| {
             rb_gemfile::write_project(&lockfile, &rendered)?;
             Ok(())
         })?;
     }
+    let changed = previous_identity.as_deref() != Some(&fingerprint) || installed.installed > 0;
+    rb_gemfile::write_project(&identity_file, &fingerprint)?;
     let prepared = PreparedBundle {
         input,
         plan,
         installed,
+        fingerprint,
+        changed,
     };
     if let (Some(candidate), Some((paths, before))) = (candidate, observed) {
-        crate::prepared_state::attempt(candidate.publish(&cache_options, &prepared, paths, before));
+        let cache_bundle = prepared.clone();
+        crate::task::run("record prepared environment", events, move |_| {
+            crate::prepared_state::attempt(candidate.clone().publish(
+                &cache_options,
+                &cache_bundle,
+                paths.clone(),
+                before.clone(),
+            ));
+            Ok(())
+        })?;
     }
     Ok(prepared)
 }

@@ -11,7 +11,13 @@ class SpecificationTest < Minitest::Test
                'dependencies' => { 'rake' => '>= 13, < 14' } }
     Dir.mktmpdir do |directory|
       path = File.join(directory, 'fixture.gemspec')
-      RubyButler::GemInstaller::Specification.write(record, path)
+      other_path = File.join(directory, 'other.gemspec')
+      other = record.merge('name' => 'other', 'version' => '2.0.0', 'dependencies' => {})
+      RubyButler::GemInstaller::Specification.write_all([[record, path], [other, other_path]])
+      other_spec = Gem::Specification.load(other_path)
+      assert_equal 'other', other_spec.name
+      assert_equal '2.0.0', other_spec.version.to_s
+      assert_empty other_spec.dependencies
       specification = Gem::Specification.load(path)
       assert_equal 'fixture', specification.name
       assert_equal '1.2.3', specification.version.to_s

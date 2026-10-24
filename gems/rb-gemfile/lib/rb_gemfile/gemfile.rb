@@ -4,7 +4,7 @@ require "pathname"
 
 module RubyButler
   class Gemfile
-    attr_reader :inputs
+    attr_reader :inputs, :environment_inputs
 
     def initialize
       @bundle = { source: nil, ruby: [], optional_groups: [] }
@@ -13,6 +13,7 @@ module RubyButler
       @gemspecs = []
       @gemspec_development = {}
       @inputs = []
+      @environment_inputs = EnvironmentInputs.new
       @stack = []
       @context = { groups: [], platforms: [], conditions: [] }
       @git_sources = {
@@ -50,7 +51,7 @@ module RubyButler
       @inputs << path unless @inputs.include?(path)
       @stack.push(path)
       begin
-        instance_eval(contents || read_file(path), path, 1)
+        @environment_inputs.capture { instance_eval(contents || read_file(path), path, 1) }
       ensure
         @stack.pop
       end

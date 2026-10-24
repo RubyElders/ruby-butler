@@ -1,10 +1,11 @@
+use crate::packages::PackageRuntime;
 use colored::*;
 use log::{debug, info};
-use rb_core::butler::{ButlerError, ButlerRuntime};
+use rb_core::butler::ButlerError;
 use rb_core::ruby::RubyType;
 use semver::Version;
 
-pub fn runtime_command(butler_runtime: &ButlerRuntime) -> Result<(), ButlerError> {
+pub(crate) fn runtime_command(butler_runtime: &PackageRuntime) -> Result<(), ButlerError> {
     info!(
         "Surveying Ruby installations in distinguished directory: {}",
         butler_runtime.rubies_dir().display()
@@ -13,7 +14,7 @@ pub fn runtime_command(butler_runtime: &ButlerRuntime) -> Result<(), ButlerError
     Ok(())
 }
 
-fn present_ruby_installations(butler_runtime: &ButlerRuntime) -> Result<(), ButlerError> {
+fn present_ruby_installations(butler_runtime: &PackageRuntime) -> Result<(), ButlerError> {
     let rubies_dir = butler_runtime.rubies_dir();
     let ruby_installations = butler_runtime.ruby_installations();
     let requested_ruby_version = butler_runtime.requested_ruby_version();
@@ -287,26 +288,5 @@ fn present_ruby_installations(butler_runtime: &ButlerRuntime) -> Result<(), Butl
 fn ruby_type_as_str(ruby_type: &RubyType) -> &'static str {
     match ruby_type {
         RubyType::CRuby => "CRuby",
-    }
-}
-#[cfg(test)]
-mod tests {
-    use rb_core::butler::ButlerRuntime;
-    use rb_tests::RubySandbox;
-
-    #[test]
-    fn test_runtime_command_with_directory() {
-        let sandbox = RubySandbox::new().expect("Failed to create sandbox");
-        sandbox
-            .add_ruby_dir("3.2.5")
-            .expect("Failed to create ruby-3.2.5");
-
-        // Test using ButlerRuntime
-        let path = sandbox.root().to_path_buf();
-        let butler_runtime = ButlerRuntime::discover_and_compose(path, None)
-            .expect("Failed to create butler runtime");
-
-        // This test just verifies the function can be called without panicking
-        let _ = super::runtime_command(&butler_runtime);
     }
 }

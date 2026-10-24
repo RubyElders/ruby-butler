@@ -91,6 +91,12 @@ impl PackageRecord {
 pub trait PackageIndex: Send + Sync {
     fn candidates(&self, name: &str) -> Result<Vec<PackageRecord>>;
     fn archive(&self, record: &PackageRecord) -> Result<PathBuf>;
+    fn locked_records(&self, packages: &[PackageRecord]) -> Result<Vec<PackageRecord>> {
+        packages
+            .iter()
+            .map(|package| select_locked(package, self.candidates(&package.package.id.name)?))
+            .collect()
+    }
     fn stage_sources(
         &self,
         _home: &Path,
@@ -143,4 +149,23 @@ pub(crate) fn source_url(source: &str) -> Result<String> {
         url.set_path(&format!("{}/", url.path()));
     }
     Ok(url.to_string())
+}
+
+pub(crate) fn select_locked(
+    locked: &PackageRecord,
+    candidates: Vec<PackageRecord>,
+) -> Result<PackageRecord> {
+    let mut matching = candidates
+        .into_iter()
+        .filter(|record| record.package.id == locked.package.id && record.source == locked.source);
+    let record = matching.next().context(format!(
+        "Locked package is unavailable: {}",
+        locked.package.id
+    ))?;
+    ensure!(
+        matching.next().is_none(),
+        "Ambiguous locked package: {}",
+        locked.package.id
+    );
+    Ok(record)
 }

@@ -6,27 +6,39 @@ use std::{
     process::Command,
 };
 
+#[cfg(test)]
 pub(crate) fn write(
     ruby: &Path,
     metadata: &GemMetadata,
     archive_version: &str,
     home: &Path,
 ) -> Result<PathBuf> {
-    let directory = home.join(crate::constants::SPECIFICATIONS_DIRECTORY);
-    std::fs::create_dir_all(&directory)?;
-    let filename = directory.join(format!("{}-{archive_version}.gemspec", metadata.id.name));
-    let (_, platform) = archive_version
-        .split_once('-')
-        .unwrap_or((archive_version, "ruby"));
-    let value = json!({
-        "name": metadata.id.name, "version": metadata.id.version.to_string(), "platform": platform,
-        "ruby": metadata.ruby.to_string(), "rubygems": metadata.rubygems.to_string(),
-        "dependencies": metadata.dependencies.iter().map(|(n,r)| (n.clone(),r.to_string())).collect::<std::collections::BTreeMap<_,_>>(),
-        "require_paths": metadata.require_paths, "executables": metadata.executables, "bindir": metadata.bindir,
-        "extensions": metadata.extensions, "files": metadata.files, "metadata": metadata.metadata,
-    });
+    write_all(
+        ruby,
+        &[(metadata.clone(), archive_version.into(), home.into())],
+    )?;
+    Ok(filename(metadata, archive_version, home))
+}
+
+pub(crate) fn filename(metadata: &GemMetadata, archive_version: &str, home: &Path) -> PathBuf {
+    home.join(crate::constants::SPECIFICATIONS_DIRECTORY)
+        .join(format!("{}-{archive_version}.gemspec", metadata.id.name))
+}
+
+pub(crate) fn write_all(ruby: &Path, records: &[(GemMetadata, String, PathBuf)]) -> Result<()> {
+    if records.is_empty() {
+        return Ok(());
+    }
+    let records = records
+        .iter()
+        .map(|(metadata, archive_version, home)| {
+            let filename = filename(metadata, archive_version, home);
+            std::fs::create_dir_all(filename.parent().unwrap())?;
+            Ok((record(metadata, archive_version), filename))
+        })
+        .collect::<Result<Vec<_>>>()?;
     let data = tempfile::NamedTempFile::new()?;
-    std::fs::write(data.path(), serde_json::to_vec(&value)?)?;
+    std::fs::write(data.path(), serde_json::to_vec(&records)?)?;
     let helper = tempfile::Builder::new().suffix(".rb").tempfile()?;
     std::fs::write(
         helper.path(),
@@ -39,11 +51,10 @@ pub(crate) fn write(
             "-rrubygems",
             "-rjson",
             "-e",
-            "require ARGV.shift; RubyButler::GemInstaller::Specification.write(JSON.parse(File.read(ARGV[0])), ARGV[1])",
+            "require ARGV.shift; RubyButler::GemInstaller::Specification.write_all(JSON.parse(File.read(ARGV[0])))",
         ])
         .arg(helper.path())
         .arg(data.path())
-        .arg(&filename)
         .output()
         .context("Writing installed specification")?;
     ensure!(
@@ -51,7 +62,20 @@ pub(crate) fn write(
         "Writing specification failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    Ok(filename)
+    Ok(())
+}
+
+fn record(metadata: &GemMetadata, archive_version: &str) -> serde_json::Value {
+    let (_, platform) = archive_version
+        .split_once('-')
+        .unwrap_or((archive_version, "ruby"));
+    json!({
+        "name": metadata.id.name, "version": metadata.id.version.to_string(), "platform": platform,
+        "ruby": metadata.ruby.to_string(), "rubygems": metadata.rubygems.to_string(),
+        "dependencies": metadata.dependencies.iter().map(|(n,r)| (n.clone(),r.to_string())).collect::<std::collections::BTreeMap<_,_>>(),
+        "require_paths": metadata.require_paths, "executables": metadata.executables, "bindir": metadata.bindir,
+        "extensions": metadata.extensions, "files": metadata.files, "metadata": metadata.metadata,
+    })
 }
 
 #[cfg(test)]

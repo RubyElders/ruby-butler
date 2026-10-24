@@ -3,20 +3,22 @@ pub mod env;
 pub mod project;
 pub mod runtime;
 
-use rb_core::butler::{ButlerError, ButlerRuntime};
+use crate::packages::PackageRuntime;
+use rb_core::butler::ButlerError;
 use std::path::PathBuf;
 
 use crate::InfoCommands;
 use crate::config::TrackedConfig;
 
-pub fn info_command(
+pub(crate) fn info_command(
     command: &InfoCommands,
-    butler_runtime: &ButlerRuntime,
+    butler_runtime: &PackageRuntime,
     project_file: Option<PathBuf>,
+    backend: &crate::packages::PackageBackend,
 ) -> Result<(), ButlerError> {
     match command {
         InfoCommands::Runtime => runtime::runtime_command(butler_runtime),
-        InfoCommands::Env => env::environment_command(butler_runtime, project_file),
+        InfoCommands::Env => env::environment_command(butler_runtime, project_file, backend),
         InfoCommands::Project => project::project_command(butler_runtime, project_file),
         InfoCommands::Config => {
             // Config command doesn't actually need the runtime, but we have it available

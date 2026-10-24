@@ -5,7 +5,7 @@ use rb_task::TaskEvents;
 use std::{collections::BTreeMap, fs};
 
 #[test]
-fn ready_state_checks_inputs_configuration_and_installed_files_without_registry_requests() {
+fn ready_state_checks_dependency_inputs_and_installation_state_without_registry_requests() {
     let root = tempfile::tempdir().unwrap();
     let archives = tempfile::tempdir().unwrap();
     let mut index = rb_packages::MemoryIndex::default();
@@ -42,24 +42,20 @@ fn ready_state_checks_inputs_configuration_and_installed_files_without_registry_
     assert_eq!(ready.installed, 0);
     assert_eq!(ready.reused, 1);
     assert_eq!(ready.environment(), bundle.installed.environment());
+    let payload = bundle.installed.gem_home.join("untracked-payload");
+    fs::write(&payload, "not a dependency input").unwrap();
+    assert!(
+        prepared(&options).unwrap().is_some(),
+        "Startup must not scan installed payloads"
+    );
+    fs::remove_file(&payload).unwrap();
     let requests = server.requests.lock().unwrap().len();
     for path in [
         gemfile.clone(),
         root.path().join("Gemfile.lock"),
         root.path().join(".rb/rbproject.toml"),
         root.path().join(".rb/prepared.json"),
-        bundle
-            .installed
-            .gem_home
-            .join("specifications/teacup-1.0.0.gemspec"),
-        bundle
-            .installed
-            .gem_home
-            .join("gems/teacup-1.0.0/installation.json"),
-        bundle
-            .installed
-            .gem_home
-            .join("gems/teacup-1.0.0/lib/teacup.rb"),
+        bundle.installed.bundle_path.join("fingerprint"),
     ] {
         let bytes = fs::read(&path).unwrap();
         let permissions = fs::metadata(&path).unwrap().permissions();
@@ -83,6 +79,13 @@ fn ready_state_checks_inputs_configuration_and_installed_files_without_registry_
             path.display()
         );
     }
+    let home = &bundle.installed.gem_home;
+    let removed = home.with_extension("removed");
+    fs::rename(home, &removed).unwrap();
+    assert!(prepared(&options).unwrap().is_none());
+    fs::rename(&removed, home).unwrap();
+    assert!(prepared(&options).unwrap().is_some());
+    assert!(!root.path().join(".rb/installed-files.json").exists());
     let mut changed = options.clone();
     changed.plan.without.insert("test".into());
     assert!(prepared(&changed).unwrap().is_none());
@@ -98,7 +101,7 @@ fn ready_state_checks_inputs_configuration_and_installed_files_without_registry_
     assert!(prepared(&changed).unwrap().is_none());
     let new_input = root.path().join("Gemfile.extra");
     fs::write(&new_input, "gem 'saucer'\n").unwrap();
-    assert!(prepared(&options).unwrap().is_none());
+    assert!(prepared(&options).unwrap().is_some());
     fs::remove_file(new_input).unwrap();
     assert!(prepared(&options).unwrap().is_some());
     assert_eq!(server.requests.lock().unwrap().len(), requests);

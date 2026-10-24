@@ -118,7 +118,7 @@ fn report_sync(
     report_preparation(reporter, completion, |events| {
         let result = run(events.sync)?;
         Ok(crate::packages::PreparedEnvironment {
-            runtime: rb_core::butler::ButlerRuntime::empty(".".into(), ".".into()),
+            runtime: crate::packages::ReadyRuntime::empty(),
             changed: result == SyncResult::Synchronized,
         })
     })

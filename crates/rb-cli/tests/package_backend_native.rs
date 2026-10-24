@@ -1,153 +1,51 @@
 #![cfg(unix)]
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
-};
-
-struct Fixture {
-    root: tempfile::TempDir,
-    rubies: tempfile::TempDir,
-    version: String,
-}
-
-impl Fixture {
-    fn new() -> Self {
-        let root = tempfile::tempdir().unwrap();
-        let ruby = std::env::var_os("RB_GEM_BUILD_RUBY")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                which::which("ruby").expect("Ruby is required for native package integration tests")
-            });
-        let output = Command::new(&ruby)
-            .args([
-                "-rrbconfig",
-                "-rbundler",
-                "-e",
-                "puts RbConfig::CONFIG['prefix']; puts RUBY_VERSION",
-            ])
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "A Ruby with Bundler is required: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let text = String::from_utf8(output.stdout).unwrap();
-        let mut lines = text.lines();
-        let prefix = lines.next().unwrap();
-        let version = lines.next().unwrap().to_owned();
-        let rubies = tempfile::tempdir().unwrap();
-        let installation = rubies.path().join(format!("ruby-{version}"));
-        fs::create_dir(&installation).unwrap();
-        std::os::unix::fs::symlink(Path::new(prefix).join("bin"), installation.join("bin"))
-            .unwrap();
-        for file in [
-            "Gemfile",
-            "rbproject.toml",
-            "local/backend_fixture.gemspec",
-            "local/lib/backend_fixture.rb",
-        ] {
-            let source_file = if file == "rbproject.toml" {
-                "project.toml"
-            } else {
-                file
-            };
-            let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/fixtures/package-backend")
-                .join(source_file);
-            let destination = root.path().join(file);
-            fs::create_dir_all(destination.parent().unwrap()).unwrap();
-            fs::copy(source, destination).unwrap();
-        }
-        Self {
-            root,
-            rubies,
-            version,
-        }
-    }
-
-    fn instrument_ruby(&self) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
-        let bin = self
-            .rubies
-            .path()
-            .join(format!("ruby-{}", self.version))
-            .join("bin");
-        let original = fs::read_link(&bin).unwrap();
-        fs::remove_file(&bin).unwrap();
-        fs::create_dir(&bin).unwrap();
-        let calls = self.rubies.path().join("ruby-calls");
-        let quote = |path: &Path| format!("'{}'", path.to_str().unwrap().replace('\'', "'\\''"));
-        for name in ["ruby", "bundle"] {
-            let log = if name == "ruby" {
-                format!("printf '%s\\n' \"$*\" >> {}\n", quote(&calls))
-            } else {
-                String::new()
-            };
-            let path = bin.join(name);
-            fs::write(
-                &path,
-                format!(
-                    "#!/bin/sh\n{log}exec {} \"$@\"\n",
-                    quote(&original.join(name))
-                ),
-            )
-            .unwrap();
-            fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
-        }
-        calls
-    }
-
-    fn command(&self) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_rb"));
-        command.args([
-            "-R",
-            self.rubies.path().to_str().unwrap(),
-            "-r",
-            &self.version,
-            "-C",
-            self.root.path().to_str().unwrap(),
-            "--package-backend",
-            "native",
-        ]);
-        for key in [
-            "RB_CONFIG",
-            "RB_PACKAGE_BACKEND",
-            "RB_NO_BUNDLER",
-            "BUNDLE_GEMFILE",
-            "RUBYOPT",
-            "RUBYLIB",
-            "BUNDLE_FROZEN",
-            "BUNDLE_DEPLOYMENT",
-            "BUNDLE_WITH",
-            "BUNDLE_WITHOUT",
-        ] {
-            command.env_remove(key);
-        }
-        command
-    }
-}
-
-fn success(output: Output) -> Output {
-    assert!(
-        output.status.success(),
-        "stdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    output
-}
+#[path = "common/package_backend.rs"]
+mod package_backend;
+use package_backend::{Fixture, success};
+use std::{fs, path::PathBuf};
 
 #[test]
 fn native_sync_exec_and_run_use_the_same_bundler_compatible_installation() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::new("native");
+    let bundle = fixture.root.path().join(".rb/bundle");
+    fs::create_dir_all(&bundle).unwrap();
+    let _socket = std::os::unix::net::UnixListener::bind(bundle.join("runtime.sock")).unwrap();
     let output = success(fixture.command().arg("sync").output().unwrap());
     assert!(output.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("Your bundle is ready"));
+    let report = String::from_utf8_lossy(&output.stderr);
+    for phase in [
+        "check dependency inputs",
+        "track preparation inputs",
+        "record prepared environment",
+    ] {
+        assert!(report.contains(&format!("started: {phase}")), "{report}");
+    }
+    assert!(report.contains("Your bundle is ready"));
+    assert!(!report.contains("validate prepared environment"));
+    assert!(
+        !fixture
+            .root
+            .path()
+            .join(".rb/installed-files.json")
+            .exists()
+    );
     assert!(fixture.root.path().join("Gemfile.lock").is_file());
     assert!(!fixture.root.path().join(".rb/vendor/bundler").exists());
+    assert!(!fixture.root.path().join(".rb/cache").exists());
+    assert!(
+        fixture
+            .rubies
+            .path()
+            .join("cache/rb/source-archives")
+            .is_dir()
+    );
+    let identity_path = fixture.root.path().join(".rb/bundle/fingerprint");
+    let identity = fs::read(&identity_path).unwrap();
+    let second = success(fixture.command().arg("sync").output().unwrap());
+    assert!(String::from_utf8_lossy(&second.stderr).contains("Everything is already in order"));
+    assert!(!String::from_utf8_lossy(&second.stderr).contains("resolve dependencies"));
+    assert_eq!(fs::read(&identity_path).unwrap(), identity);
     let lock = fs::read(fixture.root.path().join("Gemfile.lock")).unwrap();
     let probe = "require 'backend_fixture'; puts BackendFixture::VALUE; puts Gem.loaded_specs.fetch('backend_fixture').full_gem_path; puts Bundler::VERSION";
     let output = success(
@@ -164,7 +62,7 @@ fn native_sync_exec_and_run_use_the_same_bundler_compatible_installation() {
     );
     let text = String::from_utf8(output.stdout).unwrap();
     assert!(
-        text.contains("native-installed, Bundler-activated"),
+        text.contains("backend-installed, Bundler-activated"),
         "{text}"
     );
     assert!(text.contains(".rb/bundle"), "{text}");
@@ -174,7 +72,7 @@ fn native_sync_exec_and_run_use_the_same_bundler_compatible_installation() {
     );
     let output = success(fixture.command().args(["run", "probe"]).output().unwrap());
     assert!(
-        String::from_utf8_lossy(&output.stdout).contains("native-installed, Bundler-activated")
+        String::from_utf8_lossy(&output.stdout).contains("backend-installed, Bundler-activated")
     );
     assert!(
         output.stderr.is_empty(),
@@ -185,7 +83,7 @@ fn native_sync_exec_and_run_use_the_same_bundler_compatible_installation() {
 
 #[test]
 fn explicit_project_file_and_no_bundler_are_respected() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::new("native");
     fs::rename(
         fixture.root.path().join("rbproject.toml"),
         fixture.root.path().join("custom.toml"),
@@ -199,7 +97,7 @@ fn explicit_project_file_and_no_bundler_are_respected() {
             .unwrap(),
     );
     assert!(
-        String::from_utf8_lossy(&output.stdout).contains("native-installed, Bundler-activated")
+        String::from_utf8_lossy(&output.stdout).contains("backend-installed, Bundler-activated")
     );
     let output = success(
         fixture
@@ -214,7 +112,7 @@ fn explicit_project_file_and_no_bundler_are_respected() {
 
 #[test]
 fn preparation_failure_prevents_execution_without_fallback() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::new("native");
     fs::write(
         fixture.root.path().join("Gemfile"),
         "raise 'fixture evaluation failed'\n",
@@ -233,7 +131,7 @@ fn preparation_failure_prevents_execution_without_fallback() {
 
 #[test]
 fn native_project_without_gemfile_activates_bundler_for_execution() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::new("native");
     fs::remove_file(fixture.root.path().join("Gemfile")).unwrap();
     fs::write(
         fixture.root.path().join("rbproject.toml"),
@@ -254,7 +152,7 @@ fn native_project_without_gemfile_activates_bundler_for_execution() {
             .unwrap(),
     );
     assert!(
-        String::from_utf8_lossy(&output.stdout).contains("native-installed, Bundler-activated")
+        String::from_utf8_lossy(&output.stdout).contains("backend-installed, Bundler-activated")
     );
     assert!(fixture.root.path().join(".rb/Gemfile").is_file());
     assert!(fixture.root.path().join(".rb/Gemfile.lock").is_file());
@@ -262,7 +160,7 @@ fn native_project_without_gemfile_activates_bundler_for_execution() {
 
 #[test]
 fn relative_bundle_gemfile_and_commands_outside_projects_work() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::new("native");
     fs::remove_file(fixture.root.path().join("rbproject.toml")).unwrap();
     fs::create_dir(fixture.root.path().join("config")).unwrap();
     fs::remove_file(fixture.root.path().join("Gemfile")).unwrap();
@@ -286,7 +184,7 @@ fn relative_bundle_gemfile_and_commands_outside_projects_work() {
             .unwrap(),
     );
     assert!(
-        String::from_utf8_lossy(&output.stdout).contains("native-installed, Bundler-activated")
+        String::from_utf8_lossy(&output.stdout).contains("backend-installed, Bundler-activated")
     );
     let output = success(
         fixture
@@ -300,9 +198,13 @@ fn relative_bundle_gemfile_and_commands_outside_projects_work() {
 }
 
 #[test]
-fn ready_commands_skip_ruby_helpers_and_edits_or_missing_files_trigger_preparation() {
-    let fixture = Fixture::new();
+fn ready_commands_skip_ruby_helpers_and_dependency_changes_or_missing_installations_trigger_preparation()
+ {
+    let fixture = Fixture::new("native");
     let calls = fixture.instrument_ruby();
+    let _socket =
+        std::os::unix::net::UnixListener::bind(fixture.root.path().join("application.sock"))
+            .unwrap();
     success(fixture.command().arg("sync").output().unwrap());
     assert!(fixture.root.path().join(".rb/prepared.json").is_file());
     fs::write(&calls, "").unwrap();
@@ -330,7 +232,20 @@ fn ready_commands_skip_ruby_helpers_and_edits_or_missing_files_trigger_preparati
         )
         .unwrap();
     }
-    let quiet = success(fixture.command().args(probe).output().unwrap());
+    fs::create_dir(fixture.root.path().join("app")).unwrap();
+    fs::write(
+        fixture.root.path().join("app/model.rb"),
+        "unrelated application code",
+    )
+    .unwrap();
+    let quiet = success(
+        fixture
+            .command()
+            .env("UNRELATED_PROCESS_VALUE", "changed")
+            .args(probe)
+            .output()
+            .unwrap(),
+    );
     assert!(
         quiet.stderr.is_empty(),
         "{}",
@@ -338,10 +253,13 @@ fn ready_commands_skip_ruby_helpers_and_edits_or_missing_files_trigger_preparati
     );
     let snapshot = PathBuf::from(String::from_utf8(output.stdout).unwrap().trim());
     assert!(snapshot.starts_with(fixture.root.path().canonicalize().unwrap()));
-    let library = snapshot.join("lib/backend_fixture.rb");
-    fs::remove_file(&library).unwrap();
+    let home =
+        rb_packages::BundleLayout::new(fixture.root.path(), "ruby", &fixture.version).gem_home;
+    let removed = home.with_extension("removed");
+    fs::rename(&home, &removed).unwrap();
     let output = success(fixture.command().args(probe).output().unwrap());
-    assert!(library.is_file());
+    assert!(home.is_dir());
+    fs::remove_dir_all(removed).unwrap();
     assert!(String::from_utf8_lossy(&output.stderr).contains("Preparing your bundle"));
     fs::write(
         fixture.root.path().join("local/lib/backend_fixture.rb"),
@@ -370,7 +288,7 @@ fn ready_commands_skip_ruby_helpers_and_edits_or_missing_files_trigger_preparati
 
 #[test]
 fn external_path_source_edits_invalidate_the_ready_environment() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::new("native");
     let external = tempfile::tempdir().unwrap();
     let source = external.path().join("local");
     fs::rename(fixture.root.path().join("local"), &source).unwrap();
@@ -400,4 +318,95 @@ fn external_path_source_edits_invalidate_the_ready_environment() {
         "external source changed"
     );
     assert!(String::from_utf8_lossy(&output.stderr).contains("Preparing your bundle"));
+}
+
+#[test]
+fn native_completion_and_info_share_the_installed_environment() {
+    let fixture = Fixture::new("native");
+    let calls = fixture.instrument_ruby();
+    success(fixture.command().arg("sync").output().unwrap());
+    let abi = fixture
+        .version
+        .split('.')
+        .take(2)
+        .collect::<Vec<_>>()
+        .join(".")
+        + ".0";
+    let home = fixture.root.path().join(".rb/bundle/ruby").join(abi);
+    let bin = home.join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    fs::write(bin.join("native_fixture"), "#!/usr/bin/env ruby\n").unwrap();
+    std::os::unix::fs::symlink("native_fixture", bin.join("native_alias")).unwrap();
+    fs::write(&calls, "").unwrap();
+    for alias in ["x", "exec"] {
+        let line = format!("rb {alias} native_");
+        let output = success(
+            fixture
+                .command()
+                .args(["__bash_complete", &line, &line.len().to_string()])
+                .output()
+                .unwrap(),
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(text.lines().any(|line| line == "native_fixture"), "{text}");
+        assert!(text.lines().any(|line| line == "native_alias"), "{text}");
+        assert!(output.stderr.is_empty());
+    }
+    assert_eq!(fs::read_to_string(&calls).unwrap(), "");
+    fs::remove_file(bin.join("native_alias")).unwrap();
+    fs::remove_file(bin.join("native_fixture")).unwrap();
+    let output = success(fixture.command().args(["info", "env"]).output().unwrap());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains("Native Package Environment"), "{text}");
+    assert!(text.contains(home.to_str().unwrap()), "{text}");
+    assert!(!text.contains(".rb/vendor/bundler"), "{text}");
+    assert!(!text.contains("Out of sync"), "{text}");
+    let output = success(
+        fixture
+            .command()
+            .args(["-B", "__bash_complete", "rb x native_", "12"])
+            .output()
+            .unwrap(),
+    );
+    assert!(output.stdout.is_empty());
+}
+
+#[test]
+fn declared_external_gemfile_inputs_allow_reuse_and_invalidate_on_changes() {
+    let fixture = Fixture::new("native");
+    let shared = tempfile::tempdir().unwrap();
+    let dependency = shared.path().join("ruby.rb");
+    fs::write(&dependency, "ruby RUBY_VERSION\n").unwrap();
+    let gemfile = fixture.root.path().join("Gemfile");
+    let original = fs::read_to_string(&gemfile).unwrap();
+    fs::write(
+        &gemfile,
+        format!(
+            "eval_gemfile {:?}\n{original}",
+            dependency.to_str().unwrap()
+        ),
+    )
+    .unwrap();
+    success(fixture.command().arg("sync").output().unwrap());
+    assert!(
+        fixture.root.path().join(".rb/prepared.json").is_file(),
+        "Declared external dependency inputs must not disable reuse"
+    );
+    let probe = ["x", "ruby", "-e", "puts 'ready'"];
+    let output = success(fixture.command().args(probe).output().unwrap());
+    assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "ready");
+    assert!(
+        output.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fs::write(&dependency, "ruby RUBY_VERSION.strip\n").unwrap();
+    let output = success(fixture.command().args(probe).output().unwrap());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Preparing your bundle"));
+    let output = success(fixture.command().args(probe).output().unwrap());
+    assert!(
+        output.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

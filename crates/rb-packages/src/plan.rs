@@ -162,15 +162,25 @@ pub fn plan(
         options.mode != LockMode::Locked || previous.is_some(),
         "Locked mode requires an existing lockfile"
     );
-    if options.mode == LockMode::Prefer && previous.is_some() {
-        let strict = PlanOptions {
-            mode: LockMode::Locked,
-            ..options.clone()
-        };
-        if let Ok(plan) = plan(manifest, runtime, previous, index, &strict) {
-            return Ok(plan);
+    if options.mode != LockMode::Update
+        && let Some(previous) = previous
+    {
+        match crate::locked_plan::plan(manifest, runtime, previous, index, options) {
+            Ok(plan) => return Ok(plan),
+            Err(error) if options.mode == LockMode::Locked => return Err(error),
+            Err(error) => log::debug!("Refreshing locked resolution: {error:#}"),
         }
     }
+    resolve(manifest, runtime, previous, index, options)
+}
+
+pub(crate) fn resolve(
+    manifest: &rb_gemfile::Manifest,
+    runtime: &RubyEnvironment,
+    previous: Option<&Lockfile>,
+    index: &dyn PackageIndex,
+    options: &PlanOptions,
+) -> Result<PackagePlan> {
     let targets = crate::target_plan::runtimes(runtime, previous, options.mode);
     let target_plans = targets
         .iter()

@@ -3,7 +3,7 @@ use crate::{
     constants::{MANIFEST_FILE, PREPARED_STATE, PROJECT_LOCK, STATE_DIRECTORY},
 };
 use anyhow::{Context, Result, ensure};
-use rb_gemfile::{Evaluator, SnapshotCache};
+use rb_gemfile::Evaluator;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -16,10 +16,12 @@ use std::{
 #[serde(deny_unknown_fields)]
 struct State {
     configuration: String,
+    bundle_fingerprint: String,
     anchor: PathBuf,
     inputs: BTreeSet<PathBuf>,
+    environment: Option<BTreeSet<String>>,
     input_hash: String,
-    output_hash: String,
+    metadata_hash: String,
     installed: InstalledBundle,
     lockfile: PathBuf,
 }
@@ -31,6 +33,7 @@ struct Envelope {
     checksum: String,
 }
 
+#[derive(Clone)]
 pub(crate) struct Candidate {
     anchor: PathBuf,
     before: String,
@@ -49,7 +52,7 @@ pub(crate) fn lock(root: &Path) -> Result<File> {
     Ok(file)
 }
 
-/// Returns a prepared installation when its tracked inputs and files still match.
+/// Returns a successful installation when its dependency inputs and metadata still match.
 pub fn prepared(options: &PrepareOptions) -> Result<Option<InstalledBundle>> {
     if !options.record_state {
         return Ok(None);
@@ -81,14 +84,33 @@ fn read(options: &PrepareOptions, filename: &Path) -> Result<InstalledBundle> {
         state.configuration == configuration(options)?,
         "Preparation options changed"
     );
+    ensure!(
+        std::fs::read_to_string(
+            state
+                .installed
+                .bundle_path
+                .join(crate::constants::BUNDLE_FINGERPRINT)
+        )? == state.bundle_fingerprint,
+        "Resolved bundle changed"
+    );
     ensure!(state.anchor == anchor(options)?, "Project input changed");
     ensure!(
-        state.input_hash == inputs(options, &state.anchor, &state.inputs)?,
+        state.input_hash
+            == inputs(
+                options,
+                &state.anchor,
+                &state.inputs,
+                state.environment.as_ref()
+            )?,
         "Preparation inputs changed"
     );
     ensure!(
-        state.output_hash == outputs(options, &state.installed, &state.lockfile)?,
-        "Installed bundle changed"
+        state.installed.gem_home.is_dir(),
+        "Installation directory is missing"
+    );
+    ensure!(
+        state.metadata_hash == metadata(options, &state.installed, &state.lockfile)?,
+        "Dependency metadata changed"
     );
     let mut installed = state.installed;
     installed.reused += installed.installed;
@@ -99,7 +121,7 @@ fn read(options: &PrepareOptions, filename: &Path) -> Result<InstalledBundle> {
 impl Candidate {
     pub(crate) fn capture(options: &PrepareOptions) -> Result<Self> {
         let anchor = anchor(options)?;
-        let before = inputs(options, &anchor, &BTreeSet::new())?;
+        let before = inputs(options, &anchor, &BTreeSet::new(), Some(&BTreeSet::new()))?;
         Ok(Self { anchor, before })
     }
 
@@ -110,7 +132,13 @@ impl Candidate {
         runtime: &crate::RubyEnvironment,
     ) -> Result<(BTreeSet<PathBuf>, String)> {
         ensure!(
-            self.before == inputs(options, &self.anchor, &BTreeSet::new())?,
+            self.before
+                == inputs(
+                    options,
+                    &self.anchor,
+                    &BTreeSet::new(),
+                    Some(&BTreeSet::new())
+                )?,
             "Project changed during evaluation"
         );
         let mut paths: BTreeSet<_> = input
@@ -131,16 +159,15 @@ impl Candidate {
                 paths.insert(path.into());
             }
         }
-        ensure!(
-            input.evaluation_inputs.iter().all(|file| {
-                file.starts_with(&input.root)
-                    || paths
-                        .iter()
-                        .any(|directory| directory.is_dir() && file.starts_with(directory))
-            }),
-            "External evaluation inputs are not covered by project or path-source directories"
-        );
-        Ok((paths.clone(), inputs(options, &self.anchor, &paths)?))
+        Ok((
+            paths.clone(),
+            inputs(
+                options,
+                &self.anchor,
+                &paths,
+                input.evaluation_environment.as_ref(),
+            )?,
+        ))
     }
 
     pub(crate) fn publish(
@@ -151,21 +178,35 @@ impl Candidate {
         before: String,
     ) -> Result<()> {
         ensure!(
-            self.before == inputs(options, &self.anchor, &BTreeSet::new())?,
+            self.before
+                == inputs(
+                    options,
+                    &self.anchor,
+                    &BTreeSet::new(),
+                    Some(&BTreeSet::new())
+                )?,
             "Project changed during preparation"
         );
         ensure!(
-            before == inputs(options, &self.anchor, &paths)?,
+            before
+                == inputs(
+                    options,
+                    &self.anchor,
+                    &paths,
+                    prepared.input.evaluation_environment.as_ref()
+                )?,
             "Source inputs changed during preparation"
         );
         let state = State {
             configuration: configuration(options)?,
+            bundle_fingerprint: prepared.fingerprint.clone(),
             input_hash: before,
-            output_hash: outputs(options, &prepared.installed, &prepared.input.lockfile)?,
+            metadata_hash: metadata(options, &prepared.installed, &prepared.input.lockfile)?,
             lockfile: prepared.input.lockfile.clone(),
             installed: prepared.installed.clone(),
             anchor: self.anchor,
             inputs: paths,
+            environment: prepared.input.evaluation_environment.clone(),
         };
         let checksum = checksum(&state)?;
         rb_gemfile::write_project(
@@ -200,31 +241,68 @@ fn anchor(options: &PrepareOptions) -> Result<PathBuf> {
         .context("No project input found")
 }
 
-fn inputs(options: &PrepareOptions, anchor: &Path, paths: &BTreeSet<PathBuf>) -> Result<String> {
-    let mut cache =
-        crate::input::snapshot_cache(&options.project, PREPARED_STATE).input(&options.project);
+fn inputs(
+    options: &PrepareOptions,
+    anchor: &Path,
+    paths: &BTreeSet<PathBuf>,
+    environment: Option<&BTreeSet<String>>,
+) -> Result<String> {
+    let mut cache = crate::input::snapshot_cache(&options.project, PREPARED_STATE);
+    if let Some(environment) = environment {
+        let mut names = environment.clone();
+        names.extend(
+            crate::receipt::BUILD_ENVIRONMENT
+                .iter()
+                .map(|name| name.to_string()),
+        );
+        names.insert("PATH".into());
+        cache = cache.environment_inputs(names);
+    }
+    for name in [
+        "gem.kdl",
+        "gem.toml",
+        "rbproject.kdl",
+        "rbproject.toml",
+        "gems.rb",
+        "Gemfile",
+        ".ruby-version",
+    ] {
+        cache = cache.input(options.project.join(name));
+    }
     for path in paths {
         cache = cache.input(path);
     }
     Ok(cache.fingerprint(&Evaluator::new(&options.ruby), anchor)?)
 }
 
-fn outputs(
+fn metadata(
     options: &PrepareOptions,
     installed: &InstalledBundle,
     lockfile: &Path,
 ) -> Result<String> {
     let gemfile = installed.gemfile.as_ref().context("No runtime Gemfile")?;
-    let mut cache = SnapshotCache::new(options.project.join(STATE_DIRECTORY).join(PREPARED_STATE))
-        .input(&installed.bundle_path)
-        .input(lockfile)
-        .input(options.project.join("Gemfile.lock"))
-        .input(options.project.join("gems.locked"))
-        .input(options.project.join(STATE_DIRECTORY).join(MANIFEST_FILE));
-    let mut filename = gemfile.as_os_str().to_owned();
-    filename.push(".lock");
-    cache = cache.input(PathBuf::from(filename));
-    Ok(cache.fingerprint(&Evaluator::new(&options.ruby), gemfile)?)
+    let mut companion = gemfile.as_os_str().to_owned();
+    companion.push(".lock");
+    let paths = BTreeSet::from([
+        gemfile.clone(),
+        PathBuf::from(companion),
+        lockfile.to_owned(),
+        options.project.join("Gemfile.lock"),
+        options.project.join("gems.locked"),
+        options.project.join(STATE_DIRECTORY).join(MANIFEST_FILE),
+    ]);
+    let files = paths
+        .into_iter()
+        .map(|path| {
+            let bytes = match fs::read(&path) {
+                Ok(bytes) => Some(bytes),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(error) => return Err(error.into()),
+            };
+            Ok((path, bytes))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(&files)?)))
 }
 
 fn configuration(options: &PrepareOptions) -> Result<String> {

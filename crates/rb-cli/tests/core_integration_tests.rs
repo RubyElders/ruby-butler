@@ -34,7 +34,7 @@ fn test_ruby_detector_integration() {
 }
 
 #[test]
-fn test_create_ruby_context_integration() {
+fn test_ruby_runtime_composition_integration() {
     let sandbox = RubySandbox::new().expect("Failed to create sandbox");
     sandbox
         .add_ruby_dir("3.2.5")

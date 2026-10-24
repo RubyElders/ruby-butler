@@ -22,6 +22,7 @@ pub struct RbConfig {
         global = true,
         help = "Designate the directory containing your Ruby installations",
         env = "RB_RUBIES_DIR",
+        value_parser = crate::config::parse_path,
         value_hint = clap::ValueHint::DirPath
     )]
     #[serde(rename = "rubies-dir", skip_serializing_if = "Option::is_none")]
@@ -45,6 +46,7 @@ pub struct RbConfig {
         global = true,
         help = "Specify custom gem base directory for gem installations",
         env = "RB_GEM_HOME",
+        value_parser = crate::config::parse_path,
         value_hint = clap::ValueHint::DirPath
     )]
     #[serde(rename = "gem-home", skip_serializing_if = "Option::is_none")]
@@ -79,6 +81,7 @@ pub struct RbConfig {
         global = true,
         help = "Run as if started in the specified directory",
         env = "RB_WORK_DIR",
+        value_parser = crate::config::parse_path,
         value_hint = clap::ValueHint::DirPath
     )]
     #[serde(rename = "work-dir", skip_serializing_if = "Option::is_none")]
@@ -359,6 +362,21 @@ impl From<toml::de::Error> for ConfigError {
     fn from(err: toml::de::Error) -> Self {
         ConfigError::ParseError(err)
     }
+}
+
+pub(crate) fn parse_path(path: &str) -> Result<PathBuf, String> {
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home) = std::env::var_os("HOME") {
+            let mut expanded = PathBuf::from(home);
+            expanded.push(stripped);
+            return Ok(expanded);
+        }
+    } else if path == "~"
+        && let Some(home) = std::env::var_os("HOME")
+    {
+        return Ok(PathBuf::from(home));
+    }
+    Ok(PathBuf::from(path))
 }
 
 #[cfg(test)]

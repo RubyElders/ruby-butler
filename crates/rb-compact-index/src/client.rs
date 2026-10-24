@@ -173,11 +173,18 @@ impl Client {
         Ok(gems)
     }
 
+    pub(crate) fn archive_directory(&self) -> PathBuf {
+        self.cache
+            .join(ARCHIVE_CACHE_DIRECTORY)
+            .join(checksum(self.source.as_bytes()))
+    }
+
     pub fn download(&self, name: &str, version: &str, expected_checksum: &str) -> Result<PathBuf> {
         validate_name(name)?;
         validate_name(version)?;
-        validate_checksum(expected_checksum)?;
-        let directory = self.cache.join(ARCHIVE_CACHE_DIRECTORY);
+        let expected_checksum = expected_checksum.to_ascii_lowercase();
+        validate_checksum(&expected_checksum)?;
+        let directory = self.archive_directory();
         fs::create_dir_all(&directory)?;
         let path = directory.join(format!("{}.gem", expected_checksum));
         let _guard = lock(&directory.join(format!("{}.lock", expected_checksum)))?;

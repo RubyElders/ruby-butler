@@ -22,7 +22,7 @@ for gem in client.info("rack")? {
 | `Client::download` | Fetch an archive with an expected SHA-256 checksum. |
 | `parse` | Parse a compact-index response without HTTP or cache access. |
 
-Metadata is cached per source and revalidated with ETags. Archives are shared by checksum and verified before reuse. File locks and atomic writes support concurrent callers. Offline mode reads cached metadata and archives without contacting the registry.
+Metadata is cached per source and revalidated with ETags. Archives are cached per normalized source and SHA-256 checksum, and verified before reuse. File locks and atomic writes support concurrent callers. Offline mode reads cached metadata and archives without contacting the registry.
 
 `GemInfo` keeps version strings, including platform suffixes, and metadata fields. Compact-index records retain server order. Repeated dependency requirements are combined with commas.
 

@@ -1,16 +1,12 @@
 use super::sync_report::Completion;
+use crate::packages::PackageRuntime;
 use log::{debug, info};
-use rb_core::butler::{ButlerError, ButlerRuntime, Command};
+use rb_core::butler::ButlerError;
 
-pub fn exec_command(butler: ButlerRuntime, program_args: Vec<String>) -> Result<(), ButlerError> {
-    let backend = crate::packages::select(crate::config::PackageBackendKind::Bundler, None, false);
-    exec_with_backend(butler, program_args, backend.as_ref())
-}
-
-pub(crate) fn exec_with_backend(
-    butler: ButlerRuntime,
+pub(crate) fn exec_command(
+    butler: PackageRuntime,
     program_args: Vec<String>,
-    backend: &dyn crate::packages::PackageBackend,
+    backend: &crate::packages::PackageBackend,
 ) -> Result<(), ButlerError> {
     if program_args.is_empty() {
         return Err(ButlerError::General(
@@ -46,12 +42,9 @@ pub(crate) fn exec_with_backend(
     debug!("Program: {}", program);
     debug!("Arguments: {:?}", args);
 
-    let mut cmd = Command::new(program);
-    cmd.args(args);
-
     debug!("Commencing program execution...");
 
-    match cmd.status_with_validation(&butler) {
+    match butler.status(program, args) {
         Ok(status) => {
             if let Some(code) = status.code() {
                 debug!("Program concluded with exit code: {}", code);
@@ -67,7 +60,7 @@ pub(crate) fn exec_with_backend(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use rb_core::butler::ButlerRuntime;
     use rb_tests::RubySandbox;
 
     #[test]

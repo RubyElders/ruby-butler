@@ -91,6 +91,7 @@ pub struct Cli {
         global = true,
         help = "Specify custom configuration file location",
         env = "RB_CONFIG",
+        value_parser = crate::config::parse_path,
         value_hint = clap::ValueHint::FilePath
     )]
     pub config_file: Option<std::path::PathBuf>,
@@ -102,6 +103,7 @@ pub struct Cli {
         global = true,
         help = "Specify custom rbproject.toml location (skips autodetection)",
         env = "RB_PROJECT",
+        value_parser = crate::config::parse_path,
         value_hint = clap::ValueHint::FilePath
     )]
     pub project_file: Option<std::path::PathBuf>,
@@ -254,7 +256,7 @@ pub enum InfoCommands {
     /// 🔍 Detected Rubies and selected runtime
     Runtime,
 
-    /// 🌍 Effective Ruby/Bundler environment
+    /// 🌍 Effective Ruby/package environment
     Env,
 
     /// 📁 Resolved rbproject.toml and settings
@@ -269,30 +271,12 @@ pub enum Shell {
     Bash,
 }
 
-pub use commands::{
-    exec_command, info_command, new_command, run_command, shell_integration_command, sync_command,
-};
+pub use commands::{new_command, shell_integration_command};
 
 use log::debug;
-use rb_core::butler::ButlerRuntime;
 use std::path::PathBuf;
 
 const DEFAULT_RUBIES_DIR: &str = ".rubies";
-
-pub fn create_ruby_context(
-    rubies_dir: Option<PathBuf>,
-    ruby_version: Option<String>,
-) -> ButlerRuntime {
-    let search_dir = resolve_search_dir(rubies_dir);
-
-    match ButlerRuntime::discover_and_create(&search_dir, ruby_version.as_deref()) {
-        Ok(butler) => butler,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            std::process::exit(1);
-        }
-    }
-}
 
 pub fn resolve_search_dir(rubies_dir: Option<PathBuf>) -> PathBuf {
     rubies_dir.unwrap_or_else(|| {
@@ -378,7 +362,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_ruby_context_with_sandbox() {
+    fn test_ruby_runtime_environment_with_sandbox() {
         let sandbox = RubySandbox::new().expect("Failed to create sandbox");
         let ruby_dir = sandbox
             .add_ruby_dir("3.2.5")

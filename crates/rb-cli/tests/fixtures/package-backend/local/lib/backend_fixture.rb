@@ -1,3 +1,3 @@
 module BackendFixture
-  VALUE = 'native-installed, Bundler-activated'
+  VALUE = 'backend-installed, Bundler-activated'
 end

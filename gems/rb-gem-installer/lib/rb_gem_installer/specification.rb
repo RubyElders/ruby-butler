@@ -1,6 +1,10 @@
 module RubyButler
   module GemInstaller
     module Specification
+      def self.write_all(records)
+        records.each { |record, path| write(record, path) }
+      end
+
       def self.write(record, path)
         spec = Gem::Specification.new do |gem|
           gem.name = record.fetch('name')
