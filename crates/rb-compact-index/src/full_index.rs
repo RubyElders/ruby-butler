@@ -2,9 +2,9 @@ use crate::{
     Client, GemInfo,
     cache::{atomic_write, checksum, limited_read, lock},
     constants::{
-        ARCHIVE_CACHE_DIRECTORY, ARCHIVE_PATH_PREFIX, FULL_INFO_CACHE_SUFFIX, GEM_METADATA_PATH,
-        MAX_COMPRESSED_INDEX_BYTES, MAX_DECOMPRESSED_INDEX_BYTES, MAX_FALLBACK_ARCHIVE_BYTES,
-        MAX_GEM_METADATA_BYTES, PRERELEASE_INDEX_PATH, RELEASE_INDEX_PATH,
+        ARCHIVE_PATH_PREFIX, FULL_INFO_CACHE_SUFFIX, GEM_METADATA_PATH, MAX_COMPRESSED_INDEX_BYTES,
+        MAX_DECOMPRESSED_INDEX_BYTES, MAX_FALLBACK_ARCHIVE_BYTES, MAX_GEM_METADATA_BYTES,
+        PRERELEASE_INDEX_PATH, RELEASE_INDEX_PATH,
     },
     validation::validate_name,
 };
@@ -177,7 +177,7 @@ impl Client {
             )?;
             let info = metadata(&bytes, name, &version)
                 .with_context(|| format!("Reading full-index metadata for {name}-{version}"))?;
-            let archives = self.cache.join(ARCHIVE_CACHE_DIRECTORY);
+            let archives = self.archive_directory();
             fs::create_dir_all(&archives)?;
             let hash = info.metadata.get("checksum").unwrap();
             let _guard = lock(&archives.join(format!("{hash}.lock")))?;

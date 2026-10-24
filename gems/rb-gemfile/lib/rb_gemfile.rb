@@ -1,4 +1,5 @@
 require_relative 'rb_gemfile/version'
+require_relative 'rb_gemfile/environment_inputs'
 require_relative 'rb_gemfile/gemfile'
 require_relative 'rb_gemfile/sources'
 require_relative 'rb_gemfile/gemspec'

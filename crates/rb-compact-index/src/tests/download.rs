@@ -26,9 +26,8 @@ fn downloads_are_shared_verified_and_available_offline() {
     assert_eq!(fs::read(&path).unwrap(), archive);
     assert!(client.download("app", "1.0", &"a".repeat(64)).is_err());
     assert!(
-        !cache
-            .path()
-            .join("gems")
+        !client
+            .archive_directory()
             .join(format!("{}.gem", "a".repeat(64)))
             .exists()
     );
@@ -88,4 +87,56 @@ fn offline_archive_miss_does_not_contact_the_registry() {
             .contains("offline")
     );
     assert!(server.requests.lock().unwrap().is_empty());
+}
+
+#[test]
+fn equivalent_source_urls_share_archives_but_other_sources_do_not() {
+    let cache = tempfile::tempdir().unwrap();
+    let canonical = Client::new("https://example.com/registry/", cache.path(), true).unwrap();
+    let expected = checksum(b"archive");
+    fs::create_dir_all(canonical.archive_directory()).unwrap();
+    let path = canonical
+        .archive_directory()
+        .join(format!("{expected}.gem"));
+    fs::write(&path, b"archive").unwrap();
+    for source in [
+        "HTTPS://EXAMPLE.COM:443/registry",
+        "https://example.com/old/../registry/",
+    ] {
+        let client = Client::new(source, cache.path(), true).unwrap();
+        assert_eq!(
+            client
+                .download("app", "1.0", &expected.to_uppercase())
+                .unwrap(),
+            path
+        );
+    }
+    for source in [
+        "http://example.com/registry",
+        "https://example.com:8443/registry",
+        "https://example.com/other",
+        "https://example.com/Registry",
+    ] {
+        let client = Client::new(source, cache.path(), true).unwrap();
+        assert_ne!(client.archive_directory(), canonical.archive_directory());
+        assert!(client.download("app", "1.0", &expected).is_err());
+    }
+}
+
+#[test]
+fn independent_clients_reuse_the_same_verified_archive() {
+    let server = Server::new();
+    let archive = b"shared archive";
+    let expected = checksum(archive);
+    server
+        .responses
+        .lock()
+        .unwrap()
+        .insert("/gems/app-1.0.gem".into(), archive.to_vec());
+    let cache = tempfile::tempdir().unwrap();
+    let first = Client::new(server.source.trim_end_matches('/'), cache.path(), false).unwrap();
+    let second = Client::new(&server.source, cache.path(), false).unwrap();
+    let path = first.download("app", "1.0", &expected).unwrap();
+    assert_eq!(second.download("app", "1.0", &expected).unwrap(), path);
+    assert_eq!(server.requests.lock().unwrap().len(), 1);
 }

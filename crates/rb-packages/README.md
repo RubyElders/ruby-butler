@@ -14,11 +14,11 @@ let environment = bundle.installed.environment();
 # Ok::<(), anyhow::Error>(())
 ```
 
-`rb --package-backend native sync` opts into this pipeline; `RB_PACKAGE_BACKEND=native` also applies to `rb x` and `rb run`. Bundler remains the default backend. Native `x` and `run` reuse a validated environment from `.rb/prepared.json` without preparing again; explicit `sync` always prepares. Library callers enable `PrepareOptions.record_state` to use `prepared`.
+`rb --package-backend native sync` opts into this pipeline; `RB_PACKAGE_BACKEND=native` also applies to `rb x` and `rb run`. Bundler remains the default backend. Native `sync`, `x` and `run` reuse a successful installation with matching dependency inputs from `.rb/prepared.json` without preparing again. Library callers enable `PrepareOptions.record_state` to use `prepared`. `PreparedBundle.fingerprint` identifies resolved packages, provenance, activation and Ruby/build compatibility independently of input format; `changed` reports installation changes.
 
-The returned environment supports real RubyGems and Bundler. Bundler does not resolve or install; RubyGems still handles runtime inspection and specification serialization. Gemfile conversion is cached under `.rb`. Cached Gemfiles must depend on tracked files and environment; generated `.rb`, `log`, `tmp` directories and lockfiles are excluded. Path gems use snapshots - prepare again after edits. Git/path sources require gemspecs.
+The returned environment supports real RubyGems and Bundler. Bundler does not resolve or install; RubyGems still handles runtime inspection and specification serialization. Gemfile conversion is cached under `.rb`. Cache inputs are dependency manifests, loaded dependency files, declared path dependencies and runtime configuration; application directories are not scanned. Other Gemfile filesystem inputs must be declared to `SnapshotCache::input`. Path gems use snapshots - prepare again after edits. Git/path sources require gemspecs.
 
-Existing lockfile platforms are resolved together when the lock needs refreshing; only the local platform is installed. Git/path declarations may be platform-scoped when they apply to a resolution target and their sources agree across targets. Rakefile builds use the resolved Rake or a bundled Rake from the selected Ruby, without adding a runtime dependency.
+Valid locked graphs are reused, with selected source metadata fetched concurrently and checked for dependency, checksum and Ruby compatibility. Changed graphs are resolved and written as compatible lockfiles. Existing lockfile platforms are resolved together when the lock needs refreshing; only the local platform is installed. Git/path declarations may be platform-scoped when they apply to a resolution target and their sources agree across targets. Rakefile builds use the resolved Rake or a bundled Rake from the selected Ruby, without adding a runtime dependency.
 
 Transitive registry dependencies prefer the parent source, then fall back to the global source when absent. Competing scoped sources require an explicit declaration.
 
@@ -35,3 +35,5 @@ Commands run directly, without a shell, from the config directory. Stdout suppli
 Credential stores, different sources for the same gem across targets, custom lock paths, plugins and MicroGems application runtime are not supported yet.
 
 Run `cargo test -p rb-packages`, or try `cargo run -p rb-packages --example prepare -- /path/to/app /path/to/ruby /path/to/cache`.
+
+Native CLI preparation shares downloads under `$XDG_CACHE_HOME/rb` (normally `~/.cache/rb` on Linux). Archives are scoped by normalized registry URL and verified SHA-256. Installed bundles remain project-local. Prepared-state checks inspect dependency inputs, lockfiles and recorded installation state; installed gem payloads are not scanned.

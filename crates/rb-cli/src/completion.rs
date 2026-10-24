@@ -3,49 +3,41 @@ use clap::CommandFactory;
 use rb_core::ruby::RubyRuntimeDetector;
 use std::path::PathBuf;
 
-/// Defines how a command should complete its arguments
-#[derive(Debug, Clone, PartialEq)]
-enum CompletionBehavior {
-    /// Complete the first argument with scripts from rbproject.toml, then fallback to default
-    Scripts,
-    /// Complete the first argument with binstubs from bundler, then fallback to default
-    Binstubs,
-    /// Always fallback to default bash completion (files/dirs)
-    DefaultOnly,
+pub(crate) struct CompletionEnvironment {
+    pub bin_dirs: Vec<PathBuf>,
+    pub project_file: Option<PathBuf>,
+    pub rubies_dir: PathBuf,
 }
 
-fn get_completion_behavior(command: &str) -> CompletionBehavior {
-    match command {
-        "run" | "r" => CompletionBehavior::Scripts,
-        "exec" | "x" => CompletionBehavior::Binstubs,
-        _ => CompletionBehavior::DefaultOnly,
+pub(crate) fn before_cursor<'a>(line: &'a str, point: &str) -> &'a str {
+    let mut end = point.parse::<usize>().unwrap_or(line.len()).min(line.len());
+    while !line.is_char_boundary(end) {
+        end -= 1;
     }
+    &line[..end]
 }
 
-/// Expand tilde (~) to home directory in paths
-fn expand_tilde(path: &str) -> PathBuf {
-    if let Some(stripped) = path.strip_prefix("~/") {
-        if let Some(home) = std::env::var_os("HOME") {
-            let mut expanded = PathBuf::from(home);
-            expanded.push(stripped);
-            return expanded;
-        }
-    } else if path == "~"
-        && let Some(home) = std::env::var_os("HOME")
-    {
-        return PathBuf::from(home);
+pub(crate) fn completed_matches(line: &str) -> clap::ArgMatches {
+    let mut lexer = shlex::Shlex::new(line);
+    let mut words = lexer.by_ref().collect::<Vec<_>>();
+    if !lexer.had_error && !line.ends_with(char::is_whitespace) {
+        words.pop();
     }
-    PathBuf::from(path)
-}
-
-/// Extract rubies_dir from command line words if -R or --rubies-dir flag is present
-fn extract_rubies_dir_from_line(words: &[&str]) -> Option<PathBuf> {
-    for i in 0..words.len() {
-        if (words[i] == "-R" || words[i] == "--rubies-dir") && i + 1 < words.len() {
-            return Some(expand_tilde(words[i + 1]));
-        }
+    let mut command = Cli::command()
+        .ignore_errors(true)
+        .allow_external_subcommands(true);
+    let ids = command
+        .get_arguments()
+        .map(|arg| arg.get_id().clone())
+        .collect::<Vec<_>>();
+    for id in ids {
+        command = command.mut_arg(id, |arg| arg.env(None::<&str>));
     }
-    None
+    command
+        .disable_help_flag(true)
+        .disable_version_flag(true)
+        .try_get_matches_from(words)
+        .unwrap_or_else(|_| Cli::command().ignore_errors(true).get_matches_from(["rb"]))
 }
 
 fn suggest_directories(current: &str) {
@@ -197,19 +189,18 @@ fn suggest_files(current: &str) {
 }
 
 /// Generate dynamic completions based on current line and cursor position
-pub fn generate_completions(
+pub(crate) fn generate_completions(
     line: &str,
     cursor_pos: &str,
-    butler_runtime: Option<&rb_core::butler::ButlerRuntime>,
+    environment: &CompletionEnvironment,
 ) {
-    let cursor: usize = cursor_pos.parse().unwrap_or(line.len());
-    let line = &line[..cursor.min(line.len())];
+    let line = before_cursor(line, cursor_pos);
 
-    let words: Vec<&str> = line.split_whitespace().collect();
+    let tokens =
+        shlex::split(line).unwrap_or_else(|| line.split_whitespace().map(String::from).collect());
+    let words: Vec<&str> = tokens.iter().map(String::as_str).collect();
 
-    let rubies_dir = None; // Not needed - ButlerRuntime already configured
-
-    let rubies_dir = extract_rubies_dir_from_line(&words).or(rubies_dir);
+    let rubies_dir = Some(environment.rubies_dir.clone());
 
     if words.is_empty() || words.len() == 1 {
         print_commands("");
@@ -224,6 +215,17 @@ pub fn generate_completions(
             words.get(words.len().saturating_sub(2)).copied(),
         )
     };
+
+    let matches = completed_matches(line);
+    let subcommand = matches.subcommand();
+    let program_started = subcommand.is_some_and(|(name, args)| match name {
+        "exec" => args.get_many::<String>("args").is_some(),
+        "run" => args.get_one::<String>("script").is_some(),
+        _ => false,
+    });
+    if program_started {
+        return;
+    }
 
     if let Some(prev) = prev_word {
         if prev == "-r" || prev == "--ruby" {
@@ -263,68 +265,11 @@ pub fn generate_completions(
         return;
     }
 
-    let value_taking_flags = [
-        "-r",
-        "--ruby",
-        "-R",
-        "--rubies-dir",
-        "-c",
-        "--config",
-        "-P",
-        "--project",
-        "-G",
-        "--gem-home",
-        "--log-level",
-    ];
-    let mut skip_next = false;
-    let command_pos = words.iter().skip(1).position(|w| {
-        if skip_next {
-            skip_next = false;
-            false
-        } else if value_taking_flags.contains(w) {
-            skip_next = true;
-            false
-        } else {
-            !w.starts_with('-')
-        }
-    });
-    let command = command_pos
-        .and_then(|pos| words.get(pos + 1))
-        .unwrap_or(&"");
-
-    let completing_command =
-        command.is_empty() || (current_word == *command && !line.ends_with(' '));
-
-    if completing_command {
-        print_commands(current_word);
-        return;
-    }
-
-    let behavior = get_completion_behavior(command);
-
-    let command_word_pos = command_pos.unwrap() + 1;
-
-    let args_after_command = if line.ends_with(' ') {
-        words.len() - command_word_pos - 1
-    } else {
-        words.len().saturating_sub(command_word_pos + 2)
-    };
-
-    match behavior {
-        CompletionBehavior::Scripts => {
-            if args_after_command == 0 {
-                suggest_script_names(current_word);
-            }
-        }
-        CompletionBehavior::Binstubs => {
-            if args_after_command == 0
-                && let Some(runtime) = butler_runtime
-            {
-                suggest_binstubs(current_word, runtime);
-            }
-            // If no runtime available, just don't suggest binstubs (no Ruby found)
-        }
-        CompletionBehavior::DefaultOnly => {}
+    match subcommand {
+        None => print_commands(current_word),
+        Some(("run", _)) => suggest_script_names(current_word, environment.project_file.as_deref()),
+        Some(("exec", _)) => suggest_binstubs(current_word, &environment.bin_dirs),
+        _ => {}
     }
 }
 
@@ -380,32 +325,33 @@ fn suggest_ruby_versions(rubies_dir: Option<PathBuf>, prefix: &str) {
     }
 }
 
-fn suggest_script_names(prefix: &str) {
-    let current_dir = std::env::current_dir().ok();
-    if let Some(dir) = current_dir {
-        let project_file = dir.join("rbproject.toml");
-        if project_file.exists()
-            && let Ok(content) = std::fs::read_to_string(&project_file)
-            && let Ok(parsed) = toml::from_str::<toml::Value>(&content)
-            && let Some(scripts) = parsed.get("scripts").and_then(|s| s.as_table())
-        {
-            for script_name in scripts.keys() {
-                if script_name.starts_with(prefix) {
-                    println!("{}", script_name);
-                }
+fn suggest_script_names(prefix: &str, project_file: Option<&std::path::Path>) {
+    let project = if let Some(file) = project_file {
+        rb_core::project::ProjectRuntime::from_file(file).ok()
+    } else {
+        std::env::current_dir().ok().and_then(|directory| {
+            rb_core::project::RbprojectDetector::discover(&directory)
+                .ok()
+                .flatten()
+        })
+    };
+    if let Some(project) = project {
+        for name in project.script_names() {
+            if name.starts_with(prefix) {
+                println!("{name}");
             }
         }
     }
 }
 
-fn suggest_binstubs(prefix: &str, butler_runtime: &rb_core::butler::ButlerRuntime) {
+fn suggest_binstubs(prefix: &str, bin_dirs: &[std::path::PathBuf]) {
     use std::collections::HashSet;
 
     let mut suggested = HashSet::new();
 
-    for bin_dir in butler_runtime.bin_dirs() {
+    for bin_dir in bin_dirs {
         if bin_dir.exists() {
-            collect_executables_from_dir(&bin_dir, prefix, &mut suggested);
+            collect_executables_from_dir(bin_dir, prefix, &mut suggested);
         }
     }
 
@@ -423,13 +369,42 @@ fn collect_executables_from_dir(
 ) {
     if let Ok(entries) = std::fs::read_dir(bin_dir) {
         for entry in entries.flatten() {
-            if let Ok(file_type) = entry.file_type()
-                && file_type.is_file()
+            if entry.path().is_file()
                 && let Some(name) = entry.file_name().to_str()
                 && name.starts_with(prefix)
             {
                 collected.insert(name.to_string());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn completed_prefix_uses_cli_grammar() {
+        let matches = super::completed_matches("rb -vB x --package-backend native tool");
+        assert_eq!(matches.get_one::<bool>("no_bundler"), Some(&true));
+        assert_eq!(matches.subcommand_name(), Some("exec"));
+        assert!(
+            matches
+                .subcommand()
+                .unwrap()
+                .1
+                .get_many::<String>("args")
+                .is_none()
+        );
+        let matches = super::completed_matches("rb x ruby --package-backend native ");
+        assert_eq!(
+            matches
+                .subcommand()
+                .unwrap()
+                .1
+                .get_many::<String>("args")
+                .unwrap()
+                .count(),
+            3
+        );
+        assert_eq!(super::before_cursor("rb 💎", "5"), "rb ");
     }
 }

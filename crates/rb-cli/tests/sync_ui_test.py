@@ -45,7 +45,7 @@ case "$1" in
 esac
 ''')
     bundle.chmod(0o755)
-    args = ['-R', str(root / 'rubies'), 'sync']
+    args = ['-R', str(root / 'rubies'), '--package-backend', 'bundler', 'sync']
     previous = os.getcwd()
     os.chdir(root)
     try:
@@ -123,7 +123,7 @@ esac
         assert (root / 'calls').read_text().splitlines() == ['check', 'lock --local']
         (root / 'lock-fail').unlink()
         print('PASS lockfile creation, changes, identical rewrites and failures')
-        exec_args = ['-R', str(root / 'rubies'), 'x', 'rails', 'c']
+        exec_args = ['-R', str(root / 'rubies'), '--package-backend', 'bundler', 'x', 'rails', 'c']
         for ready in [True, False]:
             if not ready:
                 (root / 'ready').unlink()

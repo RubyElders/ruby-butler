@@ -1,16 +1,19 @@
 #![doc = include_str!("../README.md")]
 
 mod build_tools;
+mod bundle_layout;
 mod bundler_credentials;
 mod constants;
 mod copy_tree;
 mod credentials;
+pub mod freshness;
 mod gemfile;
 mod git_cache;
 mod input;
 mod install;
 mod install_options;
 mod installed_bundle;
+mod locked_plan;
 mod output_lines;
 mod package_install;
 mod package_source;
@@ -36,6 +39,7 @@ mod task;
 mod validation;
 mod wrappers;
 
+pub use bundle_layout::BundleLayout;
 pub use input::ProjectInput;
 pub use install::install;
 pub use install_options::InstallOptions;

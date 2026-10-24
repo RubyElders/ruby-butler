@@ -15,6 +15,7 @@ pub struct ProjectInput {
     pub bundler_gemfile: PathBuf,
     pub reused: bool,
     pub(crate) evaluation_inputs: Vec<PathBuf>,
+    pub(crate) evaluation_environment: Option<std::collections::BTreeSet<String>>,
 }
 
 impl ProjectInput {
@@ -72,6 +73,7 @@ impl ProjectInput {
             None
         };
         let mut evaluation_inputs = Vec::new();
+        let mut evaluation_environment = Some(Default::default());
         let (mut manifest, reused, gemfile) = if let Some(manifest) = kdl_manifest {
             (manifest, false, None)
         } else if has_dependencies {
@@ -83,6 +85,7 @@ impl ProjectInput {
             let snapshot = snapshot_cache(&root, SNAPSHOT_FILE);
             let cached = snapshot.evaluate(&Evaluator::new(ruby.as_ref()), &gemfile)?;
             evaluation_inputs = cached.evaluation.inputs.clone();
+            evaluation_environment = cached.evaluation.environment.clone();
             let document = if let Some(settings) = project {
                 cached.evaluation.manifest.merge_project(&settings)?
             } else {
@@ -151,6 +154,7 @@ impl ProjectInput {
             bundler_gemfile,
             reused,
             evaluation_inputs,
+            evaluation_environment,
         })
     }
 }

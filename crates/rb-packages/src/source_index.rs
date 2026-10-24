@@ -214,6 +214,38 @@ impl PackageIndex for SourceIndex {
         }
         Ok(records)
     }
+    fn locked_records(&self, packages: &[PackageRecord]) -> Result<Vec<PackageRecord>> {
+        let registry: Vec<_> = packages
+            .iter()
+            .filter(|package| matches!(package.source, PackageSource::Registry(_)))
+            .cloned()
+            .collect();
+        let records = self.registry.locked_records(&registry)?;
+        let mut records: BTreeMap<_, _> = records
+            .into_iter()
+            .map(|record| ((record.package.id.clone(), record.source.clone()), record))
+            .collect();
+        packages
+            .iter()
+            .map(|package| {
+                if matches!(package.source, PackageSource::Registry(_)) {
+                    return records
+                        .remove(&(package.package.id.clone(), package.source.clone()))
+                        .context("Missing locked registry package");
+                }
+                crate::provider::select_locked(
+                    package,
+                    self.packages
+                        .get(&package.package.id.name)
+                        .into_iter()
+                        .flatten()
+                        .map(|entry| entry.record.clone())
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
     fn archive(&self, record: &PackageRecord) -> Result<PathBuf> {
         if matches!(record.source, PackageSource::Registry(_)) {
             self.registry.archive(record)

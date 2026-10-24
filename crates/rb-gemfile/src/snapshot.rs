@@ -6,19 +6,21 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
+    ffi::OsStr,
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
 };
 
-/// Opt-in cache for deterministic Gemfiles, including their project directory.
-/// Add inputs outside that directory with `input`. Time, network and subprocess
+/// Opt-in cache for deterministic Gemfiles and their loaded dependency files.
+/// Declare other files or directories with `input`. Time, network and subprocess
 /// results are not cache inputs; use `Evaluator::evaluate` for such Gemfiles.
 pub struct SnapshotCache {
     path: PathBuf,
     inputs: Vec<PathBuf>,
     outputs: Vec<PathBuf>,
     output_directories: Vec<PathBuf>,
+    environment: Option<BTreeSet<String>>,
 }
 
 #[derive(Debug)]
@@ -42,6 +44,7 @@ impl SnapshotCache {
             inputs: Vec::new(),
             outputs: Vec::new(),
             output_directories: Vec::new(),
+            environment: None,
         }
     }
 
@@ -54,6 +57,11 @@ impl SnapshotCache {
     /// Excludes a generated file that the Gemfile must not read.
     pub fn output(mut self, path: impl Into<PathBuf>) -> Self {
         self.outputs.push(path.into());
+        self
+    }
+
+    pub fn environment_inputs(mut self, names: BTreeSet<String>) -> Self {
+        self.environment = Some(names);
         self
     }
 
@@ -105,7 +113,14 @@ impl SnapshotCache {
             ));
         }
         excluded.extend([path, lock]);
-        fingerprint(evaluator, &input, &input, &inputs, &ruby, &excluded)
+        fingerprint(
+            evaluator,
+            &input,
+            &inputs,
+            &ruby,
+            &excluded,
+            self.environment.as_ref(),
+        )
     }
 
     pub fn evaluate(
@@ -176,22 +191,41 @@ impl SnapshotCache {
             .open(&lock_path)?;
         lock.lock()?;
         excluded.push(lock_path);
-        let before = fingerprint(evaluator, &gemfile, directory, &inputs, &ruby, &excluded)?;
+        let mut tracked = inputs.clone();
         match fs::read(&path) {
             Ok(bytes) => {
                 if let Ok(snapshot) = serde_json::from_slice::<Snapshot>(&bytes)
-                    && snapshot.fingerprint == before
                     && snapshot.checksum == evaluation_checksum(&snapshot.evaluation)?
                 {
-                    return Ok(CachedEvaluation {
-                        evaluation: snapshot.evaluation,
-                        reused: true,
-                    });
+                    tracked.extend(snapshot.evaluation.inputs.iter().cloned());
+                    if snapshot.fingerprint
+                        == fingerprint(
+                            evaluator,
+                            &gemfile,
+                            &tracked,
+                            &ruby,
+                            &excluded,
+                            snapshot.evaluation.environment.as_ref(),
+                        )?
+                    {
+                        return Ok(CachedEvaluation {
+                            evaluation: snapshot.evaluation,
+                            reused: true,
+                        });
+                    }
                 }
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(error),
         }
+        let before = fingerprint(
+            evaluator,
+            &gemfile,
+            &tracked,
+            &ruby,
+            &excluded,
+            self.environment.as_ref(),
+        )?;
         let evaluation = evaluator.evaluate(&gemfile)?;
         let covered = evaluation.inputs.iter().all(|path| {
             !excluded.iter().any(|output| path.starts_with(output))
@@ -201,10 +235,27 @@ impl SnapshotCache {
                         .any(|input| path == input || (input.is_dir() && path.starts_with(input))))
         });
         if covered
-            && before == fingerprint(evaluator, &gemfile, directory, &inputs, &ruby, &excluded)?
+            && before
+                == fingerprint(
+                    evaluator,
+                    &gemfile,
+                    &tracked,
+                    &ruby,
+                    &excluded,
+                    self.environment.as_ref(),
+                )?
         {
+            let mut tracked = inputs;
+            tracked.extend(evaluation.inputs.iter().cloned());
             let snapshot = Snapshot {
-                fingerprint: before,
+                fingerprint: fingerprint(
+                    evaluator,
+                    &gemfile,
+                    &tracked,
+                    &ruby,
+                    &excluded,
+                    evaluation.environment.as_ref(),
+                )?,
                 checksum: evaluation_checksum(&evaluation)?,
                 evaluation: evaluation.clone(),
             };
@@ -242,10 +293,10 @@ fn absolute(path: &Path) -> io::Result<PathBuf> {
 fn fingerprint(
     evaluator: &Evaluator,
     gemfile: &Path,
-    directory: &Path,
     inputs: &[PathBuf],
     ruby: &Path,
     excluded: &[PathBuf],
+    names: Option<&BTreeSet<String>>,
 ) -> io::Result<String> {
     let mut hash = Sha256::new();
     field(&mut hash, b"rb-gemfile snapshot 1");
@@ -268,12 +319,22 @@ fn fingerprint(
     let mut environment: std::collections::BTreeMap<_, _> = std::env::vars_os().collect();
     environment.extend(evaluator.environment.clone());
     environment.remove(std::ffi::OsStr::new("RUBYOPT"));
+    if let Some(names) = names {
+        environment.retain(|name, _| names.iter().any(|candidate| name == OsStr::new(candidate)));
+        for name in names {
+            field(&mut hash, name.as_bytes());
+            field(
+                &mut hash,
+                &[u8::from(environment.contains_key(OsStr::new(name)))],
+            );
+        }
+    }
     for pair in environment {
         field(&mut hash, format!("{pair:?}").as_bytes());
     }
     let mut visited = BTreeSet::new();
     hash_path(&mut hash, ruby, excluded, &mut visited)?;
-    hash_path(&mut hash, directory, excluded, &mut visited)?;
+    hash_path(&mut hash, gemfile, excluded, &mut visited)?;
     for input in inputs {
         hash_path(&mut hash, input, excluded, &mut visited)?;
     }

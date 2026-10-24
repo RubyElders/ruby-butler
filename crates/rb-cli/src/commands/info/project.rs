@@ -1,11 +1,12 @@
+use crate::packages::PackageRuntime;
 use colored::*;
 use log::{debug, info};
-use rb_core::butler::{ButlerError, ButlerRuntime};
+use rb_core::butler::ButlerError;
 use rb_core::project::{ProjectRuntime, RbprojectDetector};
 use std::path::PathBuf;
 
-pub fn project_command(
-    butler_runtime: &ButlerRuntime,
+pub(crate) fn project_command(
+    butler_runtime: &PackageRuntime,
     project_file: Option<PathBuf>,
 ) -> Result<(), ButlerError> {
     info!("Inspecting project configuration");
@@ -14,7 +15,7 @@ pub fn project_command(
 }
 
 fn present_project_info(
-    butler_runtime: &ButlerRuntime,
+    butler_runtime: &PackageRuntime,
     project_file: Option<PathBuf>,
 ) -> Result<(), ButlerError> {
     println!("{}", "📁 Project Configuration".to_string().bold());

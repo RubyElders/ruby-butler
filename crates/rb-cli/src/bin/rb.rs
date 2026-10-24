@@ -62,20 +62,6 @@ fn main() {
         tracked_config.package_backend.source = rb_cli::config::ConfigSource::EnvVar;
     }
 
-    if !tracked_config.work_dir.source.is_default() {
-        let target_dir = tracked_config.work_dir.get();
-        if let Err(e) = std::env::set_current_dir(target_dir) {
-            eprintln!(
-                "Failed to change to directory '{}': {}",
-                target_dir.display(),
-                e
-            );
-            std::process::exit(1);
-        }
-        use log::debug;
-        debug!("Changed working directory to: {}", target_dir.display());
-    }
-
     let mut context = CommandContext {
         config: tracked_config,
         project_file: cli_parsed.project_file.clone(),

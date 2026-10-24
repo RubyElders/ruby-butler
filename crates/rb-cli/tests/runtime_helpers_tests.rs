@@ -66,26 +66,10 @@ fn test_command_context_stores_config() {
 }
 
 #[test]
-fn test_with_butler_runtime_creates_runtime_once() {
-    // This test verifies the pattern - actual runtime creation
-    // depends on Ruby installations being available
-    let context = create_test_context();
-
-    // The pattern should create runtime lazily within with_butler_runtime
-    // We can't test actual runtime commands without Ruby installed,
-    // but we can verify the context structure is sound
-    assert!(context.project_file.is_none());
-}
-
-#[test]
 fn test_bash_complete_context_safety() {
-    // bash_complete should handle missing runtime gracefully
-    let context = create_test_context();
-
-    // Should not panic even with no runtime
-    // Note: bash_complete needs COMP_LINE and COMP_POINT
-    let result = rb_cli::runtime_helpers::bash_complete_command(&context, "", "0");
-
-    // It may succeed or fail depending on environment, but shouldn't panic
-    let _ = result;
+    let mut context = create_test_context();
+    let directory = tempfile::tempdir().unwrap();
+    context.config.rubies_dir =
+        rb_cli::config::value::ConfigValue::from_cli(directory.path().join("missing"));
+    assert!(rb_cli::runtime_helpers::bash_complete_command(&context, "rb sy", "5").is_ok());
 }

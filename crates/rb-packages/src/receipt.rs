@@ -48,28 +48,31 @@ pub(crate) struct InstalledReceipt {
     pub(crate) extension: Option<PathBuf>,
 }
 
+pub(crate) const BUILD_ENVIRONMENT: &[&str] = &[
+    "CC",
+    "CXX",
+    "CFLAGS",
+    "CXXFLAGS",
+    "CPPFLAGS",
+    "LDFLAGS",
+    "LIBS",
+    "MAKE",
+    "RUSTFLAGS",
+    "CARGO_ENCODED_RUSTFLAGS",
+    "PKG_CONFIG_PATH",
+    "SDKROOT",
+];
+
 fn configuration_hash(
     build: &BuildOptions,
     runtime: &RubyEnvironment,
     tools: &[&PackageRecord],
 ) -> Result<String> {
-    let mut environment: BTreeMap<_, _> = [
-        "CC",
-        "CXX",
-        "CFLAGS",
-        "CXXFLAGS",
-        "CPPFLAGS",
-        "LDFLAGS",
-        "LIBS",
-        "MAKE",
-        "RUSTFLAGS",
-        "CARGO_ENCODED_RUSTFLAGS",
-        "PKG_CONFIG_PATH",
-        "SDKROOT",
-    ]
-    .into_iter()
-    .filter_map(|key| std::env::var_os(key).map(|value| (key.to_owned(), value)))
-    .collect();
+    let mut environment: BTreeMap<_, _> = BUILD_ENVIRONMENT
+        .iter()
+        .copied()
+        .filter_map(|key| std::env::var_os(key).map(|value| (key.to_owned(), value)))
+        .collect();
     for (key, value) in &build.environment {
         environment.insert(
             key.to_str()

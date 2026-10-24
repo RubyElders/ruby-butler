@@ -181,6 +181,44 @@ impl PackageIndex for RegistryIndex {
         self.fetch(&mut metadata, &source, name)
     }
 
+    fn locked_records(&self, packages: &[PackageRecord]) -> Result<Vec<PackageRecord>> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let next = AtomicUsize::new(0);
+        let results = Mutex::new(BTreeMap::new());
+        std::thread::scope(|scope| {
+            for _ in 0..packages.len().min(crate::constants::METADATA_WORKERS) {
+                scope.spawn(|| {
+                    loop {
+                        let position = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(package) = packages.get(position) else {
+                            break;
+                        };
+                        let result = (|| {
+                            let crate::PackageSource::Registry(source) = &package.source else {
+                                anyhow::bail!("Not a registry package");
+                            };
+                            let client = self
+                                .clients
+                                .get(source)
+                                .context("Unknown locked registry source")?;
+                            let records = client
+                                .info(&package.package.id.name)?
+                                .into_iter()
+                                .filter(|info| info.version == package.archive_version)
+                                .map(|info| {
+                                    PackageRecord::from_info(&package.package.id.name, source, info)
+                                })
+                                .collect::<Result<Vec<_>>>()?;
+                            crate::provider::select_locked(package, records)
+                        })();
+                        results.lock().unwrap().insert(position, result);
+                    }
+                });
+            }
+        });
+        results.into_inner().unwrap().into_values().collect()
+    }
+
     fn archive(&self, record: &PackageRecord) -> Result<PathBuf> {
         let crate::PackageSource::Registry(source) = &record.source else {
             anyhow::bail!("Not a registry archive");

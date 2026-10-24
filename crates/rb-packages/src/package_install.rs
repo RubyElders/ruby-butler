@@ -80,12 +80,8 @@ pub(crate) fn install_slot(
             .map(|report| report.artifacts.as_slice())
             .unwrap_or(&[]);
         let staged_home = slot.staging.as_ref().unwrap().path();
-        let specification = crate::specification::write(
-            &runtime.executable,
-            metadata,
-            &slot.receipt.archive_version,
-            staged_home,
-        )?;
+        let specification =
+            crate::specification::filename(metadata, &slot.receipt.archive_version, staged_home);
         let extension_name = format!("{}-{}", metadata.id.name, slot.receipt.archive_version);
         let extension = staged_home
             .join(crate::constants::EXTENSIONS_DIRECTORY)

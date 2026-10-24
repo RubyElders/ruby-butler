@@ -1262,6 +1262,7 @@ dependencies = [
  "rb-tests",
  "semver",
  "serde",
+ "shlex",
  "tempfile",
  "toml",
  "which",

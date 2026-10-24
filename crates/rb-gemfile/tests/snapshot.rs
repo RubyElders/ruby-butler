@@ -12,7 +12,7 @@ fn write(root: &Path, file: &str, text: &str) {
 }
 
 #[test]
-fn reuses_snapshot_and_invalidates_file_contents_and_directory_membership() {
+fn reuses_snapshot_and_invalidates_declared_files_and_missing_inputs() {
     let root = tempfile::tempdir().unwrap();
     write(
         root.path(),
@@ -20,7 +20,9 @@ fn reuses_snapshot_and_invalidates_file_contents_and_directory_membership() {
         "gem 'rack', File.read('version').strip\nDir['Gemfile.*'].each { |f| eval_gemfile f }",
     );
     write(root.path(), "version", "3.1.0");
-    let cache = SnapshotCache::new(root.path().join(".rb/gemfile.json"));
+    let cache = SnapshotCache::new(root.path().join(".rb/gemfile.json"))
+        .input(root.path().join("version"))
+        .input(root.path().join("Gemfile.local"));
     let evaluator = evaluator();
     let gemfile = root.path().join("Gemfile");
     assert!(!cache.evaluate(&evaluator, &gemfile).unwrap().reused);
@@ -244,6 +246,7 @@ fn input_changes_during_evaluation_are_not_cached() {
     write(root.path(), "version", "3.1.0");
     let path = root.path().join(".rb/snapshot.json");
     let result = SnapshotCache::new(&path)
+        .input(root.path().join("version"))
         .evaluate(&evaluator(), root.path().join("Gemfile"))
         .unwrap();
     assert!(!result.reused);
@@ -308,8 +311,10 @@ fn symlinked_inputs_are_fingerprinted_without_directory_cycles() {
     );
     write(external.path(), "version", "3.1.0");
     symlink(external.path().join("version"), root.path().join("version")).unwrap();
-    symlink(root.path(), root.path().join("loop")).unwrap();
-    let cache = SnapshotCache::new(root.path().join(".rb/snapshot.json"));
+    symlink(external.path(), external.path().join("loop")).unwrap();
+    let cache = SnapshotCache::new(root.path().join(".rb/snapshot.json"))
+        .input(root.path().join("version"))
+        .input(external.path());
     let evaluator = evaluator();
     let gemfile = root.path().join("Gemfile");
     cache.evaluate(&evaluator, &gemfile).unwrap();
@@ -507,7 +512,8 @@ fn dangling_symlinks_track_target_creation_changes_and_removal() {
     write(root.path(), "Gemfile", "gem 'rake'");
     let target = external.path().join("assets");
     symlink(&target, root.path().join("assets")).unwrap();
-    let cache = SnapshotCache::new(root.path().join(".rb/snapshot.json"));
+    let cache =
+        SnapshotCache::new(root.path().join(".rb/snapshot.json")).input(root.path().join("assets"));
     let evaluator = evaluator();
     let gemfile = root.path().join("Gemfile");
     assert!(!cache.evaluate(&evaluator, &gemfile).unwrap().reused);
@@ -526,4 +532,89 @@ fn dangling_symlinks_track_target_creation_changes_and_removal() {
     fs::remove_file(root.path().join("assets")).unwrap();
     symlink(external.path().join("other"), root.path().join("assets")).unwrap();
     assert!(!cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+}
+
+#[test]
+fn application_files_do_not_invalidate_dependency_evaluation() {
+    let root = tempfile::tempdir().unwrap();
+    write(root.path(), "Gemfile", "eval_gemfile 'dependencies.rb'");
+    write(root.path(), "dependencies.rb", "gem 'rake'");
+    let cache = SnapshotCache::new(root.path().join(".rb/snapshot.json"));
+    let evaluator = evaluator();
+    let gemfile = root.path().join("Gemfile");
+    cache.evaluate(&evaluator, &gemfile).unwrap();
+    write(root.path(), "app/models/teacup.rb", "class Teacup; end");
+    assert!(cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    write(
+        root.path(),
+        "app/models/teacup.rb",
+        "class Teacup; VALUE = 42; end",
+    );
+    assert!(cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    write(root.path(), "dependencies.rb", "gem 'rack'");
+    let changed = cache.evaluate(&evaluator, &gemfile).unwrap();
+    assert!(!changed.reused);
+    assert!(
+        changed
+            .evaluation
+            .manifest
+            .dependencies
+            .contains_key("rack")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn unrelated_application_sockets_are_not_inspected() {
+    let root = tempfile::tempdir().unwrap();
+    let _socket =
+        std::os::unix::net::UnixListener::bind(root.path().join("application.sock")).unwrap();
+    write(root.path(), "Gemfile", "gem 'rake'");
+    let cache = SnapshotCache::new(root.path().join(".rb/snapshot.json"));
+    let gemfile = root.path().join("Gemfile");
+    assert!(!cache.evaluate(&evaluator(), &gemfile).unwrap().reused);
+    assert!(cache.evaluate(&evaluator(), &gemfile).unwrap().reused);
+}
+
+#[test]
+fn only_environment_read_by_dependencies_invalidates_the_snapshot() {
+    let root = tempfile::tempdir().unwrap();
+    write(
+        root.path(),
+        "Gemfile",
+        "gem 'rack', ENV.fetch('RACK_DEP_VERSION', '1.0.0')",
+    );
+    let cache = SnapshotCache::new(root.path().join(".rb/snapshot.json"));
+    let path = root.path().join("Gemfile");
+    let first = evaluator().env("UNRELATED_PROCESS_VALUE", "first");
+    cache.evaluate(&first, &path).unwrap();
+    let unrelated = evaluator().env("UNRELATED_PROCESS_VALUE", "second");
+    assert!(cache.evaluate(&unrelated, &path).unwrap().reused);
+    let changed = unrelated.env("RACK_DEP_VERSION", "2.0.0");
+    let result = cache.evaluate(&changed, &path).unwrap();
+    assert!(!result.reused);
+    assert_eq!(
+        result.evaluation.manifest.dependencies["rack"].version,
+        ["2.0.0"]
+    );
+}
+
+#[test]
+fn absent_and_empty_dependency_environment_are_distinct() {
+    let root = tempfile::tempdir().unwrap();
+    write(
+        root.path(),
+        "Gemfile",
+        "gem 'rack', ENV.fetch('DEPENDENCY_FEATURE', 'fallback') == 'fallback' ? '1.0.0' : '2.0.0'",
+    );
+    let cache = SnapshotCache::new(root.path().join(".rb/snapshot.json"));
+    let path = root.path().join("Gemfile");
+    cache.evaluate(&evaluator(), &path).unwrap();
+    let changed = evaluator().env("DEPENDENCY_FEATURE", "");
+    let result = cache.evaluate(&changed, &path).unwrap();
+    assert!(!result.reused);
+    assert_eq!(
+        result.evaluation.manifest.dependencies["rack"].version,
+        ["2.0.0"]
+    );
 }

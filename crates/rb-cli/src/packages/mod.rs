@@ -1,44 +1,89 @@
 mod bundler;
+mod cache;
+mod environment;
 mod native;
+mod runtime;
+
+pub(crate) use environment::{PackageDetails, PackageEnvironment};
+pub(crate) use runtime::{PackageRuntime, ReadyRuntime};
 
 use crate::config::PackageBackendKind;
 use anyhow::Result;
 use rb_core::bundler::SyncEvent;
 use rb_core::butler::ButlerRuntime;
 use rb_task::TaskEvents;
-use std::path::PathBuf;
 
 pub(crate) struct PackageEvents<'a> {
     pub tasks: TaskEvents,
     pub sync: &'a mut dyn FnMut(SyncEvent<'_>),
 }
 
-pub(crate) enum PackageStatus {
+enum BackendStatus {
     Ready(Box<ButlerRuntime>),
     NeedsPreparation,
 }
 
-pub(crate) trait PackageBackend {
-    fn check(&self, runtime: &ButlerRuntime) -> Result<PackageStatus>;
+pub(crate) enum PackageStatus {
+    Ready(Box<ReadyRuntime>),
+    NeedsPreparation,
+}
+
+trait Driver {
+    fn inspect(&self, runtime: &ButlerRuntime) -> Result<PackageEnvironment>;
+    fn check(&self, runtime: &ButlerRuntime) -> Result<BackendStatus>;
     fn prepare(
         &self,
         runtime: &ButlerRuntime,
         events: PackageEvents<'_>,
-    ) -> Result<PreparedEnvironment>;
+    ) -> Result<PreparedInstallation>;
+}
+
+pub(crate) struct PackageBackend {
+    driver: Box<dyn Driver>,
+}
+
+impl PackageBackend {
+    pub fn from_context(context: &crate::runtime_helpers::CommandContext) -> Self {
+        let driver: Box<dyn Driver> = match context.config.package_backend.get() {
+            PackageBackendKind::Bundler => Box::new(bundler::BundlerBackend),
+            PackageBackendKind::Native => Box::new(native::NativeBackend::new(
+                context.project_file.clone(),
+                *context.config.no_bundler.get(),
+            )),
+        };
+        Self { driver }
+    }
+
+    pub fn inspect(&self, runtime: &PackageRuntime) -> Result<PackageEnvironment> {
+        self.driver.inspect(&runtime.0)
+    }
+
+    pub fn check(&self, runtime: &PackageRuntime) -> Result<PackageStatus> {
+        Ok(match self.driver.check(&runtime.0)? {
+            BackendStatus::Ready(runtime) => PackageStatus::Ready(Box::new(ReadyRuntime(*runtime))),
+            BackendStatus::NeedsPreparation => PackageStatus::NeedsPreparation,
+        })
+    }
+
+    pub fn prepare(
+        &self,
+        runtime: &PackageRuntime,
+        events: PackageEvents<'_>,
+    ) -> Result<PreparedEnvironment> {
+        let prepared = self.driver.prepare(&runtime.0, events)?;
+        Ok(PreparedEnvironment {
+            runtime: ReadyRuntime(prepared.runtime),
+            changed: prepared.changed,
+        })
+    }
+}
+
+struct PreparedInstallation {
+    runtime: ButlerRuntime,
+    changed: bool,
 }
 
 pub(crate) struct PreparedEnvironment {
-    pub runtime: ButlerRuntime,
+    pub runtime: ReadyRuntime,
     pub changed: bool,
-}
-
-pub(crate) fn select(
-    kind: PackageBackendKind,
-    project_file: Option<PathBuf>,
-    disabled: bool,
-) -> Box<dyn PackageBackend> {
-    match kind {
-        PackageBackendKind::Bundler => Box::new(bundler::BundlerBackend),
-        PackageBackendKind::Native => Box::new(native::NativeBackend::new(project_file, disabled)),
-    }
 }

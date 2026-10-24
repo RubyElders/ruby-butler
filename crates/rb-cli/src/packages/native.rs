@@ -1,4 +1,6 @@
-use super::{PackageBackend, PackageEvents, PackageStatus, PreparedEnvironment};
+use super::{
+    BackendStatus, Driver, PackageDetails, PackageEnvironment, PackageEvents, PreparedInstallation,
+};
 use anyhow::{Context, Result, ensure};
 use rb_core::butler::ButlerRuntime;
 use std::path::{Path, PathBuf};
@@ -61,7 +63,7 @@ impl NativeBackend {
             return Ok(None);
         };
         let ruby = runtime.selected_ruby()?.ruby_executable_path();
-        let mut options = rb_packages::PrepareOptions::new(&root, ruby, root.join(".rb/cache"));
+        let mut options = rb_packages::PrepareOptions::new(&root, ruby, super::cache::directory()?);
         options.project_file = project_file;
         options.record_state = true;
         for (key, groups) in [
@@ -94,17 +96,62 @@ impl NativeBackend {
     }
 }
 
-impl PackageBackend for NativeBackend {
-    fn check(&self, runtime: &ButlerRuntime) -> Result<PackageStatus> {
+impl Driver for NativeBackend {
+    fn inspect(&self, runtime: &ButlerRuntime) -> Result<PackageEnvironment> {
+        let mut environment = PackageEnvironment {
+            runtime: runtime.clone(),
+            name: "Native Package",
+            details: None,
+        };
         if self.disabled {
-            return Ok(PackageStatus::Ready(Box::new(runtime.clone())));
+            return Ok(environment);
+        }
+        let Some((root, _)) = self.project(runtime.current_dir())? else {
+            return Ok(environment);
+        };
+        let ruby = runtime.selected_ruby()?;
+        let engine = match ruby.kind {
+            rb_core::ruby::RubyType::CRuby => "ruby",
+        };
+        let layout = rb_packages::BundleLayout::new(&root, engine, &ruby.version.to_string());
+        environment.runtime = runtime.clone().with_package_environment(
+            std::collections::HashMap::from([
+                (
+                    "GEM_HOME".into(),
+                    layout.gem_home.to_string_lossy().into_owned(),
+                ),
+                (
+                    "GEM_PATH".into(),
+                    layout.gem_home.to_string_lossy().into_owned(),
+                ),
+                (
+                    "BUNDLE_PATH".into(),
+                    layout.bundle.to_string_lossy().into_owned(),
+                ),
+            ]),
+            layout.gem_home.join("bin"),
+        );
+        environment.details = Some(PackageDetails {
+            root,
+            gemfile: None,
+            configuration: None,
+            configured: layout.gem_home.is_dir(),
+            installation: layout.gem_home,
+            required_ruby: None,
+        });
+        Ok(environment)
+    }
+
+    fn check(&self, runtime: &ButlerRuntime) -> Result<BackendStatus> {
+        if self.disabled {
+            return Ok(BackendStatus::Ready(Box::new(runtime.clone())));
         }
         let Some(options) = self.options(runtime)? else {
-            return Ok(PackageStatus::Ready(Box::new(runtime.clone())));
+            return Ok(BackendStatus::Ready(Box::new(runtime.clone())));
         };
         Ok(match rb_packages::prepared(&options)? {
-            Some(installed) => PackageStatus::Ready(Box::new(Self::activate(runtime, installed))),
-            None => PackageStatus::NeedsPreparation,
+            Some(installed) => BackendStatus::Ready(Box::new(Self::activate(runtime, installed))),
+            None => BackendStatus::NeedsPreparation,
         })
     }
 
@@ -112,7 +159,7 @@ impl PackageBackend for NativeBackend {
         &self,
         runtime: &ButlerRuntime,
         events: PackageEvents<'_>,
-    ) -> Result<PreparedEnvironment> {
+    ) -> Result<PreparedInstallation> {
         ensure!(
             !self.disabled,
             "Package preparation is disabled by --no-bundler"
@@ -120,9 +167,15 @@ impl PackageBackend for NativeBackend {
         let options = self
             .options(runtime)?
             .context("No project file, gems.rb or Gemfile found")?;
+        if let Some(installed) = rb_packages::prepared(&options)? {
+            return Ok(PreparedInstallation {
+                runtime: Self::activate(runtime, installed),
+                changed: false,
+            });
+        }
         let prepared = rb_packages::prepare(options, events.tasks)?;
-        let changed = prepared.plan.lock_changed || prepared.installed.installed > 0;
-        Ok(PreparedEnvironment {
+        let changed = prepared.changed;
+        Ok(PreparedInstallation {
             runtime: Self::activate(runtime, prepared.installed),
             changed,
         })
