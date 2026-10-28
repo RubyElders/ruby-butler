@@ -22,7 +22,7 @@ write_project(".rb/rbproject.toml", &project)?;
 
 Supports groups, platforms, conditions, require settings, registry/Git/path sources, included Gemfiles and local gemspecs. Repeated declarations remain separate in `Dependency::variants`; exports omit inactive declarations. Bundler compatibility helpers are limited: plugins are recorded, not installed or executed, and source `cooldown` is accepted but not enforced. Git dependencies accept one selector: `branch`, `tag` or `ref`/`rev`.
 
-Gemfiles execute arbitrary Ruby: evaluate only trusted inputs. Caching tracks the Gemfile, loaded dependency files and explicitly declared `input` files/directories, not the project tree. Environment reads made during evaluation are tracked by name; enumeration tracks the whole environment. Declare other filesystem inputs with `input` and unread generated files with `output`. Use uncached evaluation for time, network, subprocess results or side effects.
+Gemfiles execute arbitrary Ruby: evaluate only trusted inputs. Caching tracks the Gemfile, loaded dependency files and explicitly declared `input` files/directories, not the project tree. The selected Ruby executable path identifies the runtime; its contents are not hashed. Environment reads made during evaluation are tracked by name; enumeration tracks the whole environment. Declare other filesystem inputs with `input` and unread generated files with `output`. Use uncached evaluation for time, network, subprocess results or side effects.
 
 The CLI exposes this through `rb export-gemfile`, with `--format kdl` for KDL output. Exported dependencies are not yet consumed by `rb-core`.
 

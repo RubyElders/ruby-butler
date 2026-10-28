@@ -129,7 +129,6 @@ impl Candidate {
         &self,
         options: &PrepareOptions,
         input: &ProjectInput,
-        runtime: &crate::RubyEnvironment,
     ) -> Result<(BTreeSet<PathBuf>, String)> {
         ensure!(
             self.before
@@ -141,12 +140,7 @@ impl Candidate {
                 )?,
             "Project changed during evaluation"
         );
-        let mut paths: BTreeSet<_> = input
-            .evaluation_inputs
-            .iter()
-            .chain(&runtime.configuration_inputs)
-            .cloned()
-            .collect();
+        let mut paths: BTreeSet<_> = input.evaluation_inputs.iter().cloned().collect();
         for dependency in input
             .manifest
             .dependencies
