@@ -333,7 +333,7 @@ fn fingerprint(
         field(&mut hash, format!("{pair:?}").as_bytes());
     }
     let mut visited = BTreeSet::new();
-    hash_path(&mut hash, ruby, excluded, &mut visited)?;
+    field(&mut hash, format!("{ruby:?}").as_bytes());
     hash_path(&mut hash, gemfile, excluded, &mut visited)?;
     for input in inputs {
         hash_path(&mut hash, input, excluded, &mut visited)?;
@@ -391,6 +391,9 @@ fn hash_path(
             hash_path(hash, &entry, excluded, visited)?;
         }
     } else if metadata.is_file() {
+        if !visited.insert(dunce::canonicalize(path)?) {
+            return Ok(());
+        }
         field(hash, b"file");
         #[cfg(unix)]
         {
@@ -418,4 +421,19 @@ fn atomic_write(path: &Path, contents: &[u8]) -> io::Result<()> {
     file.as_file().sync_all()?;
     file.persist(path).map_err(|error| error.error)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn regular_files_share_the_visited_set_with_directory_inputs() {
+        let root = tempfile::tempdir().unwrap();
+        let file = root.path().join("ruby");
+        fs::write(&file, "runtime").unwrap();
+        let mut visited = BTreeSet::new();
+        hash_path(&mut Sha256::new(), &file, &[], &mut visited).unwrap();
+        assert!(visited.contains(&dunce::canonicalize(file).unwrap()));
+    }
 }

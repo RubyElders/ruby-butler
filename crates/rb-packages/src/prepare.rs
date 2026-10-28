@@ -77,10 +77,9 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
     let observed = if let Some(candidate) = candidate.clone() {
         let options = options.clone();
         let input = input.clone();
-        let runtime = runtime.clone();
         crate::task::run("track preparation inputs", events.clone(), move |_| {
             Ok(crate::prepared_state::attempt(
-                candidate.observe(&options, &input, &runtime),
+                candidate.observe(&options, &input),
             ))
         })?
     } else {

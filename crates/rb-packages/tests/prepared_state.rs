@@ -38,6 +38,12 @@ fn ready_state_checks_dependency_inputs_and_installation_state_without_registry_
     options.record_state = true;
     let bundle = prepare(options.clone(), TaskEvents::default()).unwrap();
     assert!(root.path().join(".rb/prepared.json").is_file());
+    let state: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.path().join(".rb/prepared.json")).unwrap()).unwrap();
+    assert_eq!(
+        state["state"]["inputs"],
+        serde_json::json!([gemfile.canonicalize().unwrap()])
+    );
     let ready = prepared(&options).unwrap().unwrap();
     assert_eq!(ready.installed, 0);
     assert_eq!(ready.reused, 1);

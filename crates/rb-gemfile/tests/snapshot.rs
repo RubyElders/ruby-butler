@@ -167,7 +167,7 @@ fn generated_project_is_replaced_and_keeps_project_configuration() {
 
 #[cfg(unix)]
 #[test]
-fn a_cache_hit_does_not_start_ruby() {
+fn ruby_installation_contents_are_not_snapshot_inputs() {
     use std::os::unix::fs::PermissionsExt;
     let root = tempfile::tempdir().unwrap();
     let executable = tempfile::tempdir().unwrap();
@@ -202,6 +202,11 @@ fn a_cache_hit_does_not_start_ruby() {
         ),
     )
     .unwrap();
+    assert!(cache.evaluate(&evaluator, &gemfile).unwrap().reused);
+    assert_eq!(fs::read_to_string(&count).unwrap(), "start\n");
+    let other = executable.path().join("other-ruby");
+    fs::copy(&wrapper, &other).unwrap();
+    let evaluator = Evaluator::new(&other);
     assert!(!cache.evaluate(&evaluator, &gemfile).unwrap().reused);
     assert_eq!(fs::read_to_string(count).unwrap(), "start\nchanged\n");
 }
@@ -617,4 +622,19 @@ fn absent_and_empty_dependency_environment_are_distinct() {
         result.evaluation.manifest.dependencies["rack"].version,
         ["2.0.0"]
     );
+}
+
+#[test]
+fn overlapping_file_and_directory_inputs_still_track_content_changes() {
+    let root = tempfile::tempdir().unwrap();
+    write(root.path(), "Gemfile", "raise 'must not execute'");
+    write(root.path(), "runtime/ruby", "first runtime");
+    let cache = SnapshotCache::new(root.path().join("state.json"))
+        .input(root.path().join("runtime/ruby"))
+        .input(root.path().join("runtime"));
+    let gemfile = root.path().join("Gemfile");
+    let first = cache.fingerprint(&evaluator(), &gemfile).unwrap();
+    assert_eq!(first, cache.fingerprint(&evaluator(), &gemfile).unwrap());
+    write(root.path(), "runtime/ruby", "other runtime");
+    assert_ne!(first, cache.fingerprint(&evaluator(), &gemfile).unwrap());
 }
