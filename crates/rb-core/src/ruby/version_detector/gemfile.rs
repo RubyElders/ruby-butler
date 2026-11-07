@@ -66,18 +66,42 @@ impl RubyVersionDetector for GemfileDetector {
 }
 
 impl GemfileDetector {
-    fn extract_quoted_version(line: &str) -> Option<String> {
-        let rest = line.strip_prefix("ruby ")?.trim();
-
-        for quote in &['\'', '"'] {
-            if rest.starts_with(*quote)
-                && let Some(end_idx) = rest[1..].find(*quote)
-            {
-                return Some(rest[1..=end_idx].to_string());
+    pub fn literal_requirement(path: &Path) -> std::io::Result<Option<String>> {
+        let contents = match fs::read_to_string(path) {
+            Ok(contents) => contents,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        for line in contents.lines() {
+            let Some(mut rest) = line.trim().strip_prefix("ruby ").map(str::trim_start) else {
+                continue;
+            };
+            let mut requirements = Vec::new();
+            while let Some((requirement, remaining)) = Self::quoted_literal(rest) {
+                requirements.push(requirement);
+                let Some(next) = remaining.trim_start().strip_prefix(',') else {
+                    break;
+                };
+                rest = next.trim_start();
+            }
+            if !requirements.is_empty() {
+                return Ok(Some(requirements.join(", ")));
             }
         }
+        Ok(None)
+    }
 
-        None
+    fn extract_quoted_version(line: &str) -> Option<String> {
+        Self::quoted_literal(line.strip_prefix("ruby ")?.trim()).map(|(value, _)| value.to_owned())
+    }
+
+    fn quoted_literal(text: &str) -> Option<(&str, &str)> {
+        let quote = *text.as_bytes().first()?;
+        if !matches!(quote, b'\'' | b'"') {
+            return None;
+        }
+        let end = text[1..].find(char::from(quote))? + 1;
+        Some((&text[1..end], &text[end + 1..]))
     }
 }
 

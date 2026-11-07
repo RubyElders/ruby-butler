@@ -63,7 +63,7 @@ impl NativeBackend {
             return Ok(None);
         };
         let ruby = runtime.selected_ruby()?.ruby_executable_path();
-        let mut options = rb_packages::PrepareOptions::new(&root, ruby, super::cache::directory()?);
+        let mut options = rb_packages::PrepareOptions::new(&root, ruby, crate::cache::directory()?);
         options.project_file = project_file;
         options.record_state = true;
         for (key, groups) in [

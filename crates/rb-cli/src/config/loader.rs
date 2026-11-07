@@ -77,6 +77,20 @@ fn parse_kdl_config(content: &str) -> Result<RbConfig, ConfigError> {
         );
     }
 
+    if let Some(node) = doc.get("auto-install-ruby") {
+        let value = node
+            .entries()
+            .first()
+            .and_then(|entry| entry.value().as_bool())
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "auto-install-ruby requires a boolean",
+                )
+            })?;
+        config.auto_install_ruby = Some(value);
+    }
+
     // Parse rubies-dir
     if let Some(node) = doc.get("rubies-dir")
         && let Some(entry) = node.entries().first()

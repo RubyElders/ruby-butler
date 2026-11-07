@@ -1258,10 +1258,13 @@ dependencies = [
  "rb-gemfile",
  "rb-packages",
  "rb-progress",
+ "rb-ruby-installer",
  "rb-task",
  "rb-tests",
  "semver",
  "serde",
+ "serde_json",
+ "sha2",
  "shlex",
  "tempfile",
  "toml",
@@ -1428,6 +1431,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "rb-ruby-installer"
+version = "0.3.1"
+dependencies = [
+ "anyhow",
+ "flate2",
+ "fs2",
+ "rb-gem-types",
+ "rb-tests",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tempfile",
+]
+
+[[package]]
 name = "rb-task"
 version = "0.3.1"
 
@@ -1435,6 +1456,8 @@ version = "0.3.1"
 name = "rb-tests"
 version = "0.3.1"
 dependencies = [
+ "flate2",
+ "tar",
  "tempfile",
 ]
 

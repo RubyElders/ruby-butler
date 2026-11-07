@@ -1,0 +1,10 @@
+{"tag_name":"20261023","assets":[
+{"name":"ruby-3.4.10.x86_64_linux.tar.gz","size":26466120,"browser_download_url":"https://example.test/ruby-3.4.10.tar.gz","digest":"sha256:5122ff002656a42bb67678f81f1271ab7e0229badd7fc91f2751b5e5e76f3c52"},
+{"name":"ruby-3.4.9.x86_64_linux.tar.gz","size":100,"browser_download_url":"https://example.test/older.tar.gz"},
+{"name":"ruby-4.0.7.x86_64_linux.tar.gz","size":100,"browser_download_url":"https://example.test/newer.tar.gz"},
+{"name":"ruby-4.1.0-preview1.x86_64_linux.tar.gz","size":100,"browser_download_url":"https://example.test/preview.tar.gz"},
+{"name":"ruby-3.4.10.arm64_linux_musl.tar.gz","size":100,"browser_download_url":"https://example.test/musl.tar.gz"},
+{"name":"ruby-3.4.10.arm64_sonoma.tar.gz","size":100,"browser_download_url":"https://example.test/mac.tar.gz"},
+{"name":"ruby-3.4.10.asan.x86_64_linux.tar.gz","size":100,"browser_download_url":"https://example.test/sanitizer.tar.gz"},
+{"name":"SHA256SUMS","size":100,"browser_download_url":"https://example.test/SHA256SUMS"}
+]}

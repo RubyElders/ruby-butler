@@ -7,7 +7,7 @@ use rb_core::butler::ButlerError;
 
 use crate::runtime_helpers::{
     bash_complete_with_backend, export_gemfile_command_wrapper, new_command_wrapper,
-    shell_integration_command_wrapper, with_package_runtime,
+    shell_integration_command_wrapper, with_command_runtime, with_package_runtime,
 };
 
 /// Dispatch a command using its configured package backend.
@@ -33,6 +33,9 @@ pub fn dispatch_command(
     match command {
         Commands::Version => version_command(),
         Commands::Help { command: help_cmd } => help_command(help_cmd),
+        Commands::Install {
+            command: crate::InstallCommands::Ruby { version },
+        } => crate::ruby_install::install(context, version.as_deref()),
         Commands::New => new_command_wrapper(),
         Commands::ExportGemfile {
             gemfile,
@@ -46,24 +49,41 @@ pub fn dispatch_command(
 
         Commands::Run { script, args } => {
             let project_file = context.project_file.clone();
-            with_package_runtime(context, |runtime| {
-                crate::commands::run::run_command(
-                    runtime.clone(),
-                    script,
-                    args,
-                    project_file,
-                    &backend,
-                )
-            })
+            with_command_runtime(
+                context,
+                script.is_some(),
+                crate::reporting::Completion::Compact,
+                |runtime, report| {
+                    crate::commands::run::run_command(
+                        runtime.clone(),
+                        script,
+                        args,
+                        project_file,
+                        &backend,
+                        report,
+                    )
+                },
+            )
         }
-        Commands::Exec { args } => with_package_runtime(context, |runtime| {
-            crate::commands::exec::exec_command(runtime.clone(), args, &backend)
-        }),
-        Commands::Sync => with_package_runtime(context, |runtime| {
-            crate::commands::sync::sync_command(runtime.clone(), &backend)
-        }),
+        Commands::Exec { args } => with_command_runtime(
+            context,
+            !args.is_empty(),
+            crate::reporting::Completion::Compact,
+            |runtime, report| {
+                crate::commands::exec::exec_command(runtime.clone(), args, &backend, report)
+            },
+        ),
+        Commands::Sync => with_command_runtime(
+            context,
+            true,
+            crate::reporting::Completion::Tree,
+            |runtime, report| {
+                crate::commands::sync::sync_command(runtime.clone(), &backend, report)
+            },
+        ),
 
         Commands::Info { command } => match command {
+            InfoCommands::Runtime { available: true } => crate::ruby_install::available(context),
             InfoCommands::Config => info_config_command(&context.config),
             _ => {
                 let project_file = context.project_file.clone();

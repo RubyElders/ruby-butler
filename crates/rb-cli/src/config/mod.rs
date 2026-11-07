@@ -39,6 +39,22 @@ pub struct RbConfig {
     #[serde(rename = "ruby-version", skip_serializing_if = "Option::is_none")]
     pub ruby_version: Option<String>,
 
+    #[arg(long, global = true, num_args = 0..=1,
+        require_equals = true,
+        default_missing_value = "true", overrides_with = "no_auto_install_ruby",
+        help = "Install a missing Ruby before run, exec, or sync")]
+    #[serde(rename = "auto-install-ruby", skip_serializing_if = "Option::is_none")]
+    pub auto_install_ruby: Option<bool>,
+
+    #[arg(
+        long,
+        global = true,
+        overrides_with = "auto_install_ruby",
+        help = "Require Ruby to be installed before run, exec, or sync"
+    )]
+    #[serde(skip)]
+    pub no_auto_install_ruby: bool,
+
     /// Specify custom gem base directory
     #[arg(
         short = 'G',
@@ -89,6 +105,13 @@ pub struct RbConfig {
 }
 
 impl RbConfig {
+    pub(crate) fn validate_environment(&self) -> Result<(), ConfigError> {
+        if self.auto_install_ruby.is_none() && !self.no_auto_install_ruby {
+            auto_install_environment()?;
+        }
+        Ok(())
+    }
+
     /// Merge two configs, preferring values from self
     /// Used to merge CLI args (self) with file config (other)
     pub fn merge_with(&mut self, other: RbConfig) {
@@ -132,6 +155,10 @@ impl RbConfig {
             debug!("  Using no-bundler from CLI arguments: {}", no_bundler);
         }
 
+        if self.auto_install_ruby.is_none() && !self.no_auto_install_ruby {
+            self.auto_install_ruby = other.auto_install_ruby;
+        }
+
         if self.package_backend.is_none() {
             self.package_backend = other.package_backend;
         }
@@ -147,6 +174,21 @@ impl RbConfig {
     }
 }
 
+fn auto_install_environment() -> Result<Option<bool>, ConfigError> {
+    std::env::var("RB_AUTO_INSTALL_RUBY")
+        .ok()
+        .map(|value| {
+            value.parse::<bool>().map_err(|_| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "RB_AUTO_INSTALL_RUBY must be true or false",
+                )
+                .into()
+            })
+        })
+        .transpose()
+}
+
 /// Configuration with tracked sources for each value
 /// This stores where each config value came from (CLI, env, file, or default)
 #[derive(Debug, Clone)]
@@ -156,6 +198,7 @@ pub struct TrackedConfig {
     pub gem_home: ConfigValue<PathBuf>,
     pub no_bundler: ConfigValue<bool>,
     pub package_backend: ConfigValue<PackageBackendKind>,
+    pub auto_install_ruby: ConfigValue<bool>,
     pub work_dir: ConfigValue<PathBuf>,
 }
 
@@ -286,7 +329,20 @@ impl TrackedConfig {
             file_config.package_backend,
         );
 
+        let auto_install_ruby = if cli_config.no_auto_install_ruby {
+            ConfigValue::from_cli(false)
+        } else if let Some(value) = cli_config.auto_install_ruby {
+            ConfigValue::from_cli(value)
+        } else if let Some(value) = auto_install_environment().ok().flatten() {
+            ConfigValue::from_env(value)
+        } else if let Some(value) = file_config.auto_install_ruby {
+            ConfigValue::from_file(value)
+        } else {
+            ConfigValue::default_value(true)
+        };
+
         Self {
+            auto_install_ruby,
             package_backend,
             rubies_dir,
             ruby_version,
@@ -299,6 +355,8 @@ impl TrackedConfig {
     /// Convert back to RbConfig for compatibility with existing code
     pub fn to_rb_config(&self) -> RbConfig {
         RbConfig {
+            auto_install_ruby: Some(self.auto_install_ruby.value),
+            no_auto_install_ruby: false,
             rubies_dir: Some(self.rubies_dir.value.clone()),
             ruby_version: self.ruby_version.as_ref().map(|v| v.value.clone()),
             gem_home: Some(self.gem_home.value.clone()),
@@ -391,6 +449,8 @@ mod tests {
             ruby_version: Some("3.3.0".to_string()),
             gem_home: Some(PathBuf::from("/test/gems")),
             no_bundler: None,
+            auto_install_ruby: None,
+            no_auto_install_ruby: false,
             package_backend: None,
             work_dir: None,
         };
@@ -410,6 +470,8 @@ mod tests {
             ruby_version: Some("3.2.0".to_string()),
             gem_home: None,
             no_bundler: None,
+            auto_install_ruby: None,
+            no_auto_install_ruby: false,
             package_backend: None,
             work_dir: None,
         };
@@ -418,6 +480,8 @@ mod tests {
             ruby_version: Some("3.3.0".to_string()),
             gem_home: Some(PathBuf::from("/file/gems")),
             no_bundler: Some(true),
+            auto_install_ruby: None,
+            no_auto_install_ruby: false,
             package_backend: None,
             work_dir: None,
         };
@@ -439,6 +503,8 @@ mod tests {
             ruby_version: Some("3.2.0".to_string()),
             gem_home: None,
             no_bundler: None,
+            auto_install_ruby: None,
+            no_auto_install_ruby: false,
             package_backend: None,
             work_dir: None,
         };
@@ -447,6 +513,8 @@ mod tests {
             ruby_version: None,
             gem_home: Some(PathBuf::from("/file/gems")),
             no_bundler: None,
+            auto_install_ruby: None,
+            no_auto_install_ruby: false,
             package_backend: None,
             work_dir: None,
         };
@@ -481,6 +549,8 @@ mod tests {
             ruby_version: Some("3.3.0".to_string()),
             gem_home: Some(PathBuf::from("/opt/gems")),
             no_bundler: None,
+            auto_install_ruby: None,
+            no_auto_install_ruby: false,
             package_backend: None,
             work_dir: None,
         };

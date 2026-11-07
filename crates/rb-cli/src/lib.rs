@@ -1,3 +1,4 @@
+mod cache;
 pub mod commands;
 pub mod completion;
 pub mod config;
@@ -5,6 +6,8 @@ pub mod dispatch;
 pub mod error_display;
 pub mod help_formatter;
 mod packages;
+mod reporting;
+mod ruby_install;
 pub mod runtime_helpers;
 
 use clap::builder::styling::{AnsiColor, Effects, Styles};
@@ -177,6 +180,13 @@ pub enum Commands {
         command: InfoCommands,
     },
 
+    /// 💎 Install a Ruby runtime
+    #[command(next_help_heading = "Utility Commands")]
+    Install {
+        #[command(subcommand)]
+        command: InstallCommands,
+    },
+
     /// 📝 Create a minimal rbproject.toml in the current directory
     #[command(
         about = "📝 Create a minimal rbproject.toml in the current directory",
@@ -252,9 +262,18 @@ impl From<ProjectFormat> for rb_gemfile::ExportFormat {
 }
 
 #[derive(Subcommand)]
+pub enum InstallCommands {
+    /// 💎 Install a prebuilt CRuby for Linux or macOS
+    Ruby { version: Option<String> },
+}
+
+#[derive(Subcommand)]
 pub enum InfoCommands {
     /// 🔍 Detected Rubies and selected runtime
-    Runtime,
+    Runtime {
+        #[arg(long, help = "List compatible downloadable Ruby versions")]
+        available: bool,
+    },
 
     /// 🌍 Effective Ruby/package environment
     Env,
@@ -304,6 +323,7 @@ pub fn resolve_search_dir(rubies_dir: Option<PathBuf>) -> PathBuf {
 impl Cli {
     /// Merge CLI arguments with config file defaults (CLI takes precedence)
     pub fn with_config_defaults(mut self) -> Result<Self, ConfigError> {
+        self.config.validate_environment()?;
         let file_config = config::loader::load_config(self.config_file.clone())?;
         self.config.merge_with(file_config);
         Ok(self)
@@ -312,6 +332,7 @@ impl Cli {
     /// Merge CLI arguments with config file, returning both for tracked config
     /// Returns (cli_with_merged_config, file_config) for source tracking
     pub fn with_config_defaults_tracked(self) -> Result<(Self, config::RbConfig), ConfigError> {
+        self.config.validate_environment()?;
         let file_config = config::loader::load_config(self.config_file.clone())?;
         Ok((self, file_config))
     }
@@ -414,7 +435,7 @@ mod tests {
             project_file: None,
             config: RbConfig::default(),
             command: Some(Commands::Info {
-                command: InfoCommands::Runtime,
+                command: InfoCommands::Runtime { available: false },
             }),
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
@@ -428,7 +449,7 @@ mod tests {
             project_file: None,
             config: RbConfig::default(),
             command: Some(Commands::Info {
-                command: InfoCommands::Runtime,
+                command: InfoCommands::Runtime { available: false },
             }),
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Info));
@@ -442,7 +463,7 @@ mod tests {
             project_file: None,
             config: RbConfig::default(),
             command: Some(Commands::Info {
-                command: InfoCommands::Runtime,
+                command: InfoCommands::Runtime { available: false },
             }),
         };
         assert!(matches!(cli.effective_log_level(), LogLevel::Debug));

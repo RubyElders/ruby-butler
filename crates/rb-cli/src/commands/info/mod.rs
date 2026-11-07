@@ -17,7 +17,7 @@ pub(crate) fn info_command(
     backend: &crate::packages::PackageBackend,
 ) -> Result<(), ButlerError> {
     match command {
-        InfoCommands::Runtime => runtime::runtime_command(butler_runtime),
+        InfoCommands::Runtime { .. } => runtime::runtime_command(butler_runtime),
         InfoCommands::Env => env::environment_command(butler_runtime, project_file, backend),
         InfoCommands::Project => project::project_command(butler_runtime, project_file),
         InfoCommands::Config => {

@@ -3,20 +3,8 @@ use rb_core::bundler::SyncEvent;
 use rb_core::bundler::SyncResult;
 use rb_core::butler::ButlerError;
 use rb_progress::Reporter;
-use std::io::IsTerminal;
 
-pub(super) fn sync_reporter() -> Reporter {
-    if std::io::stderr().is_terminal() && std::io::stdout().is_terminal() {
-        Reporter::with_writer("Preparing your bundle", std::io::stderr())
-    } else {
-        Reporter::with_plain_writer("Preparing your bundle", std::io::stderr())
-    }
-}
-
-pub(super) enum Completion {
-    Tree,
-    Compact,
-}
+use crate::reporting::Completion;
 
 pub(crate) fn report_preparation(
     reporter: Reporter,
@@ -81,10 +69,7 @@ pub(crate) fn report_preparation(
             } else {
                 "Everything is already in order"
             };
-            match completion {
-                Completion::Tree => reporter.finish_with_summary(summary),
-                Completion::Compact => reporter.finish_compact(summary),
-            }
+            completion.finish(reporter, summary);
             Ok(result)
         }
         Err(error) => {
@@ -101,12 +86,13 @@ pub(crate) fn report_preparation(
 }
 
 pub(crate) fn report_packages(
-    completion: Completion,
+    report: &mut crate::reporting::PreparationReport,
     run: impl FnOnce(
         crate::packages::PackageEvents<'_>,
     ) -> anyhow::Result<crate::packages::PreparedEnvironment>,
 ) -> Result<crate::packages::PreparedEnvironment, ButlerError> {
-    report_preparation(sync_reporter(), completion, run)
+    let (reporter, completion) = report.take();
+    report_preparation(reporter, completion, run)
 }
 
 #[cfg(test)]

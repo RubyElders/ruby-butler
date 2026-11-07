@@ -21,6 +21,7 @@ path = "src/bin/rb.rs"
 [dependencies]
 clap = { version = "4.0", features = ["derive", "color", "help", "usage", "env"] }
 clap_complete = "4.0"
+rb-ruby-installer = { path = "../rb-ruby-installer" }
 rb-core = { path = "../rb-core" }
 rb-gemfile = { path = "../rb-gemfile" }
 rb-progress = { path = "../rb-progress", features = ["rb-task"] }
@@ -41,3 +42,5 @@ serde = { version = "1.0", features = ["derive"] }
 [dev-dependencies]
 rb-tests = { path = "../rb-tests" }
 tempfile = "3.0"
+serde_json = "1"
+sha2 = "0.10"

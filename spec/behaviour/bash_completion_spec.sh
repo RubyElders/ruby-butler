@@ -253,7 +253,7 @@ EOF
       End
 
       It "returns nothing after complete command"
-        When run rb __bash_complete "rb info runtime " 11
+        When run rb __bash_complete "rb info runtime " 16
         The status should equal 0
         The output should be blank
       End

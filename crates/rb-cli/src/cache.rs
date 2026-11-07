@@ -2,7 +2,7 @@ use crate::config::locator::{EnvReader, StdEnvReader};
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 
-pub(super) fn directory() -> Result<PathBuf> {
+pub(crate) fn directory() -> Result<PathBuf> {
     locate(&StdEnvReader, home::home_dir())
 }
 

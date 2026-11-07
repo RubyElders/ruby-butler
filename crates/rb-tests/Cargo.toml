@@ -9,3 +9,5 @@ license.workspace = true
 
 [dependencies]
 tempfile = "3.0"
+flate2 = "1"
+tar = "0.4"

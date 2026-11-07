@@ -61,6 +61,32 @@ impl CommandContext {
     }
 }
 
+pub(crate) fn with_command_runtime<F>(
+    context: &mut CommandContext,
+    requires_ruby: bool,
+    completion: crate::reporting::Completion,
+    f: F,
+) -> Result<(), ButlerError>
+where
+    F: FnOnce(
+        &crate::packages::PackageRuntime,
+        &mut crate::reporting::PreparationReport,
+    ) -> Result<(), ButlerError>,
+{
+    let mut report = crate::reporting::PreparationReport::new(completion);
+    let result = (|| {
+        if requires_ruby {
+            crate::ruby_install::prepare(context, &mut report)?;
+        }
+        with_package_runtime(context, |runtime| f(runtime, &mut report))
+    })();
+    match &result {
+        Ok(()) => report.finish("Your environment is ready"),
+        Err(error) => report.fail(error),
+    }
+    result
+}
+
 pub(crate) fn with_package_runtime<F>(context: &mut CommandContext, f: F) -> Result<(), ButlerError>
 where
     F: FnOnce(&crate::packages::PackageRuntime) -> Result<(), ButlerError>,

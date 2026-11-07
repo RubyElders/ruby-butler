@@ -20,6 +20,7 @@ pub fn print_custom_help(cmd: &clap::Command) {
     let workflow_commands = ["run", "exec", "sync"];
     let diagnostic_commands = ["info"];
     let utility_commands = [
+        "install",
         "new",
         "export-gemfile",
         "version",
