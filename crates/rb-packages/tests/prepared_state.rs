@@ -42,7 +42,7 @@ fn ready_state_checks_dependency_inputs_and_installation_state_without_registry_
         serde_json::from_slice(&fs::read(root.path().join(".rb/prepared.json")).unwrap()).unwrap();
     assert_eq!(
         state["state"]["inputs"],
-        serde_json::json!([gemfile.canonicalize().unwrap()])
+        serde_json::json!([dunce::canonicalize(&gemfile).unwrap()])
     );
     let ready = prepared(&options).unwrap().unwrap();
     assert_eq!(ready.installed, 0);

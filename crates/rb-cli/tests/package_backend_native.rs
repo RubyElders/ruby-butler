@@ -410,3 +410,100 @@ fn declared_external_gemfile_inputs_allow_reuse_and_invalidate_on_changes() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn ready_state_survives_launcher_replacement_and_unread_path_changes() {
+    let mut fixture = Fixture::new("native");
+    success(fixture.command().arg("sync").output().unwrap());
+    let probe = ["x", "ruby", "-e", "puts 'ready'"];
+    let path = std::env::join_paths(
+        std::env::split_paths(&std::env::var_os("PATH").unwrap())
+            .chain(std::iter::once(fixture.rubies.path().join("unrelated-bin"))),
+    )
+    .unwrap();
+    let changed_path = success(
+        fixture
+            .command()
+            .env("PATH", path)
+            .args(probe)
+            .output()
+            .unwrap(),
+    );
+    let binary = fixture.rubies.path().join("rebuilt-rb");
+    fs::copy(&fixture.binary, &binary).unwrap();
+    fixture.binary = binary;
+    let changed_binary = success(fixture.command().args(probe).output().unwrap());
+    fs::File::open(&fixture.binary)
+        .unwrap()
+        .set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(1))
+        .unwrap();
+    let rebuilt_binary = success(fixture.command().args(probe).output().unwrap());
+    for output in [changed_path, changed_binary, rebuilt_binary] {
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "ready");
+        assert!(
+            output.stderr.is_empty(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn gemfile_path_reads_still_invalidate_prepared_state() {
+    let fixture = Fixture::new("native");
+    let gemfile = fixture.root.path().join("Gemfile");
+    let original = fs::read_to_string(&gemfile).unwrap();
+    fs::write(&gemfile, format!("ENV.fetch('PATH')\n{original}")).unwrap();
+    success(fixture.command().arg("sync").output().unwrap());
+    let path = std::env::join_paths(
+        std::env::split_paths(&std::env::var_os("PATH").unwrap())
+            .chain(std::iter::once(fixture.rubies.path().join("new-tools"))),
+    )
+    .unwrap();
+    let probe = ["x", "ruby", "-e", "puts 'ready'"];
+    let first = success(
+        fixture
+            .command()
+            .env("PATH", &path)
+            .args(probe)
+            .output()
+            .unwrap(),
+    );
+    assert!(String::from_utf8_lossy(&first.stderr).contains("Preparing your bundle"));
+    let second = success(
+        fixture
+            .command()
+            .env("PATH", path)
+            .args(probe)
+            .output()
+            .unwrap(),
+    );
+    assert!(
+        second.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+}
+
+#[test]
+fn missing_prepared_state_does_not_stage_an_unchanged_installation() {
+    let fixture = Fixture::new("native");
+    success(fixture.command().arg("sync").output().unwrap());
+    let home = fixture.bin_dir().parent().unwrap().to_owned();
+    let _socket = std::os::unix::net::UnixListener::bind(home.join("live.sock")).unwrap();
+    fs::remove_file(fixture.root.path().join(".rb/prepared.json")).unwrap();
+    let output = success(fixture.command().args(["run", "probe"]).output().unwrap());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("backend-installed"));
+    let report = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        report.contains("Everything is already in order"),
+        "{report}"
+    );
+    assert!(!report.contains("prepare installation"), "{report}");
+    let ready = success(fixture.command().args(["run", "probe"]).output().unwrap());
+    assert!(
+        ready.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&ready.stderr)
+    );
+}

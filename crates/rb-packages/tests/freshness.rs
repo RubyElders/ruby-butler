@@ -157,8 +157,22 @@ fn changing_input_format_reuses_the_same_resolved_bundle() {
     let options = PrepareOptions::new(root.path(), ruby(), root.path().join(".rb/cache"));
     let first = prepare(options.clone(), TaskEvents::default()).unwrap();
     assert!(first.changed);
+    let mut invalid = options.clone();
+    invalid.install.workers = 0;
+    let error = prepare(invalid, TaskEvents::default())
+        .err()
+        .expect("An unchanged bundle must still reject zero workers");
+    assert!(error.to_string().contains("Worker count must be positive"));
+    #[cfg(unix)]
+    let _socket =
+        std::os::unix::net::UnixListener::bind(first.installed.gem_home.join("runtime.sock"))
+            .unwrap();
     let second = prepare(options.clone(), TaskEvents::default()).unwrap();
+    assert_eq!(second.installed.installed, 0);
+    assert_eq!(second.installed.reused, 1);
     assert!(!second.changed);
+    #[cfg(unix)]
+    std::fs::remove_file(first.installed.gem_home.join("runtime.sock")).unwrap();
     assert_eq!(first.fingerprint, second.fingerprint);
     let manifest = first.input.manifest.clone();
     fs::remove_file(root.path().join("Gemfile")).unwrap();

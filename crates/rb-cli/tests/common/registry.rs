@@ -1,7 +1,7 @@
 use std::{
     fs,
-    io::{Read, Write},
-    net::TcpListener,
+    io::{self, Read, Write},
+    net::{TcpListener, TcpStream},
     path::Path,
     sync::{
         Arc,
@@ -35,18 +35,9 @@ impl Registry {
                     }
                     Err(error) => panic!("Registry fixture: {error}"),
                 };
-                stream
-                    .set_read_timeout(Some(Duration::from_secs(5)))
-                    .unwrap();
-                let mut request = Vec::new();
-                let mut buffer = [0; 4096];
-                while !request.windows(4).any(|part| part == b"\r\n\r\n") {
-                    let count = stream.read(&mut buffer).unwrap();
-                    if count == 0 {
-                        break;
-                    }
-                    request.extend_from_slice(&buffer[..count]);
-                }
+                let Ok(request) = read_request(&mut stream) else {
+                    continue;
+                };
                 let request = String::from_utf8_lossy(&request);
                 let mut words = request.split_whitespace();
                 let method = words.next().unwrap_or("");
@@ -91,4 +82,35 @@ impl Drop for Registry {
         self.stopped.store(true, Ordering::Relaxed);
         self.thread.take().unwrap().join().unwrap();
     }
+}
+
+fn read_request(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
+    stream.set_nonblocking(false)?;
+    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+    let mut request = Vec::new();
+    let mut buffer = [0; 4096];
+    while !request.windows(4).any(|part| part == b"\r\n\r\n") {
+        let count = stream.read(&mut buffer)?;
+        if count == 0 {
+            return Err(io::ErrorKind::UnexpectedEof.into());
+        }
+        request.extend_from_slice(&buffer[..count]);
+    }
+    Ok(request)
+}
+
+#[test]
+fn accepted_nonblocking_connections_wait_for_request_headers() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        stream.set_nonblocking(true).unwrap();
+        read_request(&mut stream)
+    });
+    let mut client = TcpStream::connect(address).unwrap();
+    thread::sleep(Duration::from_millis(100));
+    let request = b"GET /info/gem HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    let _ = client.write_all(request);
+    assert_eq!(server.join().unwrap().unwrap(), request);
 }

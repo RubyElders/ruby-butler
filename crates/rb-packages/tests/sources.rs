@@ -245,6 +245,20 @@ fn native_sources_compile_and_load_with_frozen_bundler() {
             "42\n",
             "{kind}"
         );
+        let marker = require(
+            &bundle,
+            "puts File.join(Gem.loaded_specs.fetch('fixture').extension_dir, 'gem.build_complete')",
+        );
+        fs::remove_file(marker.trim()).unwrap();
+        let repaired = prepare(options(root.path()), TaskEvents::default()).unwrap();
+        assert_eq!(
+            require(
+                &repaired,
+                "require 'fixture'; raise if Gem.loaded_specs.fetch('fixture').missing_extensions?; puts Fixture.answer"
+            ),
+            "42\n",
+            "{kind}"
+        );
         assert!(!source.join("ext/fixture/Makefile").exists());
     }
 }
@@ -660,4 +674,32 @@ fn compatibility_gemfile_keeps_optional_groups_inactive() {
     enabled.plan.with.insert("extras".into());
     let bundle = prepare(enabled, TaskEvents::default()).unwrap();
     assert_eq!(require(&bundle, "require 'helper'; puts HELPER"), "42\n");
+}
+
+#[test]
+fn unchanged_archives_refresh_path_snapshot_locations_when_unlisted_source_files_change() {
+    let root = tempfile::tempdir().unwrap();
+    let source = source(root.path());
+    fs::write(
+        root.path().join("Gemfile"),
+        "gem 'fixture', path: 'source-repository'\n",
+    )
+    .unwrap();
+    let first = prepare(options(root.path()), TaskEvents::default()).unwrap();
+    let before = require(
+        &first,
+        "puts Gem.loaded_specs.fetch('fixture').full_gem_path",
+    );
+    fs::write(source.join("notes.txt"), "unlisted source file").unwrap();
+    let second = prepare(options(root.path()), TaskEvents::default()).unwrap();
+    assert_eq!(first.fingerprint, second.fingerprint);
+    let after = require(
+        &second,
+        "require 'fixture'; puts Gem.loaded_specs.fetch('fixture').full_gem_path",
+    );
+    assert_ne!(before, after);
+    assert_eq!(
+        require(&second, "require 'fixture'; puts Fixture::VERSION"),
+        "1.0.0\n"
+    );
 }

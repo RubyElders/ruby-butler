@@ -249,7 +249,6 @@ fn inputs(
                 .iter()
                 .map(|name| name.to_string()),
         );
-        names.insert("PATH".into());
         cache = cache.environment_inputs(names);
     }
     for name in [
@@ -300,11 +299,9 @@ fn metadata(
 }
 
 fn configuration(options: &PrepareOptions) -> Result<String> {
-    let executable = std::env::current_exe()?;
-    let metadata = fs::metadata(&executable)?;
     let data = format!(
-        "prepared state 1 {options:?} {executable:?} {:?}",
-        (metadata.len(), metadata.modified()?)
+        "prepared state {} {options:?}",
+        crate::constants::PREPARED_STATE_VERSION
     );
     Ok(format!("{:x}", Sha256::digest(data.as_bytes())))
 }

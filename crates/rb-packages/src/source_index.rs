@@ -153,6 +153,15 @@ impl SourceIndex {
             .and_then(|entries| entries.iter().find(|entry| entry.record == *record))
             .context("Source package is unavailable")
     }
+
+    pub(crate) fn sources_current(
+        &self,
+        home: &Path,
+        plan: &crate::PackagePlan,
+        runtime: &RubyEnvironment,
+    ) -> Result<bool> {
+        crate::source_install::current(self, home, plan, runtime)
+    }
 }
 
 impl PackageIndex for SourceIndex {

@@ -10,6 +10,7 @@ use std::{
 mod registry;
 
 pub struct Fixture {
+    pub binary: PathBuf,
     pub root: tempfile::TempDir,
     pub rubies: tempfile::TempDir,
     pub version: String,
@@ -133,6 +134,7 @@ impl Fixture {
         )
         .unwrap();
         Self {
+            binary: env!("CARGO_BIN_EXE_rb").into(),
             root,
             rubies,
             version,
@@ -174,7 +176,7 @@ impl Fixture {
     }
 
     pub fn bare_command(&self) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_rb"));
+        let mut command = Command::new(&self.binary);
         command.current_dir(self.root.path());
         command.env("XDG_CACHE_HOME", self.rubies.path().join("cache"));
         for key in [
