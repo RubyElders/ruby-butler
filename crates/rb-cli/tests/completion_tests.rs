@@ -734,15 +734,19 @@ fn test_completion_with_rubies_dir_flag() {
     sandbox.add_ruby_dir("3.4.5").unwrap();
 
     // "rb -R /path/to/rubies -r " should still complete Ruby versions
-    let line = format!("rb -R {} -r ", sandbox.root().display());
-    let cursor = line.len().to_string();
-    let completions = capture_completions(&line, &cursor, None);
-
-    assert!(
-        completions.contains("3.4.5"),
-        "Expected Ruby version after -R and -r flags, got: {}",
-        completions
-    );
+    let alternate = sandbox.root().join("rubies with spaces");
+    std::fs::create_dir_all(alternate.join("ruby-3.4.5")).unwrap();
+    for directory in [sandbox.root(), alternate.as_path()] {
+        let directory = shlex::try_quote(directory.to_str().unwrap()).unwrap();
+        let line = format!("rb -R {directory} -r ");
+        let cursor = line.len().to_string();
+        let completions = capture_completions(&line, &cursor, None);
+        assert!(
+            completions.contains("3.4.5"),
+            "Expected Ruby version after -R and -r flags, got: {}",
+            completions
+        );
+    }
 }
 
 #[test]

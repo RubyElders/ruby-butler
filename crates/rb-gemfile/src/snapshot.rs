@@ -120,6 +120,7 @@ impl SnapshotCache {
             &ruby,
             &excluded,
             self.environment.as_ref(),
+            FingerprintKind::Inputs,
         )
     }
 
@@ -206,6 +207,7 @@ impl SnapshotCache {
                             &ruby,
                             &excluded,
                             snapshot.evaluation.environment.as_ref(),
+                            FingerprintKind::Evaluation,
                         )?
                     {
                         return Ok(CachedEvaluation {
@@ -225,6 +227,7 @@ impl SnapshotCache {
             &ruby,
             &excluded,
             self.environment.as_ref(),
+            FingerprintKind::Evaluation,
         )?;
         let evaluation = evaluator.evaluate(&gemfile)?;
         let covered = evaluation.inputs.iter().all(|path| {
@@ -243,6 +246,7 @@ impl SnapshotCache {
                     &ruby,
                     &excluded,
                     self.environment.as_ref(),
+                    FingerprintKind::Evaluation,
                 )?
         {
             let mut tracked = inputs;
@@ -255,6 +259,7 @@ impl SnapshotCache {
                     &ruby,
                     &excluded,
                     evaluation.environment.as_ref(),
+                    FingerprintKind::Evaluation,
                 )?,
                 checksum: evaluation_checksum(&evaluation)?,
                 evaluation: evaluation.clone(),
@@ -290,6 +295,11 @@ fn absolute(path: &Path) -> io::Result<PathBuf> {
     }
 }
 
+enum FingerprintKind {
+    Inputs,
+    Evaluation,
+}
+
 fn fingerprint(
     evaluator: &Evaluator,
     gemfile: &Path,
@@ -297,24 +307,27 @@ fn fingerprint(
     ruby: &Path,
     excluded: &[PathBuf],
     names: Option<&BTreeSet<String>>,
+    kind: FingerprintKind,
 ) -> io::Result<String> {
     let mut hash = Sha256::new();
     field(&mut hash, b"rb-gemfile snapshot 1");
     field(&mut hash, format!("{gemfile:?}").as_bytes());
     field(&mut hash, std::env::consts::OS.as_bytes());
     field(&mut hash, std::env::consts::ARCH.as_bytes());
-    for source in [
-        include_str!("evaluator.rs"),
-        include_str!("format.rs"),
-        include_str!("manifest.rs"),
-        include_str!("sources.rs"),
-        include_str!("snapshot.rs"),
-    ] {
-        field(&mut hash, source.as_bytes());
-    }
-    for (name, source) in SOURCES {
-        field(&mut hash, name.as_bytes());
-        field(&mut hash, source.as_bytes());
+    if matches!(kind, FingerprintKind::Evaluation) {
+        for source in [
+            include_str!("evaluator.rs"),
+            include_str!("format.rs"),
+            include_str!("manifest.rs"),
+            include_str!("sources.rs"),
+            include_str!("snapshot.rs"),
+        ] {
+            field(&mut hash, source.as_bytes());
+        }
+        for (name, source) in SOURCES {
+            field(&mut hash, name.as_bytes());
+            field(&mut hash, source.as_bytes());
+        }
     }
     let mut environment: std::collections::BTreeMap<_, _> = std::env::vars_os().collect();
     environment.extend(evaluator.environment.clone());

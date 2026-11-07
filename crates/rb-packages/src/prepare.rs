@@ -48,6 +48,7 @@ pub struct PreparedBundle {
 }
 
 pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBundle> {
+    ensure!(options.install.workers > 0, "Worker count must be positive");
     let project = options.project.clone();
     let _project_lock = crate::task::run("lock project", events.clone(), move |_| {
         crate::prepared_state::lock(&project)
@@ -126,14 +127,35 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
         .join(crate::constants::GEM_HOME_DIRECTORY)
         .join(crate::constants::BUNDLE_FINGERPRINT);
     let previous_identity = std::fs::read_to_string(&identity_file).ok();
-    let mut installed = crate::install(
-        &input.root,
-        &plan,
-        &runtime,
-        index.clone(),
-        options.install,
-        events.clone(),
-    )?;
+    let layout =
+        crate::BundleLayout::new(&input.root, &runtime.engine, &runtime.version.to_string());
+    let mut installed = if previous_identity.as_deref() == Some(&fingerprint)
+        && layout.gem_home.is_dir()
+        && index.sources_current(&layout.gem_home, &plan, &runtime)?
+    {
+        InstalledBundle {
+            gem_home: layout.gem_home,
+            bundle_path: layout.bundle,
+            installed: 0,
+            reused: plan
+                .packages
+                .iter()
+                .filter(|package| package.install)
+                .count(),
+            without: plan.without.iter().cloned().collect(),
+            with: plan.with.iter().cloned().collect(),
+            gemfile: None,
+        }
+    } else {
+        crate::install(
+            &input.root,
+            &plan,
+            &runtime,
+            index.clone(),
+            options.install,
+            events.clone(),
+        )?
+    };
     let compatibility_input = input.clone();
     let compatibility_plan = plan.clone();
     let compatibility_bundle = installed.clone();
