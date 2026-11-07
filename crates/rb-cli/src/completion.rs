@@ -269,14 +269,30 @@ pub(crate) fn generate_completions(
         None => print_commands(current_word),
         Some(("run", _)) => suggest_script_names(current_word, environment.project_file.as_deref()),
         Some(("exec", _)) => suggest_binstubs(current_word, &environment.bin_dirs),
-        _ => {}
+        _ => print_nested_commands(&matches, current_word),
     }
 }
 
-fn print_commands(prefix: &str) {
-    let cmd = Cli::command();
+fn print_nested_commands(matches: &clap::ArgMatches, prefix: &str) {
+    let command = Cli::command();
+    let mut active = &command;
+    let mut matches = matches;
+    while let Some((name, child)) = matches.subcommand() {
+        let Some(command) = active.find_subcommand(name) else {
+            return;
+        };
+        active = command;
+        matches = child;
+    }
+    print_command_candidates(active, prefix);
+}
 
-    for subcommand in cmd.get_subcommands() {
+fn print_commands(prefix: &str) {
+    print_command_candidates(&Cli::command(), prefix);
+}
+
+fn print_command_candidates(command: &clap::Command, prefix: &str) {
+    for subcommand in command.get_subcommands() {
         if subcommand.is_hide_set() {
             continue;
         }

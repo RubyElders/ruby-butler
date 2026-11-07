@@ -73,7 +73,7 @@ fn test_dispatch_creates_runtime_lazily() {
     // Note: This test may output to stdout - that's expected behavior for the command
     let _ = dispatch_command(
         Commands::Info {
-            command: InfoCommands::Runtime,
+            command: InfoCommands::Runtime { available: false },
         },
         &mut context,
     );

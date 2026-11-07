@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
+import hashlib
 import importlib.util
+import io
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tarfile
+import time
 
 sys.dont_write_bytecode = True
 spec = importlib.util.spec_from_file_location(
@@ -14,6 +19,82 @@ ui = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ui)
 
 binary = str(Path(sys.argv[1]).resolve())
+
+def verify_automatic_ruby_install(bundle_source):
+    archive = io.BytesIO()
+    ruby_source = (Path(__file__).parent / 'fixtures/ruby_install/ruby.sh').read_text()
+    ruby_source = ruby_source.replace('elif [ "$1" = "-rrbconfig" ]; then',
+                                      'elif [ "$1" = "-rrbconfig" ]; then\n    sleep 0.3')
+    with tarfile.open(fileobj=archive, mode='w:gz') as tar:
+        for path, contents, mode in [
+                ('bin/ruby', ruby_source, 0o755),
+                ('bin/bundle', bundle_source, 0o755),
+                ('lib/ruby/fixture.rb', '', 0o644)]:
+            data = contents.encode()
+            entry = tarfile.TarInfo('rv-ruby@3.4.10/3.4.10/' + path)
+            entry.size, entry.mode = len(data), mode
+            tar.addfile(entry, io.BytesIO(data))
+    data = archive.getvalue()
+    digest = hashlib.sha256(data).hexdigest()
+    original_environment = os.environ.copy()
+    original_directory = os.getcwd()
+    try:
+        for key in ['RB_RUBY_VERSION', 'RB_RUBIES_DIR', 'RB_WORK_DIR', 'RB_PROJECT',
+                    'RB_AUTO_INSTALL_RUBY', 'RB_NO_BUNDLER', 'BUNDLE_GEMFILE']:
+            os.environ.pop(key, None)
+        for command in [['sync'], ['x', 'rails', 'c']]:
+            for rows in [8, 24]:
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    os.chdir(root)
+                    (root / 'config.toml').write_text('')
+                    (root / '.ruby-version').write_text('3.4.10\n')
+                    (root / 'Gemfile').write_text("source 'https://rubygems.org'\n")
+                    cache = root / 'cache/rb/rubies'
+                    (cache / 'archives').mkdir(parents=True)
+                    (cache / 'archives' / (digest + '.tar.gz')).write_bytes(data)
+                    (cache / 'catalog.json').write_text(json.dumps({
+                        'url': 'https://api.github.com/repos/spinel-coop/rv-ruby/releases/latest',
+                        'etag': None,
+                        'fetched': {'secs_since_epoch': int(time.time()), 'nanos_since_epoch': 0},
+                        'release': {'tag_name': 'fixture', 'assets': [{
+                            'name': 'ruby-3.4.10.x86_64_linux.tar.gz',
+                            'size': len(data), 'digest': 'sha256:' + digest,
+                            'browser_download_url': 'https://example.invalid/ruby.tar.gz'}]}}))
+                    os.environ['XDG_CACHE_HOME'] = str(root / 'cache')
+                    args = ['-c', str(root / 'config.toml'), '-R', str(root / 'rubies'),
+                            '--package-backend', 'bundler'] + command
+                    expanded = []
+                    def observe(screen):
+                        if screen.find('│  │  ├─ ● Validating installation') is not None:
+                            expanded.append(True)
+                    screen, output = ui.capture(binary, args, rows, 120, 0, observe)
+                    assert expanded, 'automatic Ruby installation never appeared inside its parent'
+                    assert screen.find('[shell]$ rb --db sync') == 0
+                    if command == ['sync']:
+                        assert screen.find('┌─ ✓ Preparing your bundle') == 1
+                        assert screen.find('│  ├─ ✓ Installed Ruby 3.4.10 in ') == 2
+                        assert sum('┌─' in screen.line(row) for row in range(rows)) == 1
+                        assert not any('Installing Ruby' in screen.line(row) for row in range(rows))
+                        end = screen.find('└─ ✓ Your bundle is ready')
+                    else:
+                        assert screen.find('✓ Your bundle is ready') == 1
+                        assert screen.find('Rails console fixture') == 2
+                        assert not any('Installed Ruby' in screen.line(row) for row in range(rows))
+                        end = 2
+                    assert end is not None
+                    assert screen.row == end + 1 and screen.column == 0
+                    assert all(screen.line(row) for row in range(end + 1))
+                    assert not any(screen.line(row) for row in range(end + 1, rows))
+                    assert b'Validated installation' in output
+                    print(f'PASS automatic Ruby install command={command[0]} rows={rows}')
+                    os.chdir(original_directory)
+    finally:
+        os.chdir(original_directory)
+        os.environ.clear()
+        os.environ.update(original_environment)
+
+
 with tempfile.TemporaryDirectory() as temporary:
     root = Path(temporary)
     bin_dir = root / 'rubies/ruby-3.4.5/bin'
@@ -171,5 +252,6 @@ esac
         assert 'exec rails c' not in (root / 'calls').read_text().splitlines()
         assert b'Rails console fixture' not in failed_exec.stdout
         print('PASS sync and exec failures prevent launching the command')
+        verify_automatic_ruby_install(bundle.read_text())
     finally:
         os.chdir(previous)

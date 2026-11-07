@@ -1,4 +1,3 @@
-use super::sync_report::Completion;
 use crate::packages::PackageRuntime;
 use log::{debug, info};
 use rb_core::butler::ButlerError;
@@ -7,6 +6,7 @@ pub(crate) fn exec_command(
     butler: PackageRuntime,
     program_args: Vec<String>,
     backend: &crate::packages::PackageBackend,
+    report: &mut crate::reporting::PreparationReport,
 ) -> Result<(), ButlerError> {
     if program_args.is_empty() {
         return Err(ButlerError::General(
@@ -32,12 +32,12 @@ pub(crate) fn exec_command(
     {
         crate::packages::PackageStatus::Ready(runtime) => *runtime,
         crate::packages::PackageStatus::NeedsPreparation => {
-            super::sync_report::report_packages(Completion::Compact, |events| {
-                backend.prepare(&butler, events)
-            })?
-            .runtime
+            super::sync_report::report_packages(report, |events| backend.prepare(&butler, events))?
+                .runtime
         }
     };
+
+    report.finish("Your environment is ready");
 
     debug!("Program: {}", program);
     debug!("Arguments: {:?}", args);

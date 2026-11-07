@@ -65,10 +65,10 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       End
 
       It "handles non-existent Ruby version gracefully"
-        When run rb -R "$RUBIES_DIR" -r "9.9.9" exec ruby -v
+        When run rb --no-auto-install-ruby -R "$RUBIES_DIR" -r "9.9.9" exec ruby -v
         The status should not equal 0
-        The stderr should include "Requested version: 9.9.9"
-        The stderr should include "The designated Ruby estate directory appears to be absent"
+        The stderr should include "rb install ruby 9.9.9"
+        The stderr should include "enable --auto-install-ruby"
       End
     End
 
@@ -86,9 +86,9 @@ Describe "Ruby Butler Exec Command - Ruby Environment"
       End
 
       It "handles non-existent rubies directory gracefully"
-        When run rb -R "/non/existent/path" exec ruby -v
+        When run rb --no-auto-install-ruby -R "/non/existent/path" exec ruby -v
         The status should not equal 0
-        The stderr should include "Ruby installation directory not found"
+        The stderr should include "is not installed in /non/existent/path"
       End
 
       It "combines rubies directory with specific Ruby version"

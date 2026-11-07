@@ -153,6 +153,7 @@ pub(crate) fn run_command(
     args: Vec<String>,
     project_file: Option<PathBuf>,
     backend: &crate::packages::PackageBackend,
+    report: &mut crate::reporting::PreparationReport,
 ) -> Result<(), ButlerError> {
     if script_name.is_none() {
         return list_available_scripts(butler_runtime, project_file);
@@ -234,7 +235,7 @@ pub(crate) fn run_command(
     info!("Delegating to exec command with args: {:?}", full_args);
 
     // Delegate to exec_command for consistent behavior (auto bundle exec, env composition)
-    exec_command(butler_runtime, full_args, backend)
+    exec_command(butler_runtime, full_args, backend, report)
 }
 
 /// Parse a command string into program and arguments

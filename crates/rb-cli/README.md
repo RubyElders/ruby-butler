@@ -60,3 +60,9 @@ setx PATH "%PATH%;C:\bin"
 ```
 
 Then restart your terminal to use `rb` from anywhere.
+
+## Installing Ruby
+
+On Linux and macOS, `rb install ruby 3.4` installs a prebuilt CRuby into `~/.rubies`, respecting `-R` and `RB_RUBIES_DIR`. Use `rb info runtime --available` to list downloadable versions.
+
+`run`, `exec`, and `sync` automatically install a missing Ruby. Disable this with `--no-auto-install-ruby`, `RB_AUTO_INSTALL_RUBY=false`, or `auto-install-ruby = false` in your Butler config. Use `--auto-install-ruby` to override it for one command.

@@ -92,6 +92,9 @@ pub fn config_command(config: &TrackedConfig) -> Result<(), ButlerError> {
     );
     println!();
 
+    println!("Auto-install Ruby: {}", config.auto_install_ruby.get());
+    println!("  Source: {}", config.auto_install_ruby.source);
+    println!();
     println!("Package Backend: {}", config.package_backend.get());
     println!("  Source: {}", config.package_backend.source);
     println!();
