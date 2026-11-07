@@ -2,6 +2,43 @@ use rb_progress::Reporter;
 use std::{thread, time::Duration};
 
 fn main() {
+    if std::env::args().any(|arg| arg == "--nested") {
+        let reporter = Reporter::start("Preparing environment").unwrap();
+        let child = reporter.child("Installing Ruby");
+        child
+            .handle()
+            .phase_started("Extracting archive", "Extracted archive");
+        thread::sleep(Duration::from_millis(300));
+        child
+            .handle()
+            .phase_finished("Extracting archive", "Extracted archive", None);
+        if std::env::args().any(|arg| arg == "--nested-failure") {
+            let validation = child.child("Validating installation");
+            validation.handle().fail("Missing standard library");
+            validation.finish();
+            child.finish();
+            reporter.finish_compact("Environment ready");
+        } else {
+            child.finish_with_summary("Installed Ruby 4.0.9");
+            reporter.handle().event("checking dependencies", 1, 1, None);
+            reporter.finish_with_summary("Environment ready");
+        }
+        return;
+    }
+    if std::env::args().any(|arg| arg == "--phases") {
+        let reporter = Reporter::start("Installing Ruby 4.0").unwrap();
+        let progress = reporter.handle();
+        progress.phase_started("Selecting Ruby", "Selected Ruby");
+        thread::sleep(Duration::from_millis(300));
+        progress.phase_finished("Selecting Ruby", "Selected Ruby", Some("4.0.9".into()));
+        progress.phase_started("Downloading", "Downloaded");
+        progress.byte_progress("Downloading", 1024, 2048);
+        thread::sleep(Duration::from_millis(300));
+        progress.byte_progress("Downloading", 2048, 2048);
+        progress.phase_finished("Downloading", "Downloaded", None);
+        reporter.finish_with_summary("Installed Ruby 4.0.9 in .rubies/ruby-4.0.9");
+        return;
+    }
     if std::env::args().any(|arg| arg == "--aggregate") {
         let reporter = Reporter::start("processing documents").unwrap();
         reporter.handle().event("reading", 1, 1, None);

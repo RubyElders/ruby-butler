@@ -1,7 +1,7 @@
 use std::{
     io::{self, IsTerminal, Write},
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     thread,
@@ -13,24 +13,92 @@ use crate::task::TaskBridge;
 #[cfg(feature = "rb-task")]
 use rb_task::TaskEventSink;
 
-use crate::{events::ProgressEvent, render, state::ProgressState};
+use crate::{
+    events::ProgressEvent, progress_unit::ProgressUnit, render, state::ProgressState,
+    target::ProgressTarget,
+};
 
 #[derive(Clone)]
 pub struct ProgressHandle {
-    progress: Arc<Mutex<ProgressState>>,
+    progress: ProgressTarget,
 }
 
 impl ProgressHandle {
     pub fn emit(&self, event: ProgressEvent) {
+        self.emit_with_unit(event, ProgressUnit::Count);
+    }
+
+    pub fn phase_started(&self, active: &'static str, completed: &'static str) {
+        self.phase_status(active, completed, false, None);
+    }
+
+    pub fn phase_finished(
+        &self,
+        active: &'static str,
+        completed: &'static str,
+        detail: Option<String>,
+    ) {
+        self.phase_status(active, completed, true, detail);
+    }
+
+    fn phase_status(
+        &self,
+        active: &'static str,
+        completed: &'static str,
+        finished: bool,
+        detail: Option<String>,
+    ) {
         let mut progress = self.progress.lock().unwrap();
         if progress.closed {
             return;
         }
+        let same_phase = progress.phase == active;
+        let (unit, done, total) = if same_phase {
+            (progress.unit, progress.done, progress.total)
+        } else {
+            (ProgressUnit::Status, 0, 0)
+        };
+        let event = ProgressEvent {
+            worker: None,
+            phase: active,
+            done,
+            total,
+            detail,
+            elapsed: None,
+        };
+        progress.show_with_unit(event.clone(), unit);
+        progress.completed_label = Some(completed);
+        progress.phase_finished = finished;
         if progress.plain {
-            crate::plain::progress(&progress, &event);
+            crate::plain::progress(&progress, &event, unit);
         }
-        progress.show(event);
-        render::draw(&mut progress);
+        progress.draw();
+    }
+
+    pub fn byte_progress(&self, phase: &'static str, received: usize, total: usize) {
+        self.emit_with_unit(
+            ProgressEvent {
+                worker: None,
+                phase,
+                done: received,
+                total,
+                detail: None,
+                elapsed: None,
+            },
+            ProgressUnit::Bytes,
+        );
+    }
+
+    fn emit_with_unit(&self, event: ProgressEvent, unit: ProgressUnit) {
+        let mut progress = self.progress.lock().unwrap();
+        if progress.closed {
+            return;
+        }
+        progress.show_with_unit(event.clone(), unit);
+        if progress.plain {
+            crate::plain::progress(&progress, &event, unit);
+        }
+        progress.draw();
     }
 
     pub fn event(&self, phase: &'static str, done: usize, total: usize, detail: Option<String>) {
@@ -77,7 +145,7 @@ impl ProgressHandle {
             elapsed: None,
         });
         progress.set_worker_status(worker, crate::state::WorkerStatus::Running);
-        render::draw(&mut progress);
+        progress.draw();
     }
 
     /// Appends output to an existing worker's three-line terminal preview.
@@ -91,7 +159,7 @@ impl ProgressHandle {
             crate::plain::line(&progress, &format!("worker: {worker}"), output);
         }
         progress.worker_output(worker, output);
-        render::draw(&mut progress);
+        progress.draw();
     }
 
     pub fn worker_finished(&self, worker: usize) {
@@ -122,7 +190,7 @@ impl ProgressHandle {
         if progress.plain {
             crate::plain::line(&progress, &format!("worker: {worker}"), &message);
         }
-        render::draw(&mut progress);
+        progress.draw();
     }
 
     pub fn fail(&self, error: impl Into<String>) {
@@ -135,7 +203,7 @@ impl ProgressHandle {
             crate::plain::line(&progress, "overall", &format!("failed: {error}"));
         }
         progress.record_failure(error);
-        render::draw(&mut progress);
+        progress.draw();
     }
 
     pub fn suspend(&self) {
@@ -143,14 +211,13 @@ impl ProgressHandle {
         if progress.closed {
             return;
         }
-        progress.external_output = true;
-        render::draw(&mut progress);
+        progress.suspend();
     }
 }
 
 pub struct Reporter {
-    progress: Arc<Mutex<ProgressState>>,
-    running: Arc<AtomicBool>,
+    progress: ProgressTarget,
+    running: Option<Arc<AtomicBool>>,
     ticker: Option<thread::JoinHandle<()>>,
     finished: bool,
 }
@@ -175,13 +242,15 @@ impl Reporter {
     }
 
     fn build(title: String, writer: impl Write + Send + 'static, plain: bool) -> Self {
-        let progress = Arc::new(Mutex::new(ProgressState {
+        let progress = ProgressTarget::new(ProgressState {
             plain,
             title,
-            output: Some(Mutex::new(Box::new(io::BufWriter::new(writer)))),
+            output: Some(Arc::new(std::sync::Mutex::new(Box::new(
+                io::BufWriter::new(writer),
+            )))),
             started: Some(Instant::now()),
             ..Default::default()
-        }));
+        });
         let running = Arc::new(AtomicBool::new(true));
         let ticker_progress = progress.clone();
         let ticker_running = running.clone();
@@ -192,15 +261,24 @@ impl Reporter {
         let ticker = (!plain).then(|| {
             thread::spawn(move || {
                 while ticker_running.load(Ordering::Relaxed) {
-                    render::draw(&mut ticker_progress.lock().unwrap());
+                    ticker_progress.lock().unwrap().draw();
                     thread::sleep(Duration::from_millis(250));
                 }
             })
         });
         Self {
             progress,
-            running,
+            running: Some(running),
             ticker,
+            finished: false,
+        }
+    }
+
+    pub fn child(&self, title: impl Into<String>) -> Self {
+        Self {
+            progress: self.progress.child(title.into()),
+            running: None,
+            ticker: None,
             finished: false,
         }
     }
@@ -230,17 +308,36 @@ impl Reporter {
         })
     }
 
-    fn stop(&mut self, summary: Option<String>, compact: bool) {
+    fn stop(&mut self, mut summary: Option<String>, compact: bool) {
         if self.finished {
             return;
         }
         self.finished = true;
-        self.running.store(false, Ordering::Relaxed);
+        if let Some(running) = &self.running {
+            running.store(false, Ordering::Relaxed);
+        }
         if let Some(ticker) = self.ticker.take() {
             let _ = ticker.join();
         }
         let mut progress = self.progress.lock().unwrap();
-        if compact && progress.failed_tasks == 0 && !progress.external_output {
+        if progress.closed {
+            return;
+        }
+        progress.close_children();
+        progress.finished_elapsed = Some(progress.elapsed());
+        if !progress.is_root() {
+            progress.summary = summary;
+            progress.closed = true;
+            if progress.plain {
+                crate::plain::finish(&progress, progress.summary.as_deref());
+            }
+            progress.draw();
+            return;
+        }
+        if progress.failed_tasks == 0 && progress.failure_count() > 0 {
+            summary = None;
+        }
+        if compact && progress.failure_count() == 0 && !progress.external_output {
             render::finish_compact(&mut progress, summary);
         } else {
             render::finish(&mut progress, summary);
@@ -254,6 +351,9 @@ impl Drop for Reporter {
         self.stop(None, false);
     }
 }
+
+#[cfg(test)]
+use std::sync::Mutex;
 
 #[cfg(test)]
 mod tests;

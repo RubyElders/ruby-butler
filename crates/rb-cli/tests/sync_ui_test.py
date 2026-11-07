@@ -68,16 +68,16 @@ esac
             for rows in [8, 24]:
                 preview_seen = []
                 def observe(screen):
-                    first = screen.find('│        preview one')
+                    first = screen.find('│  │     preview one')
                     if first is not None and first + 2 < rows:
-                        if (screen.line(first + 1).strip() == '│        preview two'
-                                and screen.line(first + 2).strip() == '│        preview three'):
+                        if (screen.line(first + 1).strip() == '│  │     preview two'
+                                and screen.line(first + 2).strip() == '│  │     preview three'):
                             preview_seen.append(True)
                 screen, output = ui.capture(binary, args, rows, 80, 0, observe)
                 if not ready and rows == 24:
                     assert preview_seen, 'three-line Bundler preview was never displayed'
                     for line in ['preview one', 'preview two', 'preview three']:
-                        assert ('\x1b[2m│        ' + line + '\x1b[22m').encode() in output
+                        assert ('\x1b[2m│  │     ' + line + '\x1b[22m').encode() in output
 
                 assert screen.find('[shell]$ rb --db sync') == 0
                 assert screen.find('┌─ ✓ Preparing your bundle') == 1

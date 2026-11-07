@@ -19,7 +19,11 @@ pub fn format_duration(duration: Duration) -> String {
 }
 
 pub(crate) fn fit_terminal(text: &str) -> String {
-    let width = terminal_size()
+    fit_width(text, terminal_width())
+}
+
+fn terminal_width() -> usize {
+    terminal_size()
         .map(|(Width(width), Height(_))| usize::from(width))
         .or_else(|| {
             std::env::var("COLUMNS")
@@ -27,8 +31,33 @@ pub(crate) fn fit_terminal(text: &str) -> String {
                 .and_then(|value| value.parse().ok())
         })
         .unwrap_or(80)
-        .saturating_sub(1);
-    fit_width(text, width)
+        .saturating_sub(1)
+}
+
+pub(crate) fn wrap_terminal(text: &str, first: &str, continuation: &str) -> Vec<String> {
+    wrap_width(text, first, continuation, terminal_width())
+}
+
+fn wrap_width(text: &str, first: &str, continuation: &str, width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut line = first.to_owned();
+    let mut columns = UnicodeWidthStr::width(line.as_str());
+    for paragraph in text.lines() {
+        for character in plain_text(paragraph).chars() {
+            let char_width = character.width().unwrap_or(0);
+            if columns + char_width > width {
+                lines.push(fit_width(&line, width));
+                line = continuation.to_owned();
+                columns = UnicodeWidthStr::width(continuation);
+            }
+            line.push(character);
+            columns += char_width;
+        }
+        lines.push(fit_width(&line, width));
+        line = continuation.to_owned();
+        columns = UnicodeWidthStr::width(continuation);
+    }
+    lines
 }
 
 fn fit_width(text: &str, width: usize) -> String {

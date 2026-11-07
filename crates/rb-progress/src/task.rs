@@ -1,13 +1,13 @@
+use crate::target::ProgressTarget;
 use crate::{
     events::ProgressEvent,
     state::{ProgressState, WorkerStatus},
     terminal::format_duration,
 };
 use rb_task::{TaskEvent, TaskEventSink};
-use std::sync::{Arc, Mutex};
 
 pub(crate) struct TaskBridge {
-    pub(crate) progress: Arc<Mutex<ProgressState>>,
+    pub(crate) progress: ProgressTarget,
 }
 
 impl TaskEventSink for TaskBridge {
@@ -50,7 +50,7 @@ impl TaskEventSink for TaskBridge {
             },
             TaskEvent::Output { worker, line, .. } => {
                 progress.worker_output(worker, &line);
-                crate::render::draw(&mut progress);
+                progress.draw();
                 return;
             }
             TaskEvent::Progress {
@@ -101,7 +101,7 @@ impl TaskEventSink for TaskBridge {
             progress.set_worker_status(worker, status);
             progress.workers.get_mut(&worker).unwrap().elapsed = elapsed;
         }
-        crate::render::draw(&mut progress);
+        progress.draw();
     }
 }
 fn write_plain_event(state: &ProgressState, event: &TaskEvent) {

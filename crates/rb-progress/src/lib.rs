@@ -2,9 +2,11 @@
 
 mod events;
 mod plain;
+mod progress_unit;
 mod render;
 mod reporter;
 mod state;
+mod target;
 #[cfg(feature = "rb-task")]
 mod task;
 mod terminal;
