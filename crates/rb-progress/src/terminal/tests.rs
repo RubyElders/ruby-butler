@@ -165,3 +165,29 @@ fn activity_icon_cycles_at_the_refresh_interval() {
     assert_eq!(activity_icon(Duration::from_millis(2500)), '⠋');
     assert!(frames.chars().all(|frame| frame.width() == Some(1)));
 }
+
+#[test]
+fn long_errors_wrap_under_the_failed_phase_without_losing_text() {
+    let text = "cannot load such file -- readline (LoadError)";
+    let lines = super::wrap_width(text, "│  └─ × ", "│       ", 24);
+    assert!(lines.len() > 1);
+    assert!(lines[0].starts_with("│  └─ × "));
+    assert!(
+        lines
+            .iter()
+            .skip(1)
+            .all(|line| line.starts_with("│       "))
+    );
+    assert!(
+        lines
+            .iter()
+            .all(|line| unicode_width::UnicodeWidthStr::width(line.as_str()) <= 24)
+    );
+    assert_eq!(
+        lines
+            .iter()
+            .map(|line| line.chars().skip(8).collect::<String>())
+            .collect::<String>(),
+        text
+    );
+}

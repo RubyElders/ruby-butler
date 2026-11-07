@@ -182,10 +182,17 @@ def run(binary, tasks=False, handoff_output=False, stress=False, failure=False, 
         title = screen.find('┌─ × processing documents' if failure else '┌─ ✓ processing documents')
         summary = screen.find('└─ × processing failed' if failure else '└─ ✓ documents ready')
         prompt = screen.find('[shell]$ rb --db sync')
-        if title != prompt + 1 or summary != title + (2 if failure else 1):
+        if title != prompt + 1 or (not failure and summary != title + 1):
             raise SystemExit('task-only reporter left duplicate or blank rows')
-        if failure and not any('document failure' in screen.line(row) for row in range(rows)):
-            raise SystemExit('final report lost the task error')
+        if failure:
+            error_rows = [screen.line(row) for row in range(title + 1, summary)]
+            if not error_rows or not error_rows[0].startswith('│  ├─ × '):
+                raise SystemExit('task failure is not a branch of the report')
+            if any(not line.startswith('│       ') for line in error_rows[1:]):
+                raise SystemExit('wrapped error rows are blank or misaligned')
+            error_text = ''.join(line[8:] for line in error_rows)
+            if error_text.count('document failure') != 1:
+                raise SystemExit('final report lost or duplicated the task error')
         if screen.find('probe complete') != summary + 1:
             raise SystemExit('task-only final output did not start on the next line')
         titles = sum('processing documents' in screen.line(row) for row in range(screen.rows))
@@ -199,14 +206,14 @@ def run(binary, tasks=False, handoff_output=False, stress=False, failure=False, 
             raise SystemExit('stress probe lost Unicode output')
         print(f'PASS PTY generic tasks {columns}x{rows} prompt={prompt_row} failure={failure}')
         return
-    completed_row = screen.find('├─ ✓ preparing pty-probe bundle')
+    completed_row = screen.find('│  ├─ ✓ preparing pty-probe bundle')
     if completed_row is None:
         raise SystemExit('final bundle row was not completed')
-    if sum(line.startswith('├─ ✓ preparing pty-probe bundle') for line in (screen.line(row) for row in range(screen.rows))) != 1:
+    if sum(line.startswith('│  ├─ ✓ preparing pty-probe bundle') for line in (screen.line(row) for row in range(screen.rows))) != 1:
         raise SystemExit('final bundle row was duplicated')
-    if screen.has('├─ ● preparing pty-probe bundle'):
+    if screen.has('│  ├─ ● preparing pty-probe bundle'):
         raise SystemExit('final bundle row remained active')
-    if screen.find('├─ ✓ preparing native extensions') is None:
+    if screen.find('│  ├─ ✓ preparing native extensions') is None:
         raise SystemExit('native handoff row was lost')
     resolved_row = screen.find('┌─ ● preparing pty-probe bundle')
     if resolved_row is None:
@@ -263,6 +270,55 @@ def verify_standalone_parallel(binary):
         print(f'PASS PTY standalone parallel {columns}x{rows}')
 
 
+def verify_phase_lifecycle(binary):
+    for rows, columns in [(24, 80), (8, 60)]:
+        active = []
+        def observe(screen):
+            if screen.find('│  ├─ ● Selecting Ruby (') is not None:
+                active.append(True)
+        screen, output = capture(binary, ['--phases'], rows, columns, 0, observe)
+        assert active, 'active selection phase was never displayed'
+        assert screen.find('[shell]$ rb --db sync') == 0
+        assert screen.find('┌─ ✓ Installing Ruby 4.0') == 1
+        assert screen.find('│  ├─ ✓ Selected Ruby 4.0.9') == 2
+        assert screen.find('│  ├─ ✓ Downloaded 2.0 KiB / 2.0 KiB (100%)') == 3
+        assert screen.find('└─ ✓ Installed Ruby 4.0.9 in .rubies/ruby-4.0.9') == 4
+        assert screen.row == 5 and screen.column == 0
+        assert not any(screen.line(row) for row in range(5, rows))
+        assert b'1/1' not in output
+        print(f'PASS PTY phase lifecycle {columns}x{rows}')
+
+
+def verify_nested_reporting(binary):
+    for rows, columns in [(24, 80), (8, 60)]:
+        for failure in [False, True]:
+            expanded = []
+            def observe(screen):
+                if screen.find('│  │  ├─ ● Extracting archive') is not None:
+                    expanded.append(True)
+            args = ['--nested'] + (['--nested-failure'] if failure else [])
+            screen, output = capture(binary, args, rows, columns, 0, observe)
+            assert expanded, 'nested progress never expanded'
+            assert screen.find('[shell]$ rb --db sync') == 0
+            marker = '×' if failure else '✓'
+            assert screen.find(f'┌─ {marker} Preparing environment') == 1
+            assert sum('┌─' in screen.line(row) for row in range(rows)) == 1
+            if failure:
+                assert any('Missing standard library' in screen.line(row) for row in range(rows))
+                assert not any('✓ Environment ready' in screen.line(row) for row in range(rows))
+                end = screen.find('└─ × failed')
+            else:
+                assert screen.find('│  ├─ ✓ Installed Ruby 4.0.9') == 2
+                assert not any('Extracting archive' in screen.line(row) for row in range(rows))
+                assert screen.find('│  ├─ ✓ checking dependencies') == 3
+                end = screen.find('└─ ✓ Environment ready')
+            assert end is not None
+            assert screen.row == end + 1 and screen.column == 0
+            assert all(screen.line(row) for row in range(end + 1))
+            assert not any(screen.line(row) for row in range(end + 1, rows))
+            print(f'PASS PTY nested reporting {columns}x{rows} failure={failure}')
+
+
 def verify_parser():
     data = 'prompt\r\n資料 e\u0301\x1b[1A\r\x1b[2Ktitle'.encode()
     expected = Screen(8, 40)
@@ -290,6 +346,8 @@ if __name__ == '__main__':
     print('PASS redirected output uses worker-prefixed plain reporting')
     verify_standalone_parallel(sys.argv[2])
     verify_aggregate_completion(sys.argv[1])
+    verify_phase_lifecycle(sys.argv[1])
+    verify_nested_reporting(sys.argv[1])
     run(sys.argv[1])
     run(sys.argv[1], tasks=True)
     run(sys.argv[1], handoff_output=True)

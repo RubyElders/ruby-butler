@@ -177,7 +177,7 @@ mod tests {
                 assert!(text.contains(phase), "{text}");
             }
             assert!(text.contains("worker 0"));
-            assert!(text.contains("│        compiler output"));
+            assert!(text.contains("│  │     compiler output"));
             assert!(!text.contains("| compiler output"));
             assert!(text.contains(match result {
                 SyncResult::AlreadySynced => "Everything is already in order",

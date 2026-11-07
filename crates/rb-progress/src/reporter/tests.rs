@@ -24,10 +24,21 @@ fn completed_phases_remain_as_checked_history_rows() {
         detail: None,
         elapsed: None,
     });
-    let rows = render::history_lines(&progress);
-    assert_eq!(rows.len(), 1);
-    assert!(rows[0].contains("✓ resolving"));
-    assert!(rows[0].contains("1/1"));
+    let frame = render::tree_frame(&progress);
+    assert_eq!(
+        frame
+            .iter()
+            .filter(|line| line.starts_with("│  ├─ ✓ resolving 1/1"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        frame
+            .iter()
+            .filter(|line| line.starts_with("│  ├─ ● downloading 0/2"))
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -65,8 +76,21 @@ fn fetch_progress_updates_keep_separate_phase_rows() {
     assert_eq!(progress.history[0].phase, "downloading");
     assert_eq!(progress.history[1].phase, "unpacking");
     assert_eq!(progress.phase, "unpacking");
-    assert_eq!(render::history_lines(&progress).len(), 2);
-    assert!(render::history_lines(&progress)[0].contains("downloading"));
+    let frame = render::tree_frame(&progress);
+    assert_eq!(
+        frame
+            .iter()
+            .filter(|line| line.contains("downloading"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        frame
+            .iter()
+            .filter(|line| line.contains("unpacking"))
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -515,9 +539,9 @@ fn standalone_worker_output_keeps_three_lines_without_changing_its_label() {
         let lines = render::body_lines(&state);
         assert!(lines.windows(3).any(|lines| lines
             == [
-                "\x1b[2m│        two\x1b[22m",
-                "\x1b[2m│        three\x1b[22m",
-                "\x1b[2m│        four\x1b[22m"
+                "\x1b[2m│     two\x1b[22m",
+                "\x1b[2m│     three\x1b[22m",
+                "\x1b[2m│     four\x1b[22m"
             ]));
     }
     handle.worker_started(0, "next job");
@@ -560,7 +584,7 @@ fn compact_completion_keeps_failure_details() {
     reporter.finish_compact("service failed");
     let output = buffer.text();
     assert!(output.contains("┌─ × service"));
-    assert!(output.contains("│  × Replace the teacup"));
+    assert!(output.contains("│  ├─ × Replace the teacup"));
     assert!(output.contains("└─ × service failed"));
     handle.worker_output(0, "late output");
     assert_eq!(buffer.text(), output);
@@ -584,7 +608,7 @@ fn compact_plain_completion_preserves_append_only_output() {
 }
 
 #[test]
-fn live_footer_uses_direct_status_and_trailing_duration() {
+fn live_footer_reports_overall_status_without_repeating_the_phase() {
     let mut state = ProgressState::default();
     assert_eq!(
         render::tree_frame(&state).last().unwrap(),
@@ -595,6 +619,15 @@ fn live_footer_uses_direct_status_and_trailing_duration() {
     state.total = 2;
     assert_eq!(
         render::tree_frame(&state).last().unwrap(),
-        "└─ ⠋ checking dependencies 1/2 | workers 0 (0.0s)"
+        "└─ ⠋ elapsed 0.0s"
+    );
+    assert!(
+        render::tree_frame(&state)
+            .iter()
+            .any(|line| line.contains("checking dependencies 1/2"))
     );
 }
+
+mod layout;
+mod nesting;
+mod phases;

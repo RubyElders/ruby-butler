@@ -1,8 +1,13 @@
+mod layout;
+mod nesting;
+
 use crate::state::{ProgressState, WorkerStatus};
 use crate::terminal::{
     activity_icon, clear_sequence, fit_terminal, format_duration, limit_tree_viewport,
     viewport_height,
 };
+use layout::TreeLayout;
+use nesting::child_lines;
 
 fn print(state: &ProgressState, arguments: std::fmt::Arguments<'_>) {
     if let Some(output) = &state.output {
@@ -25,7 +30,11 @@ pub(crate) fn draw(state: &mut ProgressState) {
     if state.plain {
         return;
     }
-    if state.phase.is_empty() && state.history.is_empty() && state.workers.is_empty() {
+    if state.phase.is_empty()
+        && state.history.is_empty()
+        && state.workers.is_empty()
+        && state.children.is_empty()
+    {
         return;
     }
     if state.external_output {
@@ -33,9 +42,10 @@ pub(crate) fn draw(state: &mut ProgressState) {
             clear_render(state);
             let lines = tree_frame(state);
             repaint(state, &lines);
+            let active_prefix = TreeLayout::root().row("├─", "●");
             let active_row = lines
                 .iter()
-                .position(|line| line.starts_with("│  ├─ ●"))
+                .position(|line| line.starts_with(&active_prefix))
                 .unwrap_or(1);
             let active_offset = lines.len() - active_row - 1;
             if active_offset > 0 {
@@ -63,58 +73,47 @@ pub(crate) fn tree_frame(state: &ProgressState) -> Vec<String> {
     if body.is_empty() {
         body.push("│  · working…".into());
     }
-    let footer = if state.phase.is_empty() {
-        let active = state
-            .workers
-            .values()
-            .filter(|worker| worker.status == WorkerStatus::Running)
-            .count();
-        fit_terminal(&format!(
-            "└─ {icon} completed {} | active {} | failed {} ({})",
-            state.completed_tasks,
-            active,
-            state.failed_tasks,
-            format_duration(elapsed)
-        ))
-    } else {
-        fit_terminal(&format!(
-            "└─ {icon} {} {}/{} | workers {} ({})",
-            state.phase,
-            state.done,
-            state.total,
-            state.workers.len(),
-            format_duration(elapsed)
-        ))
-    };
+    let footer =
+        if (state.phase.is_empty() && state.children.is_empty()) || !state.workers.is_empty() {
+            fit_terminal(&format!(
+                "└─ {icon} completed {} | active {} | failed {} ({})",
+                state.completed_count(),
+                state.active_count(),
+                state.failure_count(),
+                format_duration(elapsed)
+            ))
+        } else {
+            fit_terminal(&format!("└─ {icon} elapsed {}", format_duration(elapsed)))
+        };
     limit_tree_viewport(header, body, footer, viewport_height())
 }
 
 pub(crate) fn body_lines(state: &ProgressState) -> Vec<String> {
-    let mut lines = state
-        .history
-        .iter()
-        .map(|record| {
-            let stats = if record.total > 0 {
-                format!("{}/{}", record.done, record.total)
-            } else {
-                "done".into()
-            };
-            format!(
-                "│  ├─ ✓ {} {} ({})",
-                record.phase,
-                stats,
-                format_duration(record.elapsed)
-            )
-        })
-        .collect::<Vec<_>>();
+    let layout = TreeLayout::root();
+    let mut lines = child_lines(state, &layout);
+    lines.extend(own_body_lines(state, &layout));
+    lines
+}
+
+fn own_body_lines(state: &ProgressState, layout: &TreeLayout) -> Vec<String> {
+    let mut lines = history_lines(state, layout);
     if !state.phase.is_empty() {
-        lines.push(format!(
-            "│  ├─ ● {} ({})",
-            state.phase,
-            format_duration(state.phase_elapsed())
+        lines.push(active_phase_line(
+            state,
+            layout,
+            if state.closed && state.failure_count() > 0 {
+                "×"
+            } else {
+                "●"
+            },
         ));
     }
-    let mut lines: Vec<_> = lines.into_iter().map(|line| fit_terminal(&line)).collect();
+    let worker_layout = if state.phase.is_empty() {
+        None
+    } else {
+        Some(layout.child())
+    };
+    let worker_layout = worker_layout.as_ref().unwrap_or(layout);
     for (position, (worker, worker_state)) in state.workers.iter().enumerate() {
         let branch = if position + 1 == state.workers.len() {
             "└─"
@@ -130,55 +129,111 @@ pub(crate) fn body_lines(state: &ProgressState) -> Vec<String> {
             WorkerStatus::Succeeded => "✓",
             WorkerStatus::Failed => "×",
         };
-        lines.push(fit_terminal(&format!(
-            "│     {} {marker} worker {} ({}){} ({})",
+        lines.push(worker_layout.row(
             branch,
-            worker,
-            worker_state.phase,
-            detail,
-            format_duration(worker_state.elapsed.map_or_else(
-                || worker_state.started.elapsed(),
-                |elapsed| if worker_state.status != WorkerStatus::Running {
-                    elapsed
-                } else {
-                    elapsed + worker_state.started.elapsed()
-                }
-            ),)
-        )));
+            &format!(
+                "{marker} worker {} ({}){} ({})",
+                worker,
+                worker_state.phase,
+                detail,
+                format_duration(worker_state.elapsed.map_or_else(
+                    || worker_state.started.elapsed(),
+                    |elapsed| if worker_state.status != WorkerStatus::Running {
+                        elapsed
+                    } else {
+                        elapsed + worker_state.started.elapsed()
+                    }
+                ),)
+            ),
+        ));
         for line in &worker_state.output {
-            let line = fit_terminal(&format!("│        {line}"));
-            lines.push(format!("\x1b[2m{line}\x1b[22m"));
+            lines.push(worker_layout.preview(line));
         }
     }
     lines
 }
 
-#[cfg(test)]
-pub(crate) fn history_lines(state: &ProgressState) -> Vec<String> {
+fn failure_lines(state: &ProgressState, layout: &TreeLayout) -> Vec<String> {
+    let error_layout = if state.phase.is_empty() {
+        None
+    } else {
+        Some(layout.child())
+    };
+    let error_layout = error_layout.as_ref().unwrap_or(layout);
+    let branch = if state.phase.is_empty() {
+        "├─"
+    } else {
+        "└─"
+    };
+    state
+        .failures
+        .iter()
+        .flat_map(|error| error_layout.error(branch, error))
+        .collect()
+}
+
+fn history_lines(state: &ProgressState, layout: &TreeLayout) -> Vec<String> {
     state
         .history
         .iter()
-        .enumerate()
-        .map(|(index, record)| {
-            let stats = if record.total > 0 {
-                format!("{}/{}", record.done, record.total)
-            } else {
-                "done".into()
-            };
-            let detail = record
-                .detail
-                .as_deref()
-                .map_or(String::new(), |detail| format!(" | {detail}"));
-            fit_terminal(&format!(
-                "{} ✓ {} {}{} ({})",
-                if index == 0 { "┌─" } else { "├─" },
-                record.phase,
-                stats,
-                detail,
-                format_duration(record.elapsed)
-            ))
+        .filter(|record| record.phase != state.phase)
+        .map(|record| {
+            phase_line(
+                layout,
+                "✓",
+                record.completed_label.unwrap_or(record.phase),
+                Some(record.unit.format(record.done, record.total)),
+                record.detail.as_deref(),
+                record.elapsed,
+            )
         })
         .collect()
+}
+
+fn active_phase_line(state: &ProgressState, layout: &TreeLayout, marker: &str) -> String {
+    let stats = (state.total > 0
+        || matches!(state.unit, crate::progress_unit::ProgressUnit::Bytes))
+    .then(|| state.unit.format(state.done, state.total));
+    phase_line(
+        layout,
+        if state.phase_finished { "✓" } else { marker },
+        if state.phase_finished {
+            state.completed_label.unwrap_or(state.phase)
+        } else {
+            state.phase
+        },
+        stats,
+        state.phase_detail.as_deref(),
+        state.phase_elapsed(),
+    )
+}
+
+fn phase_line(
+    layout: &TreeLayout,
+    marker: &str,
+    phase: &str,
+    stats: Option<String>,
+    detail: Option<&str>,
+    elapsed: std::time::Duration,
+) -> String {
+    let uncounted = stats.as_ref().is_none_or(String::is_empty);
+    let stats = stats
+        .filter(|stats| !stats.is_empty())
+        .map_or(String::new(), |stats| format!(" {stats}"));
+    let detail = detail.map_or(String::new(), |detail| {
+        if uncounted {
+            format!(" {detail}")
+        } else {
+            format!(" | {detail}")
+        }
+    });
+    layout.row(
+        "├─",
+        &format!(
+            "{marker} {phase}{stats}{detail} ({})",
+            format_duration(elapsed)
+        ),
+    )
 }
 
 fn repaint(state: &mut ProgressState, lines: &[String]) {
@@ -263,12 +318,16 @@ pub(crate) fn finish(state: &mut ProgressState, summary: Option<String>) {
         return;
     }
     if state.handoff_drawn {
-        let line = fit_terminal(&format!(
-            "├─ ✓ {} | {} done ({})",
-            state.title,
-            state.phase,
-            format_duration(state.phase_elapsed())
-        ));
+        let layout = TreeLayout::root();
+        let line = layout.row(
+            "├─",
+            &format!(
+                "✓ {} | {} done ({})",
+                state.title,
+                state.phase,
+                format_duration(state.phase_elapsed())
+            ),
+        );
         print(state, format_args!("\r"));
         for index in 0..state.handoff_tail_rows {
             print(state, format_args!("\x1b[2K"));
@@ -291,19 +350,19 @@ pub(crate) fn finish(state: &mut ProgressState, summary: Option<String>) {
                 .find(|record| record.phase == phase)
         {
             let stats = if record.total > 0 {
-                format!("{}/{}", record.done, record.total)
+                record.unit.format(record.done, record.total)
             } else {
                 "done".into()
             };
-            println(
-                state,
-                format_args!(
-                    "├─ ✓ {} {} ({})",
-                    phase,
-                    stats,
-                    format_duration(record.elapsed)
-                ),
+            let row = phase_line(
+                &layout,
+                "✓",
+                record.completed_label.unwrap_or(phase),
+                Some(stats),
+                record.detail.as_deref(),
+                record.elapsed,
             );
+            println(state, format_args!("{row}"));
         }
         println(state, format_args!("{}", line));
         if let Some(summary) = summary {
@@ -315,58 +374,21 @@ pub(crate) fn finish(state: &mut ProgressState, summary: Option<String>) {
         state.rendered_lines = 0;
         state.frame_capacity = 0;
     } else {
-        let failed = state.failed_tasks > 0;
+        let failed = state.failure_count() > 0;
         let marker = if failed { "×" } else { "✓" };
         let header = fit_terminal(&format!("┌─ {marker} {}", state.title));
-        let mut body = state
-            .history
-            .iter()
-            .map(|record| {
-                fit_terminal(&format!(
-                    "│  ├─ ✓ {} {}/{}{} ({})",
-                    record.phase,
-                    record.done,
-                    record.total,
-                    record
-                        .detail
-                        .as_deref()
-                        .map_or(String::new(), |detail| format!(" | {detail}")),
-                    format_duration(record.elapsed)
-                ))
-            })
-            .collect::<Vec<_>>();
+        let layout = TreeLayout::root();
+        let mut body = child_lines(state, &layout);
+        body.extend(history_lines(state, &layout));
         if !state.phase.is_empty() {
-            body.push(fit_terminal(&format!(
-                "│  ├─ {marker} {} {}/{}{} ({})",
-                state.phase,
-                state.done,
-                state.total,
-                state
-                    .phase_detail
-                    .as_deref()
-                    .map_or(String::new(), |detail| format!(" | {detail}")),
-                format_duration(state.phase_elapsed())
-            )));
+            body.push(active_phase_line(state, &layout, marker));
         }
-        let failure_lines = state
-            .failures
-            .iter()
-            .flat_map(|error| {
-                error
-                    .lines()
-                    .map(|line| fit_terminal(&format!("│  × {line}")))
-            })
-            .collect::<Vec<_>>();
-        body.extend(failure_lines);
+        body.extend(failure_lines(state, &layout));
         let compact_error = failed && viewport_height() <= 3;
         let footer = fit_terminal(&format!(
             "└─ {marker} {} ({})",
             if compact_error {
-                state
-                    .failures
-                    .last()
-                    .map(String::as_str)
-                    .unwrap_or("failed")
+                state.last_failure().unwrap_or("failed")
             } else {
                 summary
                     .as_deref()
