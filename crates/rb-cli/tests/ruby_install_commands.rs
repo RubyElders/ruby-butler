@@ -71,6 +71,31 @@ fn exec_and_run_install_before_launch_and_reuse_without_reporter() {
 }
 
 #[test]
+fn prefixed_version_file_installs_and_reuses_cruby() {
+    for backend in ["bundler", "native"] {
+        let fixture = Fixture::new();
+        fixture.seed();
+        fs::write(fixture.root.path().join(".ruby-version"), "ruby-3.4.10\n").unwrap();
+        for first in [true, false] {
+            let output = success(
+                fixture
+                    .command()
+                    .args(["--package-backend", backend, "-B", "x", "ruby", "sentinel"])
+                    .output()
+                    .unwrap(),
+            );
+            assert!(fixture.installed());
+            assert!(String::from_utf8_lossy(&output.stdout).contains("Ruby command executed"));
+            if first {
+                assert!(String::from_utf8_lossy(&output.stderr).contains("Installed Ruby 3.4.10"));
+            } else {
+                assert!(output.stderr.is_empty(), "{output:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn verbose_execution_reports_one_scan_before_runtime_composition() {
     let fixture = Fixture::new();
     fixture.seed();

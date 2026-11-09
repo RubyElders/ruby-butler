@@ -22,7 +22,7 @@ impl RubyVersionDetector for RubyVersionFileDetector {
                 let version_str = content.trim();
                 debug!("Found .ruby-version content: '{}'", version_str);
 
-                match Version::parse(version_str) {
+                match Version::parse(version_str.strip_prefix("ruby-").unwrap_or(version_str)) {
                     Ok(version) => {
                         debug!(
                             "Successfully parsed Ruby version from .ruby-version: {}",
@@ -76,6 +76,24 @@ mod tests {
         let version = detector.detect(temp_dir.path()).unwrap();
 
         assert_eq!(version, Version::new(3, 1, 0));
+    }
+
+    #[test]
+    fn detects_cruby_prefixed_version_and_rejects_other_engines() {
+        let root = TempDir::new().unwrap();
+        let file = root.path().join(".ruby-version");
+        std::fs::write(&file, " ruby-4.0.5\n").unwrap();
+        assert_eq!(
+            RubyVersionFileDetector.detect(root.path()),
+            Some(Version::new(4, 0, 5))
+        );
+        for text in ["jruby-4.0.5", "truffleruby-4.0.5", "ruby-"] {
+            std::fs::write(&file, text).unwrap();
+            assert!(
+                RubyVersionFileDetector.detect(root.path()).is_none(),
+                "{text}"
+            );
+        }
     }
 
     #[test]
