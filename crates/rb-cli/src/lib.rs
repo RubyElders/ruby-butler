@@ -54,6 +54,9 @@ impl From<LogLevel> for log::LevelFilter {
 #[command(styles = STYLES)]
 #[command(next_help_heading = "Commands")]
 pub struct Cli {
+    #[arg(long, hide = true)]
+    pub help: bool,
+
     /// Enable informational diagnostic output
     #[arg(
         short = 'v',
@@ -425,9 +428,28 @@ mod tests {
     }
 
     #[test]
+    fn help_flag_does_not_consume_command_arguments() {
+        for args in [
+            vec!["rb", "x", "ruby", "--help"],
+            vec!["rb", "run", "test", "--help"],
+            vec!["rb", "x", "--", "--help"],
+        ] {
+            let cli = Cli::try_parse_from(args).unwrap();
+            assert!(!cli.help);
+            match cli.command.unwrap() {
+                Commands::Exec { args } | Commands::Run { args, .. } => {
+                    assert_eq!(args.last().unwrap(), "--help");
+                }
+                _ => panic!("expected a command with forwarded arguments"),
+            }
+        }
+    }
+
+    #[test]
     fn test_effective_log_level_with_verbose_flags() {
         // Test with log_level set
         let cli = Cli {
+            help: false,
             log_level: Some(LogLevel::Info),
             verbose: false,
             very_verbose: false,
@@ -442,6 +464,7 @@ mod tests {
 
         // Test with -v flag (should override log_level to Info)
         let cli = Cli {
+            help: false,
             log_level: Some(LogLevel::None),
             verbose: true,
             very_verbose: false,
@@ -456,6 +479,7 @@ mod tests {
 
         // Test with -V flag (should override log_level to Debug)
         let cli = Cli {
+            help: false,
             log_level: Some(LogLevel::None),
             verbose: false,
             very_verbose: true,

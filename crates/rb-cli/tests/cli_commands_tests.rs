@@ -63,16 +63,36 @@ fn test_help_for_nonexistent_command() {
 }
 
 #[test]
-fn test_help_flag_is_rejected() {
+fn test_help_flag_redirects_to_help_with_warning() {
     let output = run_rb_command(&["--help"]);
-    let stderr = output_to_string(&output.stderr);
+    let help = run_rb_command(&["help"]);
 
-    assert!(!output.status.success(), "--help flag should be rejected");
-    assert!(
-        stderr.contains("unexpected argument '--help'"),
-        "Should report unexpected argument, got: {}",
-        stderr
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, help.stdout);
+    assert_eq!(
+        output_to_string(&output.stderr).trim(),
+        "Warning: use `rb help` instead of `rb --help`."
     );
+    assert!(help.stderr.is_empty(), "{help:?}");
+}
+
+#[test]
+fn test_help_flag_respects_global_options_without_preparing_ruby() {
+    let directory = tempfile::tempdir().unwrap();
+    let missing = directory.path().join("missing-rubies");
+    let output = Command::new(env!("CARGO_BIN_EXE_rb"))
+        .arg("-C")
+        .arg(directory.path())
+        .arg("-R")
+        .arg(&missing)
+        .arg("--help")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, run_rb_command(&["help"]).stdout);
+    assert!(output_to_string(&output.stderr).contains("use `rb help`"));
+    assert!(!missing.exists());
 }
 
 #[test]

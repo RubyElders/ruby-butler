@@ -35,7 +35,11 @@ fn handle_command_error(error: ButlerError, context: &CommandContext) -> ! {
 fn main() {
     let matches = Cli::command().get_matches();
     let package_backend_source = matches.value_source("package_backend");
-    let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
+    let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
+    if cli.help {
+        eprintln!("Warning: use `rb help` instead of `rb --help`.");
+        cli.command = Some(Commands::Help { command: None });
+    }
 
     // Skip logging for bash completion (must be silent)
     if !matches!(cli.command, Some(Commands::BashComplete { .. })) {
