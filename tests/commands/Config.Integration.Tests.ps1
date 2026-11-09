@@ -52,8 +52,8 @@ Describe "Config Command - Display Current Configuration" {
             $OutputText = $Output -join "`n"
             $OutputText | Should -Match "Configuration sources.*in priority order"
             $OutputText | Should -Match "1\.\s+CLI arguments"
-            $OutputText | Should -Match "2\.\s+Configuration file"
-            $OutputText | Should -Match "3\.\s+Environment variables"
+            $OutputText | Should -Match "2\.\s+Environment variables"
+            $OutputText | Should -Match "3\.\s+Configuration file"
             $OutputText | Should -Match "4\.\s+Built-in defaults"
         }
         

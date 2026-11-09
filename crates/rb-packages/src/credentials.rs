@@ -27,6 +27,7 @@ struct Config {
 
 pub(crate) struct Credentials {
     directory: Option<PathBuf>,
+    environment: BTreeMap<std::ffi::OsString, std::ffi::OsString>,
     commands: BTreeMap<String, CommandCredential>,
     bundler: bundler_credentials::Settings,
 }
@@ -49,15 +50,21 @@ fn config_path(environment: &BTreeMap<String, String>) -> Option<PathBuf> {
 }
 
 impl Credentials {
-    pub(crate) fn load(project: &Path) -> Result<Self> {
-        Self::from_environment(
+    pub(crate) fn load_with_environment(
+        project: &Path,
+        environment: &BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+    ) -> Result<Self> {
+        let mut credentials = Self::from_environment(
             project,
-            std::env::vars_os()
+            environment
+                .iter()
                 .filter_map(|(key, value)| {
-                    Some((key.into_string().ok()?, value.into_string().ok()?))
+                    Some((key.to_str()?.to_owned(), value.to_str()?.to_owned()))
                 })
                 .collect(),
-        )
+        )?;
+        credentials.environment = environment.clone();
+        Ok(credentials)
     }
 
     fn from_environment(project: &Path, environment: BTreeMap<String, String>) -> Result<Self> {
@@ -89,7 +96,12 @@ impl Credentials {
                 "Duplicate credential source"
             );
         }
+        let inherited = environment
+            .iter()
+            .map(|(key, value)| (key.into(), value.into()))
+            .collect();
         Ok(Self {
+            environment: inherited,
             directory: path.and_then(|path| path.parent().map(Path::to_path_buf)),
             commands,
             bundler: bundler_credentials::Settings::from_environment(project, environment)?,
@@ -102,6 +114,8 @@ impl Credentials {
             return Ok(self.bundler.credentials(&source)?.map(str::to_owned));
         };
         let output = Command::new(&credential.command[0])
+            .env_clear()
+            .envs(&self.environment)
             .args(&credential.command[1..])
             .current_dir(
                 self.directory

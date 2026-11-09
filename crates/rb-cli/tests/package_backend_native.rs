@@ -332,7 +332,13 @@ fn native_completion_and_info_share_the_installed_environment() {
         .collect::<Vec<_>>()
         .join(".")
         + ".0";
-    let home = fixture.root.path().join(".rb/bundle/ruby").join(abi);
+    let home = fixture
+        .root
+        .path()
+        .canonicalize()
+        .unwrap()
+        .join(".rb/bundle/ruby")
+        .join(abi);
     let bin = home.join("bin");
     fs::create_dir_all(&bin).unwrap();
     fs::write(bin.join("native_fixture"), "#!/usr/bin/env ruby\n").unwrap();

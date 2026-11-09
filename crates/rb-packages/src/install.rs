@@ -226,6 +226,7 @@ pub fn install(
     Executor::new(options.workers, events.clone()).run(graph, actions)?;
     let specification_slots = slots.clone();
     let specification_runtime = runtime.clone();
+    let specification_options = options.build.clone();
     crate::task::run(
         "write installed specifications",
         events.clone(),
@@ -244,7 +245,12 @@ pub fn install(
                     ))
                 })
                 .collect();
-            crate::specification::write_all(&specification_runtime.executable, &records)
+            crate::specification::write_all_with_inputs(
+                &specification_runtime.executable,
+                &records,
+                specification_options.directory(),
+                specification_options.inherited_environment(),
+            )
         },
     )?;
     let mut graph = TaskGraph::new();

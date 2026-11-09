@@ -3,74 +3,75 @@ use super::{
 };
 use anyhow::{Context, Result, ensure};
 use rb_core::butler::ButlerRuntime;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub(super) struct NativeBackend {
-    project_file: Option<PathBuf>,
+    location: Option<crate::invocation::DependencyLocation>,
+    process: rb_core::process_context::ProcessContext,
     disabled: bool,
+    options: std::cell::OnceCell<rb_packages::PrepareOptions>,
 }
 
 impl NativeBackend {
-    pub(super) fn new(project_file: Option<PathBuf>, disabled: bool) -> Self {
+    pub(super) fn new(context: &crate::runtime_helpers::CommandContext) -> Self {
         Self {
-            project_file,
-            disabled,
+            location: context.projects().dependency.clone(),
+            process: context.process.clone(),
+            disabled: *context.config().no_bundler.get(),
+            options: std::cell::OnceCell::new(),
         }
     }
 
-    fn project(&self, directory: &Path) -> Result<Option<(PathBuf, Option<PathBuf>)>> {
-        if let Some(file) = &self.project_file {
-            let file = directory
-                .join(file)
+    fn project(&self) -> Result<Option<(PathBuf, Option<PathBuf>)>> {
+        let Some(location) = &self.location else {
+            return Ok(None);
+        };
+        if location.explicit {
+            let file = location
+                .project_file
+                .as_ref()
+                .or(location.gemfile.as_ref())
+                .context("Missing explicit project input")?
                 .canonicalize()
-                .context("Opening selected project file")?;
-            return Ok(Some((
-                file.parent()
-                    .context("Project file has no directory")?
-                    .into(),
-                Some(file),
-            )));
+                .context("Opening selected project input")?;
+            let root = file
+                .parent()
+                .context("Project input has no directory")?
+                .to_owned();
+            return Ok(Some((root, location.project_file.as_ref().map(|_| file))));
         }
-        if let Some(file) = std::env::var_os("BUNDLE_GEMFILE").filter(|file| !file.is_empty()) {
-            let file = directory
-                .join(file)
-                .canonicalize()
-                .context("Opening BUNDLE_GEMFILE")?;
-            return Ok(Some((
-                file.parent().context("Gemfile has no directory")?.into(),
-                None,
-            )));
-        }
-        for root in directory.ancestors() {
-            for name in ["gem.kdl", "gem.toml", "rbproject.kdl", "rbproject.toml"] {
-                let file = root.join(name);
-                if file.is_file() {
-                    return Ok(Some((root.into(), Some(file))));
-                }
-            }
-            if ["gems.rb", "Gemfile"]
-                .iter()
-                .any(|name| root.join(name).is_file())
-            {
-                return Ok(Some((root.into(), None)));
-            }
-        }
-        Ok(None)
+        Ok(Some((location.root.clone(), location.project_file.clone())))
     }
 
     fn options(&self, runtime: &ButlerRuntime) -> Result<Option<rb_packages::PrepareOptions>> {
-        let Some((root, project_file)) = self.project(runtime.current_dir())? else {
+        if self.location.is_none() {
+            return Ok(None);
+        }
+        let ruby = runtime.selected_ruby()?.ruby_executable_path();
+        if let Some(options) = self.options.get().filter(|options| options.ruby == ruby) {
+            return Ok(Some(options.clone()));
+        }
+        let Some((root, project_file)) = self.project()? else {
             return Ok(None);
         };
-        let ruby = runtime.selected_ruby()?.ruby_executable_path();
-        let mut options = rb_packages::PrepareOptions::new(&root, ruby, crate::cache::directory()?);
+        let mut options = rb_packages::PrepareOptions::with_inputs(
+            &root,
+            ruby,
+            crate::cache::directory(&self.process)?,
+            self.process.directory().to_owned(),
+            self.process.environment().clone(),
+        );
         options.project_file = project_file;
+        options.gemfile = self
+            .location
+            .as_ref()
+            .and_then(|location| location.gemfile.clone());
         options.record_state = true;
         for (key, groups) in [
             ("BUNDLE_WITH", &mut options.plan.with),
             ("BUNDLE_WITHOUT", &mut options.plan.without),
         ] {
-            if let Ok(value) = std::env::var(key) {
+            if let Some(value) = self.process.var(key).and_then(|value| value.to_str()) {
                 groups.extend(
                     value
                         .split([':', ' '])
@@ -79,20 +80,22 @@ impl NativeBackend {
                 );
             }
         }
-        if ["BUNDLE_FROZEN", "BUNDLE_DEPLOYMENT"]
-            .iter()
-            .any(|key| std::env::var(key).is_ok_and(|value| value == "true" || value == "1"))
-        {
+        if ["BUNDLE_FROZEN", "BUNDLE_DEPLOYMENT"].iter().any(|key| {
+            self.process
+                .var(key)
+                .and_then(|value| value.to_str())
+                .is_some_and(|value| value == "true" || value == "1")
+        }) {
             options.plan.mode = rb_packages::LockMode::Locked;
         }
+        let _ = self.options.set(options.clone());
         Ok(Some(options))
     }
 
     fn activate(runtime: &ButlerRuntime, installed: rb_packages::InstalledBundle) -> ButlerRuntime {
-        runtime.clone().with_package_environment(
-            installed.environment().into_iter().collect(),
-            installed.gem_home.join("bin"),
-        )
+        runtime
+            .clone()
+            .with_package_environment_os(installed.environment_os(), installed.gem_home.join("bin"))
     }
 }
 
@@ -106,7 +109,7 @@ impl Driver for NativeBackend {
         if self.disabled {
             return Ok(environment);
         }
-        let Some((root, _)) = self.project(runtime.current_dir())? else {
+        let Some((root, _)) = self.project()? else {
             return Ok(environment);
         };
         let ruby = runtime.selected_ruby()?;
@@ -114,20 +117,11 @@ impl Driver for NativeBackend {
             rb_core::ruby::RubyType::CRuby => "ruby",
         };
         let layout = rb_packages::BundleLayout::new(&root, engine, &ruby.version.to_string());
-        environment.runtime = runtime.clone().with_package_environment(
-            std::collections::HashMap::from([
-                (
-                    "GEM_HOME".into(),
-                    layout.gem_home.to_string_lossy().into_owned(),
-                ),
-                (
-                    "GEM_PATH".into(),
-                    layout.gem_home.to_string_lossy().into_owned(),
-                ),
-                (
-                    "BUNDLE_PATH".into(),
-                    layout.bundle.to_string_lossy().into_owned(),
-                ),
+        environment.runtime = runtime.clone().with_package_environment_os(
+            std::collections::BTreeMap::from([
+                ("GEM_HOME".into(), layout.gem_home.clone().into_os_string()),
+                ("GEM_PATH".into(), layout.gem_home.clone().into_os_string()),
+                ("BUNDLE_PATH".into(), layout.bundle.clone().into_os_string()),
             ]),
             layout.gem_home.join("bin"),
         );

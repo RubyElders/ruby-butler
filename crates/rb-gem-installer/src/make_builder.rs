@@ -55,7 +55,13 @@ fn make(
                 .get(std::ffi::OsStr::new("MAKE"))
                 .cloned()
         })
-        .or_else(|| std::env::var_os("MAKE"))
+        .or_else(|| {
+            builder
+                .options
+                .inherited_environment
+                .get(std::ffi::OsStr::new("MAKE"))
+                .cloned()
+        })
         .unwrap_or_else(|| {
             OsString::from(if builder.ruby.get("target_os").contains("mswin") {
                 "nmake"

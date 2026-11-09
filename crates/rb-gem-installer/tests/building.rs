@@ -20,6 +20,29 @@ fn builder() -> NativeBuilder {
         .insert("CCACHE_DISABLE".into(), "1".into());
     NativeBuilder::new(options).unwrap()
 }
+
+#[test]
+fn build_helpers_use_explicit_inherited_inputs() {
+    let root = tempfile::tempdir().unwrap();
+    let mut environment = std::env::vars_os().collect::<std::collections::BTreeMap<_, _>>();
+    environment.insert("BUILD_CONTEXT_VALUE".into(), "captured-build-value".into());
+    let options = BuildOptions::with_inputs(ruby(), root.path().into(), environment);
+    assert!(!format!("{options:?}").contains("captured-build-value"));
+    let builder = NativeBuilder::new(options).unwrap();
+    let archive = archive(
+        "extconf.rb",
+        &[("extconf.rb", b"abort ENV.fetch('BUILD_CONTEXT_VALUE')")],
+    );
+    let error = rb_gem_installer::install_with_builder(
+        archive.as_slice(),
+        root.path().join("gem"),
+        &builder,
+        |_| {},
+    )
+    .unwrap_err();
+    assert!(format!("{error:#}").contains("captured-build-value"));
+    assert!(!root.path().join("gem").exists());
+}
 fn metadata(extension: &str) -> rb_gem_archive::GemMetadata {
     let root = tempfile::tempdir().unwrap();
     let archive = archive(extension, &[]);

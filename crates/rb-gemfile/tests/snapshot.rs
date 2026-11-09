@@ -12,6 +12,42 @@ fn write(root: &Path, file: &str, text: &str) {
 }
 
 #[test]
+fn explicit_inputs_drive_evaluation_and_snapshot_freshness() {
+    let root = tempfile::tempdir().unwrap();
+    write(
+        root.path(),
+        "Gemfile",
+        "gem 'rack', ENV.fetch('CORPUS_VERSION')",
+    );
+    let ruby = std::env::var_os("RB_GEMFILE_RUBY").unwrap_or_else(|| "ruby".into());
+    let mut environment = std::env::vars_os().collect::<std::collections::BTreeMap<_, _>>();
+    environment.insert("CORPUS_VERSION".into(), "3.1.0".into());
+    let first = Evaluator::with_inputs(&ruby, root.path().into(), environment.clone());
+    let cache = SnapshotCache::new(root.path().join(".rb/snapshot.json"));
+    let evaluated = cache.evaluate(&first, "Gemfile").unwrap();
+    assert!(!evaluated.reused);
+    assert_eq!(
+        evaluated.evaluation.manifest.dependencies["rack"].version,
+        ["3.1.0"]
+    );
+    environment.insert("UNRELATED_INPUT".into(), "different".into());
+    let unchanged = Evaluator::with_inputs(&ruby, root.path().into(), environment.clone());
+    assert!(cache.evaluate(&unchanged, "Gemfile").unwrap().reused);
+    environment.insert("CORPUS_VERSION".into(), "3.2.0".into());
+    let changed = Evaluator::with_inputs(&ruby, root.path().into(), environment);
+    let evaluated = cache.evaluate(&changed, "Gemfile").unwrap();
+    assert!(!evaluated.reused);
+    assert_eq!(
+        evaluated.evaluation.manifest.dependencies["rack"].version,
+        ["3.2.0"]
+    );
+    assert_eq!(
+        first.evaluate("Gemfile").unwrap().manifest.dependencies["rack"].version,
+        ["3.1.0"]
+    );
+}
+
+#[test]
 fn reuses_snapshot_and_invalidates_declared_files_and_missing_inputs() {
     let root = tempfile::tempdir().unwrap();
     write(

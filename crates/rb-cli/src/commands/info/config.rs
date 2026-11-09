@@ -101,8 +101,8 @@ pub fn config_command(config: &TrackedConfig) -> Result<(), ButlerError> {
 
     println!("{}", "Configuration sources (in priority order):".dimmed());
     println!("  {} CLI arguments", "1.".dimmed());
-    println!("  {} Configuration file", "2.".dimmed());
-    println!("  {} Environment variables", "3.".dimmed());
+    println!("  {} Environment variables", "2.".dimmed());
+    println!("  {} Configuration file", "3.".dimmed());
     println!("  {} Built-in defaults", "4.".dimmed());
 
     Ok(())

@@ -12,6 +12,13 @@ pub enum Platform {
 
 impl Platform {
     pub fn current() -> Result<Self> {
+        Self::with_inputs(&std::env::current_dir()?, &std::env::vars_os().collect())
+    }
+
+    pub fn with_inputs(
+        directory: &std::path::Path,
+        environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+    ) -> Result<Self> {
         let os = std::env::consts::OS;
         let arch = std::env::consts::ARCH;
         let musl = if os == "linux" {
@@ -22,6 +29,9 @@ impl Platform {
                 false
             } else {
                 let glibc = std::process::Command::new("getconf")
+                    .current_dir(directory)
+                    .env_clear()
+                    .envs(environment)
                     .arg("GNU_LIBC_VERSION")
                     .output()
                     .is_ok_and(|output| output.status.success());

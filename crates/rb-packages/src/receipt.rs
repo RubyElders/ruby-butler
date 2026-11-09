@@ -71,7 +71,13 @@ fn configuration_hash(
     let mut environment: BTreeMap<_, _> = BUILD_ENVIRONMENT
         .iter()
         .copied()
-        .filter_map(|key| std::env::var_os(key).map(|value| (key.to_owned(), value)))
+        .filter_map(|key| {
+            build
+                .inherited_environment()
+                .get(std::ffi::OsStr::new(key))
+                .cloned()
+                .map(|value| (key.to_owned(), value))
+        })
         .collect();
     for (key, value) in &build.environment {
         environment.insert(

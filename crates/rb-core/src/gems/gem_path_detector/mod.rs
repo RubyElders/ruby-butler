@@ -102,6 +102,7 @@ pub struct GemPathContext<'a> {
     pub ruby_runtime: &'a RubyRuntime,
     /// Custom gem base directory (from -G flag)
     pub custom_gem_base: Option<&'a Path>,
+    pub home_directory: Option<PathBuf>,
 }
 
 impl<'a> GemPathContext<'a> {
@@ -110,10 +111,20 @@ impl<'a> GemPathContext<'a> {
         ruby_runtime: &'a RubyRuntime,
         custom_gem_base: Option<&'a Path>,
     ) -> Self {
+        Self::with_home(current_dir, ruby_runtime, custom_gem_base, home::home_dir())
+    }
+
+    pub fn with_home(
+        current_dir: &'a Path,
+        ruby_runtime: &'a RubyRuntime,
+        custom_gem_base: Option<&'a Path>,
+        home_directory: Option<PathBuf>,
+    ) -> Self {
         Self {
             current_dir,
             ruby_runtime,
             custom_gem_base,
+            home_directory,
         }
     }
 }

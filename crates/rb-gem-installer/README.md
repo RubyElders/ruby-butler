@@ -9,6 +9,8 @@ println!("Installed {}", metadata.id);
 # Ok::<(), anyhow::Error>(())
 ```
 
+`BuildOptions::new` captures the working directory and inherited environment. Use `with_inputs` for explicit inputs; `environment` holds build-specific overrides.
+
 Regular files and directories are supported. Relative symlinks to payload files and directories are supported, including chains. Links outside the installation, cycles, hard links and special files are rejected. Identical repeated files are deduplicated; conflicting paths are rejected. Archive size, expanded size and entry count are bounded. File permissions are preserved on Unix subject to the process umask, without special permission bits. Signature trust follows `rb-gem-archive` and is not verified.
 
 Native compilation is opt-in. `install_with_builder` builds in staging and publishes only after every declared extension succeeds. `NativeBuilder::build` can also build an already extracted directory; callers manage staging when using it directly.

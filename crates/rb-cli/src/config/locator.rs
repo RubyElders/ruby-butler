@@ -4,12 +4,40 @@ use std::path::PathBuf;
 /// Trait for reading environment variables - allows mocking in tests
 pub trait EnvReader {
     fn var(&self, key: &str) -> Result<String, std::env::VarError>;
+    fn home_directory(&self) -> Option<PathBuf> {
+        None
+    }
+    fn directory(&self) -> PathBuf {
+        PathBuf::from(".")
+    }
 }
 
 /// Production implementation using std::env
 pub struct StdEnvReader;
 
+impl EnvReader for rb_core::process_context::ProcessContext {
+    fn var(&self, key: &str) -> Result<String, std::env::VarError> {
+        let value = self.var(key).ok_or(std::env::VarError::NotPresent)?;
+        value
+            .to_str()
+            .map(str::to_owned)
+            .ok_or_else(|| std::env::VarError::NotUnicode(value.to_owned()))
+    }
+    fn home_directory(&self) -> Option<PathBuf> {
+        self.home_directory()
+    }
+    fn directory(&self) -> PathBuf {
+        self.directory().to_owned()
+    }
+}
+
 impl EnvReader for StdEnvReader {
+    fn home_directory(&self) -> Option<PathBuf> {
+        home::home_dir()
+    }
+    fn directory(&self) -> PathBuf {
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    }
     fn var(&self, key: &str) -> Result<String, std::env::VarError> {
         std::env::var(key)
     }
@@ -31,7 +59,7 @@ pub fn locate_config_file(override_path: Option<PathBuf>) -> Option<PathBuf> {
 }
 
 /// Internal function that accepts an environment reader for testing
-fn locate_config_file_with_env(
+pub(crate) fn locate_config_file_with_env(
     override_path: Option<PathBuf>,
     env: &dyn EnvReader,
 ) -> Option<PathBuf> {
@@ -39,6 +67,7 @@ fn locate_config_file_with_env(
 
     // 1. Check for explicit override first
     if let Some(path) = override_path {
+        let path = env.directory().join(path);
         debug!("  Checking --config override: {}", path.display());
         if path.exists() {
             debug!("  Found configuration file via --config flag");
@@ -48,7 +77,7 @@ fn locate_config_file_with_env(
 
     // 2. Check RB_CONFIG environment variable
     if let Ok(rb_config) = env.var("RB_CONFIG") {
-        let config_path = PathBuf::from(rb_config);
+        let config_path = env.directory().join(rb_config);
         debug!("  Checking RB_CONFIG env var: {}", config_path.display());
         if config_path.exists() {
             debug!("  Found configuration file via RB_CONFIG");
@@ -58,7 +87,7 @@ fn locate_config_file_with_env(
 
     // 3. Try XDG_CONFIG_HOME (Unix/Linux)
     if let Ok(xdg_config) = env.var("XDG_CONFIG_HOME") {
-        let base_path = PathBuf::from(xdg_config).join("rb");
+        let base_path = env.directory().join(xdg_config).join("rb");
         // Try .kdl first, then .toml
         for ext in &["rb.kdl", "rb.toml"] {
             let config_path = base_path.join(ext);
@@ -71,7 +100,7 @@ fn locate_config_file_with_env(
     }
 
     // Try home directory based paths
-    if let Some(home_dir) = home::home_dir() {
+    if let Some(home_dir) = env.home_directory() {
         // Unix/Linux: ~/.config/rb/rb.kdl or rb.toml
         #[cfg(not(target_os = "windows"))]
         {
@@ -89,7 +118,7 @@ fn locate_config_file_with_env(
         // Windows: %APPDATA%/rb/rb.kdl or rb.toml
         #[cfg(target_os = "windows")]
         {
-            if let Ok(appdata) = std::env::var("APPDATA") {
+            if let Ok(appdata) = env.var("APPDATA") {
                 let base_path = PathBuf::from(appdata).join("rb");
                 for ext in &["rb.kdl", "rb.toml"] {
                     let config_path = base_path.join(ext);

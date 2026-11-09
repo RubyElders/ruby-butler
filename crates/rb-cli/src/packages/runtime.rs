@@ -13,15 +13,11 @@ pub(crate) struct PackageRuntime(pub(super) ButlerRuntime);
 
 impl PackageRuntime {
     pub fn discover(context: &CommandContext) -> Result<Self, ButlerError> {
-        context.runtime(*context.config.no_bundler.get()).map(Self)
+        context
+            .runtime(*context.config().no_bundler.get())
+            .map(Self)
     }
 
-    pub fn current_dir(&self) -> &Path {
-        self.0.current_dir()
-    }
-    pub fn selected_ruby(&self) -> Result<&RubyRuntime, ButlerError> {
-        self.0.selected_ruby()
-    }
     pub fn rubies_dir(&self) -> &Path {
         self.0.rubies_dir()
     }

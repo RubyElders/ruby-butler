@@ -11,6 +11,8 @@ write_project(".rb/rbproject.toml", &project)?;
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
+`Evaluator::new` captures the working directory and inherited environment at construction. Use `with_inputs` to supply them explicitly and `env` to override individual variables.
+
 | API | Purpose |
 | --- | --- |
 | `Evaluator::evaluate` | Run a Gemfile and return its manifest, input paths and captured output. |

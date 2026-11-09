@@ -1,4 +1,3 @@
-use super::locator::locate_config_file;
 use super::{ConfigError, RbConfig};
 use log::{debug, info};
 use std::fs;
@@ -12,7 +11,19 @@ use std::path::PathBuf;
 /// # Arguments
 /// * `override_path` - Optional path to explicitly load config from (for testing)
 pub fn load_config(override_path: Option<PathBuf>) -> Result<RbConfig, ConfigError> {
-    if let Some(config_path) = locate_config_file(override_path.clone()) {
+    load_config_in(
+        override_path,
+        &rb_core::process_context::ProcessContext::capture()?,
+    )
+}
+
+pub fn load_config_in(
+    override_path: Option<PathBuf>,
+    inputs: &rb_core::process_context::ProcessContext,
+) -> Result<RbConfig, ConfigError> {
+    if let Some(config_path) =
+        super::locator::locate_config_file_with_env(override_path.clone(), inputs)
+    {
         info!("Loading configuration from: {}", config_path.display());
 
         let contents = fs::read_to_string(&config_path)?;

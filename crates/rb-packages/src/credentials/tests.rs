@@ -51,6 +51,32 @@ fn command_credentials_override_bundler_only_for_the_configured_source() {
 }
 
 #[test]
+fn provider_uses_the_supplied_environment() {
+    let (root, env) = setup("print ENV.fetch('PROVIDER_VALUE')");
+    let mut environment = env
+        .into_iter()
+        .map(|(key, value)| (key.into(), value.into()))
+        .collect::<BTreeMap<std::ffi::OsString, std::ffi::OsString>>();
+    environment.insert("PROVIDER_VALUE".into(), "captured-token".into());
+    let credentials = Credentials::load_with_environment(root.path(), &environment).unwrap();
+    environment.insert("PROVIDER_VALUE".into(), "changed-token".into());
+    assert_eq!(
+        credentials
+            .credentials("https://gems.example/team/")
+            .unwrap()
+            .as_deref(),
+        Some("account:captured-token")
+    );
+    let next = Credentials::load_with_environment(root.path(), &environment).unwrap();
+    assert_eq!(
+        next.credentials("https://gems.example/team/")
+            .unwrap()
+            .as_deref(),
+        Some("account:changed-token")
+    );
+}
+
+#[test]
 fn commands_run_only_for_matched_sources_and_fail_without_disclosing_output() {
     for (code, message) in [
         (

@@ -12,6 +12,8 @@ use std::{
 pub struct Evaluator {
     pub(crate) ruby: PathBuf,
     pub(crate) environment: BTreeMap<OsString, OsString>,
+    pub(crate) inherited_environment: BTreeMap<OsString, OsString>,
+    pub(crate) directory: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,20 +30,57 @@ pub struct Evaluation {
 
 impl Evaluator {
     pub fn new(ruby: impl Into<PathBuf>) -> Self {
+        Self::with_inputs(
+            ruby,
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            std::env::vars_os().collect(),
+        )
+    }
+
+    pub fn with_inputs(
+        ruby: impl Into<PathBuf>,
+        directory: PathBuf,
+        inherited_environment: BTreeMap<OsString, OsString>,
+    ) -> Self {
+        #[cfg(windows)]
+        let inherited_environment = inherited_environment
+            .into_iter()
+            .map(|(key, value)| {
+                let key = key
+                    .to_str()
+                    .map(|key| OsString::from(key.to_ascii_uppercase()))
+                    .unwrap_or(key);
+                (key, value)
+            })
+            .collect();
         Self {
             ruby: ruby.into(),
+            directory,
+            inherited_environment,
             environment: BTreeMap::new(),
         }
     }
 
+    pub(crate) fn effective_environment(&self) -> BTreeMap<OsString, OsString> {
+        let mut environment = self.inherited_environment.clone();
+        environment.extend(self.environment.clone());
+        environment.remove(OsStr::new("RUBYOPT"));
+        environment
+    }
+
     pub fn env(mut self, name: impl AsRef<OsStr>, value: impl AsRef<OsStr>) -> Self {
-        self.environment
-            .insert(name.as_ref().to_owned(), value.as_ref().to_owned());
+        let name = name.as_ref().to_owned();
+        #[cfg(windows)]
+        let name = name
+            .to_str()
+            .map(|name| OsString::from(name.to_ascii_uppercase()))
+            .unwrap_or(name);
+        self.environment.insert(name, value.as_ref().to_owned());
         self
     }
 
     pub fn evaluate(&self, gemfile: impl AsRef<Path>) -> io::Result<Evaluation> {
-        let gemfile = gemfile_path(gemfile.as_ref())?;
+        let gemfile = gemfile_path(&self.directory.join(gemfile.as_ref()))?;
         let directory = tempfile::tempdir()?;
         let result = directory.path().join("manifest.json");
         for (name, source) in SOURCES {
@@ -51,8 +90,8 @@ impl Evaluator {
         }
         let ruby = self.ruby_executable()?;
         let output = Command::new(ruby)
-            .envs(&self.environment)
-            .env_remove("RUBYOPT")
+            .env_clear()
+            .envs(self.effective_environment())
             .arg(directory.path().join("exe/rb-evaluate-gemfile"))
             .arg(&gemfile)
             .arg(&result)
@@ -84,15 +123,18 @@ impl Evaluator {
     }
 
     pub(crate) fn ruby_executable(&self) -> io::Result<PathBuf> {
-        let ruby = which::which_in(
-            &self.ruby,
-            self.environment
-                .get(OsStr::new("PATH"))
-                .cloned()
-                .or_else(|| std::env::var_os("PATH")),
-            std::env::current_dir()?,
-        )
-        .map_err(|error| io::Error::new(io::ErrorKind::NotFound, error))?;
+        let environment = self.effective_environment();
+        let search_path = environment
+            .get(OsStr::new("PATH"))
+            .map(|path| {
+                std::env::join_paths(
+                    std::env::split_paths(path).map(|part| self.directory.join(part)),
+                )
+            })
+            .transpose()
+            .map_err(io::Error::other)?;
+        let ruby = which::which_in(&self.ruby, search_path, &self.directory)
+            .map_err(|error| io::Error::new(io::ErrorKind::NotFound, error))?;
         dunce::canonicalize(ruby)
     }
 }

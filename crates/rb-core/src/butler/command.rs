@@ -1,4 +1,4 @@
-use super::{ButlerError, ButlerRuntime};
+use super::{ButlerError, ButlerRuntime, ExecutionPlan};
 use log::debug;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -94,7 +94,7 @@ impl Command {
         &mut self,
         butler_runtime: &ButlerRuntime,
     ) -> std::io::Result<Child> {
-        let mut cmd = self.build_command_with_context(butler_runtime);
+        let mut cmd = self.build_command_with_context(butler_runtime, false)?;
         cmd.spawn()
     }
 
@@ -103,7 +103,7 @@ impl Command {
         &mut self,
         butler_runtime: &ButlerRuntime,
     ) -> std::io::Result<Output> {
-        let mut cmd = self.build_command_with_context(butler_runtime);
+        let mut cmd = self.build_command_with_context(butler_runtime, false)?;
         cmd.output()
     }
 
@@ -112,7 +112,7 @@ impl Command {
         &mut self,
         butler_runtime: &ButlerRuntime,
     ) -> std::io::Result<std::process::ExitStatus> {
-        let mut cmd = self.build_command_with_context(butler_runtime);
+        let mut cmd = self.build_command_with_context(butler_runtime, false)?;
         cmd.status()
     }
 
@@ -122,53 +122,12 @@ impl Command {
     /// if a command is available. It considers both direct command execution and
     /// bundle exec scenarios.
     pub fn command_exists(&self, butler_runtime: &ButlerRuntime) -> bool {
-        if self.should_use_bundle_exec(butler_runtime) {
-            // For bundle exec commands, check if both bundle and the target command exist
-            let bundle_cmd = Command::new("bundle");
-            if !bundle_cmd.command_exists_direct(butler_runtime) {
-                debug!("Bundle command not found, cannot use bundle exec");
-                return false;
-            }
-
-            // For bundle exec, we assume the command exists if bundle exists
-            // The actual gem availability will be checked at runtime
-            debug!("Bundle exec scenario - assuming command exists if bundle exists");
-            true
-        } else {
-            // Check direct command existence
-            self.command_exists_direct(butler_runtime)
-        }
+        self.plan(butler_runtime, true).is_ok()
     }
 
-    /// Check if a command exists directly (without bundle exec)
-    fn command_exists_direct(&self, butler_runtime: &ButlerRuntime) -> bool {
-        let existing_path = std::env::var("PATH").ok();
-        let env_vars = butler_runtime.env_vars(existing_path);
-
-        if let Some(butler_path) = env_vars.get("PATH") {
-            debug!(
-                "Checking command existence for '{}' with butler PATH",
-                self.program
-            );
-
-            match which::which_in(
-                &self.program,
-                Some(butler_path),
-                std::env::current_dir().unwrap_or_default(),
-            ) {
-                Ok(path) => {
-                    debug!("Command '{}' found at: {}", self.program, path.display());
-                    true
-                }
-                Err(e) => {
-                    debug!("Command '{}' not found: {}", self.program, e);
-                    false
-                }
-            }
-        } else {
-            debug!("No butler PATH available for command existence check");
-            false
-        }
+    #[cfg(test)]
+    fn command_exists_direct(&self, runtime: &ButlerRuntime) -> bool {
+        self.plan(runtime, true).is_ok()
     }
 
     /// Execute the command with command existence checking, returning ButlerError for missing commands.
@@ -179,16 +138,10 @@ impl Command {
         &mut self,
         butler_runtime: &ButlerRuntime,
     ) -> Result<Child, ButlerError> {
-        if !self.command_exists(butler_runtime) {
-            return Err(ButlerError::CommandNotFound(self.program.clone()));
-        }
-
-        self.execute_with_context(butler_runtime).map_err(|e| {
-            ButlerError::General(format!(
-                "Failed to execute command '{}': {}",
-                self.program, e
-            ))
-        })
+        self.build_command_with_context(butler_runtime, true)
+            .map_err(|error| self.execution_error(error))?
+            .spawn()
+            .map_err(|error| self.execution_error(error))
     }
 
     /// Execute the command and wait for completion with command existence checking.
@@ -198,16 +151,10 @@ impl Command {
         &mut self,
         butler_runtime: &ButlerRuntime,
     ) -> Result<Output, ButlerError> {
-        if !self.command_exists(butler_runtime) {
-            return Err(ButlerError::CommandNotFound(self.program.clone()));
-        }
-
-        self.output_with_context(butler_runtime).map_err(|e| {
-            ButlerError::General(format!(
-                "Failed to execute command '{}': {}",
-                self.program, e
-            ))
-        })
+        self.build_command_with_context(butler_runtime, true)
+            .map_err(|error| self.execution_error(error))?
+            .output()
+            .map_err(|error| self.execution_error(error))
     }
 
     /// Execute the command and wait for completion with command existence checking.
@@ -217,16 +164,21 @@ impl Command {
         &mut self,
         butler_runtime: &ButlerRuntime,
     ) -> Result<std::process::ExitStatus, ButlerError> {
-        if !self.command_exists(butler_runtime) {
-            return Err(ButlerError::CommandNotFound(self.program.clone()));
-        }
+        self.build_command_with_context(butler_runtime, true)
+            .map_err(|error| self.execution_error(error))?
+            .status()
+            .map_err(|error| self.execution_error(error))
+    }
 
-        self.status_with_context(butler_runtime).map_err(|e| {
+    fn execution_error(&self, error: std::io::Error) -> ButlerError {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            ButlerError::CommandNotFound(self.program.clone())
+        } else {
             ButlerError::General(format!(
-                "Failed to execute command '{}': {}",
-                self.program, e
+                "Failed to execute command '{}': {error}",
+                self.program
             ))
-        })
+        }
     }
 
     /// Check if this command should be executed with bundle exec
@@ -246,113 +198,165 @@ impl Command {
         self.program == "bundle" || self.program == "bundler"
     }
 
-    /// Resolve the executable path for cross-platform command execution.
-    ///
-    /// On Windows, this will find executables with common extensions (.exe, .cmd, .bat).
-    /// On Unix systems, this preserves the original behavior.
-    fn resolve_executable_path(&self, butler_runtime: &ButlerRuntime) -> String {
-        // Try to resolve the executable using the which crate with the composed environment
-        let existing_path = std::env::var("PATH").ok();
-        let env_vars = butler_runtime.env_vars(existing_path);
-
-        // Create a temporary environment with the butler runtime PATH
-        if let Some(butler_path) = env_vars.get("PATH") {
-            debug!("Resolving executable '{}' with butler PATH", self.program);
-
-            // Use which to find the executable in the butler environment
-            match which::which_in(
-                &self.program,
-                Some(butler_path),
-                std::env::current_dir().unwrap_or_default(),
-            ) {
-                Ok(path) => {
-                    let resolved = path.to_string_lossy().to_string();
-                    debug!("Resolved executable '{}' to: {}", self.program, resolved);
-                    resolved
-                }
-                Err(_) => {
-                    debug!(
-                        "Could not resolve executable '{}', using original name",
-                        self.program
-                    );
-                    self.program.clone()
-                }
-            }
-        } else {
-            debug!(
-                "No butler PATH available, using original program name: {}",
-                self.program
-            );
-            self.program.clone()
-        }
+    pub fn execution_plan(&self, runtime: &ButlerRuntime) -> std::io::Result<ExecutionPlan> {
+        self.plan(runtime, true)
     }
 
-    /// Build the actual Command with proper context resolution
+    fn plan(&self, runtime: &ButlerRuntime, validate: bool) -> std::io::Result<ExecutionPlan> {
+        let directory = self
+            .current_dir
+            .as_ref()
+            .map(|path| runtime.current_dir().join(path))
+            .unwrap_or_else(|| runtime.current_dir().to_owned());
+        let mut environment = runtime.execution_environment().clone();
+        environment.extend(self.env_vars.iter().map(|(key, value)| {
+            #[cfg(windows)]
+            let key = key.to_ascii_uppercase();
+            (key.into(), value.into())
+        }));
+        let bundled = self.should_use_bundle_exec(runtime);
+        let program = if bundled { "bundle" } else { &self.program };
+        if validate {
+            debug!(
+                "Checking command existence for '{}' with butler PATH",
+                program
+            );
+        }
+        debug!("Resolving executable '{}' with butler PATH", program);
+        let search_path = environment
+            .get(std::ffi::OsStr::new("PATH"))
+            .map(|path| {
+                std::env::join_paths(std::env::split_paths(path).map(|part| directory.join(part)))
+            })
+            .transpose()
+            .map_err(std::io::Error::other)?;
+        #[cfg(not(windows))]
+        let resolved = which::which_in(program, search_path, &directory).ok();
+        #[cfg(windows)]
+        let resolved = resolve_windows(program, search_path.as_deref(), &directory, &environment);
+        let executable = match resolved {
+            Some(path) => {
+                if validate {
+                    debug!("Command '{}' found at: {}", program, path.display());
+                    if bundled {
+                        debug!("Bundle exec scenario - assuming command exists if bundle exists");
+                    }
+                }
+                path
+            }
+            None if !validate => {
+                debug!(
+                    "Could not resolve executable '{}', using original name",
+                    program
+                );
+                PathBuf::from(program)
+            }
+            None => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("Command not found: {}", self.program),
+                ));
+            }
+        };
+        let mut arguments = Vec::new();
+        if bundled {
+            arguments.push("exec".into());
+            arguments.push(self.program.clone());
+        }
+        arguments.extend(self.args.clone());
+        debug!(
+            "Resolved executable '{}' to: {}",
+            program,
+            executable.display()
+        );
+        Ok(ExecutionPlan::new(
+            executable,
+            arguments,
+            directory,
+            environment,
+        ))
+    }
+
     fn build_command_with_context(
         &mut self,
-        butler_runtime: &ButlerRuntime,
-    ) -> std::process::Command {
-        let mut cmd = if self.should_use_bundle_exec(butler_runtime) {
-            // Use bundle exec for gem executables
-            let resolved_bundle = self.resolve_bundle_executable(butler_runtime);
-            let mut bundle_cmd = std::process::Command::new(resolved_bundle);
-            bundle_cmd.arg("exec");
-            bundle_cmd.arg(&self.program);
-            bundle_cmd.args(&self.args);
-            bundle_cmd
-        } else {
-            // Use the program directly, resolving the executable path
-            let resolved_program = self.resolve_executable_path(butler_runtime);
-            let mut direct_cmd = std::process::Command::new(resolved_program);
-            direct_cmd.args(&self.args);
-            direct_cmd
-        };
-
-        // Apply butler runtime environment variables, preserving existing PATH
-        let existing_path = std::env::var("PATH").ok();
-        for (key, value) in butler_runtime.env_vars(existing_path) {
-            cmd.env(key, value);
-        }
-
-        // Apply additional environment variables
-        for (key, value) in &self.env_vars {
-            cmd.env(key, value);
-        }
-
-        // Set current directory
-        if let Some(ref dir) = self.current_dir {
-            cmd.current_dir(dir);
-        }
-
-        // Configure stdio
+        runtime: &ButlerRuntime,
+        validate: bool,
+    ) -> std::io::Result<std::process::Command> {
+        let mut command = self.plan(runtime, validate)?.command();
         if let Some(stdout) = self.stdout.take() {
-            cmd.stdout(stdout);
+            command.stdout(stdout);
         }
         if let Some(stderr) = self.stderr.take() {
-            cmd.stderr(stderr);
+            command.stderr(stderr);
         }
         if let Some(stdin) = self.stdin.take() {
-            cmd.stdin(stdin);
+            command.stdin(stdin);
         }
-
-        cmd
+        Ok(command)
     }
 
-    /// Resolve the bundle executable path for cross-platform execution
-    fn resolve_bundle_executable(&self, butler_runtime: &ButlerRuntime) -> String {
-        // Create a temporary command to resolve bundle executable
-        let bundle_program = "bundle".to_string();
-        let temp_cmd = Command {
-            program: bundle_program,
-            args: Vec::new(),
-            current_dir: None,
-            env_vars: HashMap::new(),
-            stdout: None,
-            stderr: None,
-            stdin: None,
-        };
-        temp_cmd.resolve_executable_path(butler_runtime)
+    #[cfg(test)]
+    fn resolve_executable_path(&self, runtime: &ButlerRuntime) -> String {
+        self.plan(runtime, false)
+            .unwrap()
+            .executable()
+            .to_string_lossy()
+            .into_owned()
     }
+}
+
+#[cfg(any(test, windows))]
+fn resolve_windows(
+    program: &str,
+    search_path: Option<&std::ffi::OsStr>,
+    directory: &Path,
+    environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+) -> Option<PathBuf> {
+    let program = Path::new(program);
+    if program.is_absolute() && program.is_file() {
+        return Some(program.to_owned());
+    }
+    let extensions = environment
+        .get(std::ffi::OsStr::new("PATHEXT"))
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .split(';')
+        .filter(|extension| extension.starts_with('.'))
+        .collect::<Vec<_>>();
+    let candidates = if program.components().count() > 1 || program.is_absolute() {
+        vec![directory.join(program)]
+    } else {
+        search_path
+            .map(std::env::split_paths)
+            .into_iter()
+            .flatten()
+            .map(|path| path.join(program))
+            .collect()
+    };
+    let has_extension = program.extension().is_some_and(|extension| {
+        extensions.iter().any(|candidate| {
+            extension
+                .to_str()
+                .is_some_and(|extension| candidate[1..].eq_ignore_ascii_case(extension))
+        })
+    });
+    for candidate in candidates {
+        if has_extension {
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        } else {
+            for extension in &extensions {
+                let mut path = candidate.as_os_str().to_owned();
+                path.push(extension);
+                let path = PathBuf::from(path);
+                if path.is_file() {
+                    return Some(path);
+                }
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -361,6 +365,33 @@ mod tests {
     use crate::ruby::{RubyRuntime, RubyType};
     use semver::Version;
     use std::path::PathBuf;
+
+    #[test]
+    fn windows_extensions_are_resolved_from_each_supplied_environment() {
+        let directory = tempfile::tempdir().unwrap();
+        let executable = directory.path().join("local-tool.custom");
+        std::fs::write(&executable, "fixture").unwrap();
+        let environment = std::collections::BTreeMap::from([("PATHEXT".into(), ".custom".into())]);
+        assert_eq!(
+            resolve_windows(
+                "local-tool",
+                Some(directory.path().as_os_str()),
+                directory.path(),
+                &environment
+            ),
+            Some(executable)
+        );
+        let environment = std::collections::BTreeMap::from([("PATHEXT".into(), ".exe".into())]);
+        assert!(
+            resolve_windows(
+                "local-tool",
+                Some(directory.path().as_os_str()),
+                directory.path(),
+                &environment
+            )
+            .is_none()
+        );
+    }
 
     #[test]
     fn test_butler_command_basic_creation() {

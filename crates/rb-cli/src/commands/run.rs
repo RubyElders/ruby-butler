@@ -1,53 +1,15 @@
 use crate::packages::PackageRuntime;
 use colored::*;
-use log::{debug, info, warn};
+use log::info;
 use rb_core::butler::ButlerError;
-use rb_core::project::{ProjectRuntime, RbprojectDetector};
-use std::path::PathBuf;
+use rb_core::project::ProjectRuntime;
 
 use super::exec::exec_command;
 
-fn list_available_scripts(
-    butler_runtime: PackageRuntime,
-    project_file: Option<PathBuf>,
+pub(crate) fn list_available_scripts(
+    project_runtime: Option<ProjectRuntime>,
 ) -> Result<(), ButlerError> {
     info!("Listing available project scripts");
-
-    let current_dir = butler_runtime.current_dir();
-    let project_runtime = if let Some(path) = project_file {
-        debug!(
-            "Loading project config from specified path: {}",
-            path.display()
-        );
-        match ProjectRuntime::from_file(&path) {
-            Ok(project) => Some(project),
-            Err(e) => {
-                return Err(ButlerError::General(format!(
-                    "The specified project configuration could not be loaded from {}:\n{}",
-                    path.display(),
-                    e
-                )));
-            }
-        }
-    } else {
-        // Auto-detect project file
-        match RbprojectDetector::discover(current_dir) {
-            Ok(Some(project)) => {
-                debug!(
-                    "Discovered {} with {} scripts",
-                    project.config_filename,
-                    project.scripts.len()
-                );
-                Some(project)
-            }
-            Ok(None) => None,
-            Err(e) => {
-                warn!("Error detecting project config: {}", e);
-                None
-            }
-        }
-    };
-
     let project = match project_runtime {
         Some(p) => p,
         None => {
@@ -151,12 +113,12 @@ pub(crate) fn run_command(
     butler_runtime: PackageRuntime,
     script_name: Option<String>,
     args: Vec<String>,
-    project_file: Option<PathBuf>,
+    project_runtime: Option<ProjectRuntime>,
     backend: &crate::packages::PackageBackend,
     report: &mut crate::reporting::PreparationReport,
 ) -> Result<(), ButlerError> {
     if script_name.is_none() {
-        return list_available_scripts(butler_runtime, project_file);
+        return list_available_scripts(project_runtime);
     }
 
     let script_name = script_name.unwrap();
@@ -164,40 +126,6 @@ pub(crate) fn run_command(
         "Executing project script '{}' with distinguished precision",
         script_name
     );
-
-    let current_dir = butler_runtime.current_dir();
-    let project_runtime = if let Some(path) = project_file {
-        debug!(
-            "Loading project config from specified path: {}",
-            path.display()
-        );
-        match ProjectRuntime::from_file(&path) {
-            Ok(project) => Some(project),
-            Err(e) => {
-                return Err(ButlerError::General(format!(
-                    "The specified project configuration could not be loaded from {}:\n{}",
-                    path.display(),
-                    e
-                )));
-            }
-        }
-    } else {
-        match RbprojectDetector::discover(current_dir) {
-            Ok(Some(project)) => {
-                debug!(
-                    "Discovered {} with {} scripts",
-                    project.config_filename,
-                    project.scripts.len()
-                );
-                Some(project)
-            }
-            Ok(None) => None,
-            Err(e) => {
-                warn!("Error detecting project config: {}", e);
-                None
-            }
-        }
-    };
 
     let project = match project_runtime {
         Some(p) => p,

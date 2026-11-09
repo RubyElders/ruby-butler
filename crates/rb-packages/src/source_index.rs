@@ -24,6 +24,26 @@ impl SourceIndex {
         previous: Option<&rb_lockfile::Lockfile>,
         mode: LockMode,
     ) -> Result<Self> {
+        Self::with_environment(
+            input,
+            runtime,
+            cache,
+            offline,
+            previous,
+            mode,
+            &std::env::vars_os().collect(),
+        )
+    }
+
+    pub fn with_environment(
+        input: &ProjectInput,
+        runtime: &RubyEnvironment,
+        cache: &Path,
+        offline: bool,
+        previous: Option<&rb_lockfile::Lockfile>,
+        mode: LockMode,
+        environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+    ) -> Result<Self> {
         let targets = crate::target_plan::runtimes(runtime, previous, mode);
         let plans = targets
             .iter()
@@ -99,6 +119,7 @@ impl SourceIndex {
                     cache,
                     pinned,
                     offline,
+                    environment,
                 )?;
                 (
                     PackageSource::Git {
@@ -120,10 +141,11 @@ impl SourceIndex {
                 )
             };
             let snapshot = crate::source_files::fingerprint(&directory)?;
-            let specifications = crate::source_specs::read(
+            let specifications = crate::source_specs::read_with_environment(
                 &runtime.executable,
                 &directory,
                 declaration.glob.as_deref(),
+                environment,
             )?;
             ensure!(
                 crate::source_files::fingerprint(&directory)? == snapshot,
@@ -138,7 +160,7 @@ impl SourceIndex {
             }
         }
         let mut registry = RegistryIndex::new(&input.manifest, cache, offline)?;
-        registry.load_credentials(&input.root, offline)?;
+        registry.load_credentials_with_environment(&input.root, offline, environment)?;
         Ok(Self {
             registry,
             packages,

@@ -23,12 +23,27 @@ pub struct RubyEnvironment {
 
 impl RubyEnvironment {
     pub fn inspect(ruby: impl AsRef<Path>) -> Result<Self> {
+        Self::inspect_with_inputs(
+            ruby,
+            &std::env::current_dir()?,
+            &std::env::vars_os().collect(),
+        )
+    }
+
+    pub fn inspect_with_inputs(
+        ruby: impl AsRef<Path>,
+        directory: &Path,
+        environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+    ) -> Result<Self> {
         let helper = tempfile::Builder::new().suffix(".rb").tempfile()?;
         std::fs::write(
             helper.path(),
             include_str!("../../../gems/rb-gem-installer/lib/rb_gem_installer/runtime.rb"),
         )?;
         let output = Command::new(ruby.as_ref())
+            .current_dir(directory)
+            .env_clear()
+            .envs(environment)
             .env_remove("RUBYOPT")
             .env_remove("RUBYLIB")
             .args(["-rjson", "-r"])

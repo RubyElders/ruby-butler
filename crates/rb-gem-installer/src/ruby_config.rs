@@ -58,6 +58,10 @@ impl RubyConfig {
         }
         let mut command = Command::new(&options.ruby);
         command
+            .current_dir(&options.directory)
+            .env_clear()
+            .envs(&options.inherited_environment);
+        command
             .args(["--disable=gems", "-I"])
             .arg(library.path().join("lib"))
             .arg(library.path().join("exe/rb-ruby-config"));

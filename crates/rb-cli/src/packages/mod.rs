@@ -43,12 +43,9 @@ pub(crate) struct PackageBackend {
 
 impl PackageBackend {
     pub fn from_context(context: &crate::runtime_helpers::CommandContext) -> Self {
-        let driver: Box<dyn Driver> = match context.config.package_backend.get() {
+        let driver: Box<dyn Driver> = match context.config().package_backend.get() {
             PackageBackendKind::Bundler => Box::new(bundler::BundlerBackend),
-            PackageBackendKind::Native => Box::new(native::NativeBackend::new(
-                context.project_file.clone(),
-                *context.config.no_bundler.get(),
-            )),
+            PackageBackendKind::Native => Box::new(native::NativeBackend::new(context)),
         };
         Self { driver }
     }

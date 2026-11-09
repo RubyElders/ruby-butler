@@ -106,8 +106,15 @@ pub struct RbConfig {
 
 impl RbConfig {
     pub(crate) fn validate_environment(&self) -> Result<(), ConfigError> {
+        self.validate_environment_in(&rb_core::process_context::ProcessContext::capture()?)
+    }
+
+    pub(crate) fn validate_environment_in(
+        &self,
+        inputs: &rb_core::process_context::ProcessContext,
+    ) -> Result<(), ConfigError> {
         if self.auto_install_ruby.is_none() && !self.no_auto_install_ruby {
-            auto_install_environment()?;
+            auto_install_environment(inputs)?;
         }
         Ok(())
     }
@@ -174,9 +181,12 @@ impl RbConfig {
     }
 }
 
-fn auto_install_environment() -> Result<Option<bool>, ConfigError> {
-    std::env::var("RB_AUTO_INSTALL_RUBY")
-        .ok()
+fn auto_install_environment(
+    inputs: &rb_core::process_context::ProcessContext,
+) -> Result<Option<bool>, ConfigError> {
+    inputs
+        .var("RB_AUTO_INSTALL_RUBY")
+        .and_then(|value| value.to_str())
         .map(|value| {
             value.parse::<bool>().map_err(|_| {
                 std::io::Error::new(
@@ -206,6 +216,51 @@ impl TrackedConfig {
     /// Create a TrackedConfig from RbConfig, environment, and defaults
     /// Priority: CLI > Env > Config > Default
     pub fn from_merged(cli_config: &RbConfig, file_config: &RbConfig) -> Self {
+        Self::from_merged_in(
+            cli_config,
+            file_config,
+            &rb_core::process_context::ProcessContext::capture().unwrap_or_else(|_| {
+                rb_core::process_context::ProcessContext::new(
+                    PathBuf::from("."),
+                    std::env::vars_os().collect(),
+                )
+            }),
+        )
+    }
+
+    pub fn from_matches(
+        cli: &RbConfig,
+        file: &RbConfig,
+        matches: &clap::ArgMatches,
+        inputs: &rb_core::process_context::ProcessContext,
+    ) -> Self {
+        let mut cli = cli.clone();
+        if matches.value_source("rubies_dir") != Some(clap::parser::ValueSource::CommandLine) {
+            cli.rubies_dir = None;
+        }
+        if matches.value_source("ruby_version") != Some(clap::parser::ValueSource::CommandLine) {
+            cli.ruby_version = None;
+        }
+        if matches.value_source("gem_home") != Some(clap::parser::ValueSource::CommandLine) {
+            cli.gem_home = None;
+        }
+        if matches.value_source("no_bundler") != Some(clap::parser::ValueSource::CommandLine) {
+            cli.no_bundler = None;
+        }
+        if matches.value_source("work_dir") != Some(clap::parser::ValueSource::CommandLine) {
+            cli.work_dir = None;
+        }
+        if matches.value_source("package_backend") != Some(clap::parser::ValueSource::CommandLine) {
+            cli.package_backend = None;
+        }
+        Self::from_merged_in(&cli, file, inputs)
+    }
+
+    pub fn from_merged_in(
+        cli_config: &RbConfig,
+        file_config: &RbConfig,
+        inputs: &rb_core::process_context::ProcessContext,
+    ) -> Self {
         use log::debug;
 
         debug!("Building tracked configuration with sources");
@@ -218,12 +273,12 @@ impl TrackedConfig {
             if let Some(path) = cli {
                 debug!("  Using value from CLI: {}", path.display());
                 ConfigValue::from_cli(path.clone())
-            } else if let Some(path) = file {
-                debug!("  Using value from config file: {}", path.display());
-                ConfigValue::from_file(path.clone())
             } else if let Some(path) = env_val {
                 debug!("  Using value from environment: {}", path.display());
                 ConfigValue::from_env(path)
+            } else if let Some(path) = file {
+                debug!("  Using value from config file: {}", path.display());
+                ConfigValue::from_file(path.clone())
             } else {
                 debug!("  Using default value: {}", default.display());
                 ConfigValue::default_value(default)
@@ -237,12 +292,12 @@ impl TrackedConfig {
             if let Some(val) = cli {
                 debug!("  Using value from CLI: {}", val);
                 Some(ConfigValue::from_cli(val.clone()))
-            } else if let Some(val) = file {
-                debug!("  Using value from config file: {}", val);
-                Some(ConfigValue::from_file(val.clone()))
             } else if let Some(val) = env_val {
                 debug!("  Using value from environment: {}", val);
                 Some(ConfigValue::from_env(val))
+            } else if let Some(val) = file {
+                debug!("  Using value from config file: {}", val);
+                Some(ConfigValue::from_file(val.clone()))
             } else {
                 None
             }
@@ -256,33 +311,39 @@ impl TrackedConfig {
             if let Some(val) = cli {
                 debug!("  Using value from CLI: {}", val);
                 ConfigValue::from_cli(*val)
-            } else if let Some(val) = file {
-                debug!("  Using value from config file: {}", val);
-                ConfigValue::from_file(*val)
             } else if let Some(val) = env_val {
                 debug!("  Using value from environment: {}", val);
                 ConfigValue::from_env(val)
+            } else if let Some(val) = file {
+                debug!("  Using value from config file: {}", val);
+                ConfigValue::from_file(*val)
             } else {
                 debug!("  Using default value: {}", default);
                 ConfigValue::default_value(default)
             }
         };
 
-        let env_rubies_dir = std::env::var("RB_RUBIES_DIR").ok().map(PathBuf::from);
-        let env_ruby_version = std::env::var("RB_RUBY_VERSION").ok();
-        let env_gem_home = std::env::var("RB_GEM_HOME").ok().map(PathBuf::from);
-        let env_no_bundler = std::env::var("RB_NO_BUNDLER")
-            .ok()
+        let env_rubies_dir = inputs.var("RB_RUBIES_DIR").map(PathBuf::from);
+        let env_ruby_version = inputs
+            .var("RB_RUBY_VERSION")
+            .and_then(|value| value.to_str())
+            .map(str::to_owned);
+        let env_gem_home = inputs.var("RB_GEM_HOME").map(PathBuf::from);
+        let env_no_bundler = inputs
+            .var("RB_NO_BUNDLER")
+            .and_then(|value| value.to_str())
             .and_then(|v| v.parse::<bool>().ok());
-        let env_work_dir = std::env::var("RB_WORK_DIR").ok().map(PathBuf::from);
+        let env_work_dir = inputs.var("RB_WORK_DIR").map(PathBuf::from);
 
-        let default_rubies_dir = home::home_dir()
+        let default_rubies_dir = inputs
+            .home_directory()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".rubies");
-        let default_gem_home = home::home_dir()
+        let default_gem_home = inputs
+            .home_directory()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".gem");
-        let default_work_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let default_work_dir = inputs.directory().to_owned();
 
         debug!("Resolving rubies_dir:");
         let rubies_dir = resolve_path_config(
@@ -325,7 +386,9 @@ impl TrackedConfig {
 
         let package_backend = PackageBackendKind::resolve(
             cli_config.package_backend,
-            std::env::var("RB_PACKAGE_BACKEND").ok().as_deref(),
+            inputs
+                .var("RB_PACKAGE_BACKEND")
+                .and_then(|value| value.to_str()),
             file_config.package_backend,
         );
 
@@ -333,7 +396,7 @@ impl TrackedConfig {
             ConfigValue::from_cli(false)
         } else if let Some(value) = cli_config.auto_install_ruby {
             ConfigValue::from_cli(value)
-        } else if let Some(value) = auto_install_environment().ok().flatten() {
+        } else if let Some(value) = auto_install_environment(inputs).ok().flatten() {
             ConfigValue::from_env(value)
         } else if let Some(value) = file_config.auto_install_ruby {
             ConfigValue::from_file(value)

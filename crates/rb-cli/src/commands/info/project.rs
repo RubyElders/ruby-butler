@@ -1,39 +1,24 @@
-use crate::packages::PackageRuntime;
+use crate::config::TrackedConfig;
 use colored::*;
-use log::{debug, info};
+use log::info;
 use rb_core::butler::ButlerError;
-use rb_core::project::{ProjectRuntime, RbprojectDetector};
-use std::path::PathBuf;
+use rb_core::project::ProjectRuntime;
 
 pub(crate) fn project_command(
-    butler_runtime: &PackageRuntime,
-    project_file: Option<PathBuf>,
+    config: &TrackedConfig,
+    project_runtime: Option<ProjectRuntime>,
 ) -> Result<(), ButlerError> {
     info!("Inspecting project configuration");
-    present_project_info(butler_runtime, project_file)?;
+    present_project_info(config, project_runtime)?;
     Ok(())
 }
 
 fn present_project_info(
-    butler_runtime: &PackageRuntime,
-    project_file: Option<PathBuf>,
+    config: &TrackedConfig,
+    project_runtime: Option<ProjectRuntime>,
 ) -> Result<(), ButlerError> {
     println!("{}", "📁 Project Configuration".to_string().bold());
     println!();
-
-    let project_runtime = if let Some(path) = project_file {
-        debug!(
-            "Loading project config from specified path: {}",
-            path.display()
-        );
-        ProjectRuntime::from_file(&path).ok()
-    } else {
-        let current_dir = std::env::current_dir()
-            .map_err(|e| ButlerError::General(format!("Failed to get current directory: {}", e)))?;
-        RbprojectDetector::discover(current_dir.as_path())
-            .ok()
-            .flatten()
-    };
 
     match project_runtime {
         Some(project_runtime) => {
@@ -86,14 +71,14 @@ fn present_project_info(
     println!(
         "  {} {}",
         "Rubies Directory:".bold(),
-        butler_runtime.rubies_dir().display()
+        config.rubies_dir.get().display()
     );
 
-    if let Some(gem_base) = butler_runtime.gem_base_dir() {
-        println!("  {} {}", "Gem Home:".bold(), gem_base.display());
-    }
+    let gem_base = config.gem_home.get();
+    println!("  {} {}", "Gem Home:".bold(), gem_base.display());
 
-    if let Some(requested) = butler_runtime.requested_ruby_version() {
+    if let Some(requested) = &config.ruby_version {
+        let requested = requested.get();
         println!("  {} {}", "Requested Ruby:".bold(), requested);
     }
 

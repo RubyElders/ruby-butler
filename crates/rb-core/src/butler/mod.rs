@@ -1,5 +1,6 @@
 use crate::bundler::{BundlerRuntime, BundlerRuntimeDetector};
 use crate::gems::GemRuntime;
+use crate::process_context::ProcessContext;
 use crate::ruby::{RubyDiscoveryError, RubyRuntime, RubyRuntimeDetector};
 use home;
 use log::{debug, info};
@@ -7,30 +8,29 @@ use semver::Version;
 use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    ffi::{OsStr, OsString},
+    sync::{Arc, OnceLock},
+};
 
 pub mod command;
+mod execution_plan;
 pub mod runtime_provider;
 
 pub use command::Command;
+pub use execution_plan::ExecutionPlan;
 pub use runtime_provider::RuntimeProvider;
 
 /// Helper to compose detectors based on environment context during early discovery phase.
 ///
-/// This helper delegates to RuntimeProvider implementations to ensure detector composition
-/// logic remains centralized. It creates temporary runtime instances solely to extract
-/// their detector composition strategies.
+/// Delegates to detector factories shared with runtime providers.
 pub struct DetectorComposer;
 
 impl DetectorComposer {
     /// Compose version detector for bundler environment by delegating to BundlerRuntime
     pub fn version_detector_for_bundler() -> crate::ruby::CompositeDetector {
-        use crate::bundler::BundlerRuntime;
-        use semver::Version;
-        use std::path::PathBuf;
-
-        // Create temporary bundler runtime to extract its detector composition
-        let temp_runtime = BundlerRuntime::new(PathBuf::new(), Version::new(0, 0, 0));
-        temp_runtime.compose_version_detector()
+        BundlerRuntime::version_detector()
     }
 
     /// Compose gem path detector for bundler environment by delegating to BundlerRuntime
@@ -38,13 +38,7 @@ impl DetectorComposer {
     /// Use this when bundler is detected - excludes user gems to maintain bundle isolation
     pub fn gem_path_detector_for_bundler()
     -> crate::gems::gem_path_detector::CompositeGemPathDetector {
-        use crate::bundler::BundlerRuntime;
-        use semver::Version;
-        use std::path::PathBuf;
-
-        // Create temporary bundler runtime to extract its detector composition
-        let temp_runtime = BundlerRuntime::new(PathBuf::new(), Version::new(0, 0, 0));
-        temp_runtime.compose_gem_path_detector()
+        BundlerRuntime::gem_path_detector()
     }
 
     /// Compose gem path detector for standard (non-bundler) environment by delegating to GemRuntime
@@ -52,13 +46,7 @@ impl DetectorComposer {
     /// Use this when bundler is NOT detected - includes user gems
     pub fn gem_path_detector_standard() -> crate::gems::gem_path_detector::CompositeGemPathDetector
     {
-        use crate::gems::GemRuntime;
-        use semver::Version;
-        use std::path::PathBuf;
-
-        // Create temporary gem runtime to extract its detector composition
-        let temp_runtime = GemRuntime::for_base_dir(&PathBuf::new(), &Version::new(0, 0, 0));
-        temp_runtime.compose_gem_path_detector()
+        GemRuntime::gem_path_detector()
     }
 }
 
@@ -107,7 +95,7 @@ impl std::error::Error for ButlerError {}
 /// Enhanced ButlerRuntime that serves as the main orchestrator for Ruby environments.
 /// Handles discovery, selection, and composition of Ruby installations, gem environments,
 /// and bundler projects with distinguished precision.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ButlerRuntime {
     // Core runtime components - all optional now
     ruby_runtime: Option<RubyRuntime>,
@@ -120,19 +108,130 @@ pub struct ButlerRuntime {
     ruby_installations: Vec<RubyRuntime>,
     requested_ruby_version: Option<String>,
     gem_base_dir: Option<PathBuf>,
-    package_environment: HashMap<String, String>,
+    package_environment: BTreeMap<OsString, OsString>,
     package_bin: Option<PathBuf>,
+    process: ProcessContext,
+    environment: Arc<OnceLock<BTreeMap<OsString, OsString>>>,
+}
+
+impl std::fmt::Debug for ButlerRuntime {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ButlerRuntime")
+            .field("ruby_runtime", &self.ruby_runtime)
+            .field("current_dir", &self.current_dir)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ButlerRuntime {
     pub fn with_package_environment(
-        mut self,
+        self,
         environment: HashMap<String, String>,
+        bin: PathBuf,
+    ) -> Self {
+        self.with_package_environment_os(
+            environment
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            bin,
+        )
+    }
+
+    pub fn with_package_environment_os(
+        mut self,
+        environment: BTreeMap<OsString, OsString>,
         bin: PathBuf,
     ) -> Self {
         self.package_environment = environment;
         self.package_bin = Some(bin);
+        self.environment = Arc::new(OnceLock::new());
         self
+    }
+
+    pub fn with_process_context(mut self, process: ProcessContext) -> Self {
+        self.current_dir = process.directory().to_owned();
+        self.process = process;
+        self.environment = Arc::new(OnceLock::new());
+        self
+    }
+
+    pub fn process_context(&self) -> &ProcessContext {
+        &self.process
+    }
+
+    pub fn execution_environment(&self) -> &BTreeMap<OsString, OsString> {
+        self.environment.get_or_init(|| {
+            let overrides = self.compose_environment_overrides(self.process.var("PATH"));
+            let mut environment = self.process.environment().clone();
+            environment.extend(overrides);
+            environment
+        })
+    }
+
+    fn compose_environment_overrides(
+        &self,
+        inherited: Option<&OsStr>,
+    ) -> BTreeMap<OsString, OsString> {
+        debug!("Composing environment variables");
+        let path = self.search_path(inherited);
+        let mut overrides = self.environment_overrides();
+        overrides.insert("PATH".into(), path);
+        for key in [
+            "GEM_HOME",
+            "GEM_PATH",
+            "BUNDLE_GEMFILE",
+            "BUNDLE_APP_CONFIG",
+            "BUNDLE_PATH",
+        ] {
+            if let Some(value) = overrides.get(OsStr::new(key)) {
+                debug!("Setting {key}: {}", value.to_string_lossy());
+            }
+        }
+        if !overrides.contains_key(OsStr::new("GEM_HOME")) {
+            debug!("No GEM_HOME available - skipping GEM_HOME and GEM_PATH");
+        }
+        if !overrides.contains_key(OsStr::new("BUNDLE_PATH")) {
+            debug!("No bundler runtime detected - skipping bundler environment variables");
+        }
+        debug!(
+            "Environment composition complete: {} variables",
+            overrides.len()
+        );
+        overrides
+    }
+
+    fn search_path(&self, inherited: Option<&OsStr>) -> OsString {
+        debug!("Building PATH environment variable");
+        let mut paths: Vec<OsString> = self
+            .bin_dirs()
+            .into_iter()
+            .map(|path| {
+                debug!("Adding to PATH: {}", path.display());
+                path.into_os_string()
+            })
+            .collect();
+        if let Some(inherited) = inherited {
+            debug!("Appending existing PATH: {}", inherited.to_string_lossy());
+            paths.push(inherited.to_owned());
+        } else {
+            debug!("No existing PATH provided");
+        }
+        let result = Self::join_paths(paths);
+        debug!("Final PATH: {}", result.to_string_lossy());
+        result
+    }
+
+    fn join_paths(paths: impl IntoIterator<Item = OsString>) -> OsString {
+        let mut result = OsString::new();
+        for (index, path) in paths.into_iter().enumerate() {
+            if index > 0 {
+                result.push(if cfg!(windows) { ";" } else { ":" });
+            }
+            result.push(path);
+        }
+        result
     }
 
     pub fn uses_bundler(&self) -> bool {
@@ -164,18 +263,28 @@ impl ButlerRuntime {
             gem_runtime,
             bundler_runtime: None,
             rubies_dir,
-            current_dir,
+            current_dir: current_dir.clone(),
             ruby_installations: vec![],
             requested_ruby_version: None,
             gem_base_dir: None,
-            package_environment: HashMap::new(),
+            package_environment: BTreeMap::new(),
             package_bin: None,
+            process: ProcessContext::new(current_dir.clone(), std::env::vars_os().collect()),
+            environment: Arc::new(OnceLock::new()),
         }
     }
 
     /// Create an empty ButlerRuntime when no Ruby installations are found
     /// This allows the runtime to exist even without Ruby, with methods failing when features are accessed
     pub fn empty(rubies_dir: PathBuf, current_dir: PathBuf) -> Self {
+        Self::empty_in(
+            rubies_dir,
+            ProcessContext::new(current_dir, std::env::vars_os().collect()),
+        )
+    }
+
+    pub fn empty_in(rubies_dir: PathBuf, process: ProcessContext) -> Self {
+        let current_dir = process.directory().to_owned();
         debug!("Creating empty ButlerRuntime (no Ruby installations found)");
 
         Self {
@@ -183,12 +292,14 @@ impl ButlerRuntime {
             gem_runtime: None,
             bundler_runtime: None,
             rubies_dir,
-            current_dir,
+            current_dir: current_dir.clone(),
             ruby_installations: vec![],
             requested_ruby_version: None,
             gem_base_dir: None,
-            package_environment: HashMap::new(),
+            package_environment: BTreeMap::new(),
             package_bin: None,
+            process,
+            environment: Arc::new(OnceLock::new()),
         }
     }
 
@@ -234,6 +345,26 @@ impl ButlerRuntime {
         skip_bundler: bool,
         current_dir: PathBuf,
     ) -> Result<Self, ButlerError> {
+        Self::discover_in(
+            ProcessContext::new(current_dir, std::env::vars_os().collect()),
+            rubies_dir,
+            requested_ruby_version,
+            gem_base_dir,
+            skip_bundler,
+        )
+    }
+
+    pub fn discover_in(
+        process: ProcessContext,
+        rubies_dir: PathBuf,
+        requested_ruby_version: Option<String>,
+        gem_base_dir: Option<PathBuf>,
+        skip_bundler: bool,
+    ) -> Result<Self, ButlerError> {
+        let current_dir = process.directory().to_owned();
+        let requested_rubies_dir = rubies_dir;
+        let rubies_dir = current_dir.join(&requested_rubies_dir);
+        let gem_base_dir = gem_base_dir.map(|directory| current_dir.join(directory));
         debug!("Starting comprehensive environment discovery");
         debug!("Rubies directory: {}", rubies_dir.display());
         debug!("Current directory: {}", current_dir.display());
@@ -242,8 +373,8 @@ impl ButlerRuntime {
         debug!("Discovering Ruby installations");
         let ruby_installations = match RubyRuntimeDetector::discover(&rubies_dir) {
             Ok(installations) => installations,
-            Err(RubyDiscoveryError::DirectoryNotFound(path)) => {
-                return Err(ButlerError::RubiesDirectoryNotFound(path));
+            Err(RubyDiscoveryError::DirectoryNotFound(_)) => {
+                return Err(ButlerError::RubiesDirectoryNotFound(requested_rubies_dir));
             }
             Err(e) => {
                 debug!("Ruby discovery failed: {:?}", e);
@@ -255,7 +386,7 @@ impl ButlerRuntime {
 
         if ruby_installations.is_empty() {
             debug!("No Ruby installations found, returning empty runtime");
-            return Ok(Self::empty(rubies_dir, current_dir));
+            return Ok(Self::empty_in(rubies_dir, process));
         }
 
         // Step 2: Detect bundler environment (skip if requested)
@@ -308,12 +439,35 @@ impl ButlerRuntime {
             }
             // Otherwise return empty runtime
             debug!("No suitable Ruby selected, returning empty runtime");
-            return Ok(Self::empty(rubies_dir, current_dir));
+            return Ok(Self::empty_in(rubies_dir, process));
         };
 
         let bundler_runtime =
             bundler_root.map(|root| BundlerRuntime::new(root, selected_ruby.version.clone()));
 
+        Ok(Self::compose_selected(
+            process,
+            rubies_dir,
+            requested_ruby_version,
+            gem_base_dir,
+            ruby_installations,
+            selected_ruby,
+            bundler_runtime,
+        ))
+    }
+
+    pub fn compose_selected(
+        process: ProcessContext,
+        rubies_dir: PathBuf,
+        requested_ruby_version: Option<String>,
+        gem_base_dir: Option<PathBuf>,
+        ruby_installations: Vec<RubyRuntime>,
+        selected_ruby: RubyRuntime,
+        bundler_runtime: Option<BundlerRuntime>,
+    ) -> Self {
+        let current_dir = process.directory().to_owned();
+        let rubies_dir = current_dir.join(rubies_dir);
+        let gem_base_dir = gem_base_dir.map(|directory| current_dir.join(directory));
         // Detect and compose gem path configuration
         use crate::gems::gem_path_detector::GemPathContext;
 
@@ -323,8 +477,12 @@ impl ButlerRuntime {
             DetectorComposer::gem_path_detector_standard()
         };
 
-        let gem_context =
-            GemPathContext::new(&current_dir, &selected_ruby, gem_base_dir.as_deref());
+        let gem_context = GemPathContext::with_home(
+            &current_dir,
+            &selected_ruby,
+            gem_base_dir.as_deref(),
+            process.home_directory(),
+        );
 
         let gem_path_config = gem_detector.detect(&gem_context);
         debug!(
@@ -332,11 +490,13 @@ impl ButlerRuntime {
             gem_path_config.gem_dirs().len()
         );
 
-        let gem_runtime = gem_path_config.gem_home().map(|gem_home| {
-            GemRuntime::for_base_dir(
-                gem_home.parent().unwrap_or(gem_home),
-                &selected_ruby.version,
-            )
+        let gem_runtime = gem_path_config.gem_home().map(|gem_home| GemRuntime {
+            gem_home: gem_home.to_owned(),
+            gem_bin: gem_path_config
+                .gem_bin_dirs()
+                .first()
+                .cloned()
+                .unwrap_or_else(|| gem_home.join("bin")),
         });
 
         info!(
@@ -350,18 +510,20 @@ impl ButlerRuntime {
             }
         );
 
-        Ok(Self {
+        Self {
             ruby_runtime: Some(selected_ruby),
             gem_runtime,
             bundler_runtime,
             rubies_dir,
-            current_dir,
+            current_dir: current_dir.clone(),
             ruby_installations,
             requested_ruby_version,
             gem_base_dir,
-            package_environment: HashMap::new(),
+            package_environment: BTreeMap::new(),
             package_bin: None,
-        })
+            process,
+            environment: Arc::new(OnceLock::new()),
+        }
     }
 
     /// Select the most appropriate Ruby runtime based on requirements
@@ -522,7 +684,7 @@ impl ButlerRuntime {
     pub fn gem_dirs(&self) -> Vec<PathBuf> {
         let mut dirs = self
             .package_environment
-            .get("GEM_PATH")
+            .get(OsStr::new("GEM_PATH"))
             .map(|paths| std::env::split_paths(paths).collect::<Vec<_>>())
             .unwrap_or_default();
 
@@ -565,7 +727,7 @@ impl ButlerRuntime {
     pub fn gem_home(&self) -> Option<PathBuf> {
         let result = self
             .package_environment
-            .get("GEM_HOME")
+            .get(OsStr::new("GEM_HOME"))
             .map(PathBuf::from)
             .or_else(|| {
                 self.gem_runtime
@@ -614,66 +776,50 @@ impl ButlerRuntime {
     /// Compose environment variables like chruby does
     /// Returns a HashMap with PATH, GEM_HOME, GEM_PATH, and bundler variables set appropriately
     pub fn env_vars(&self, existing_path: Option<String>) -> HashMap<String, String> {
-        debug!("Composing environment variables");
+        self.compose_environment_overrides(existing_path.as_deref().map(OsStr::new))
+            .into_iter()
+            .map(|(key, value)| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.to_string_lossy().into_owned(),
+                )
+            })
+            .collect()
+    }
 
-        let mut env = HashMap::new();
-
-        // Set PATH with our bin directories prepended
-        let path = self.build_path(existing_path);
-        env.insert("PATH".to_string(), path);
-
-        // Set GEM_HOME and GEM_PATH if we have a gem runtime
+    fn environment_overrides(&self) -> BTreeMap<OsString, OsString> {
+        let mut environment = BTreeMap::new();
         if let Some(gem_home) = self.gem_home() {
-            let gem_home_str = gem_home.display().to_string();
-            debug!("Setting GEM_HOME: {}", gem_home_str);
-            env.insert("GEM_HOME".to_string(), gem_home_str.clone());
-
-            // GEM_PATH follows chruby pattern: GEM_HOME:GEM_ROOT
-            let mut gem_path_parts = vec![gem_home_str];
-
-            // Add all gem directories (GEM_ROOT from Ruby runtime)
-            for gem_dir in self.gem_dirs() {
-                let gem_dir_str = gem_dir.display().to_string();
-                if !gem_path_parts.contains(&gem_dir_str) {
-                    gem_path_parts.push(gem_dir_str);
+            environment.insert("GEM_HOME".into(), gem_home.clone().into_os_string());
+            if !self
+                .package_environment
+                .contains_key(OsStr::new("GEM_PATH"))
+            {
+                let mut paths = vec![gem_home];
+                for directory in self.gem_dirs() {
+                    if !paths.contains(&directory) {
+                        paths.push(directory);
+                    }
                 }
+                environment.insert(
+                    "GEM_PATH".into(),
+                    Self::join_paths(paths.into_iter().map(PathBuf::into_os_string)),
+                );
             }
-
-            let separator = if cfg!(windows) { ";" } else { ":" };
-            let gem_path = gem_path_parts.join(separator);
-            debug!("Setting GEM_PATH: {}", gem_path);
-            env.insert("GEM_PATH".to_string(), gem_path);
-        } else {
-            debug!("No GEM_HOME available - skipping GEM_HOME and GEM_PATH");
         }
-
-        // Set bundler-specific environment variables if bundler runtime is detected
-        if let Some(bundler_runtime) = &self.bundler_runtime {
-            let gemfile_path = bundler_runtime.gemfile_path();
-            let app_config_dir = bundler_runtime.app_config_dir();
-            let vendor_dir = bundler_runtime.vendor_dir();
-
-            debug!("Setting BUNDLE_GEMFILE: {}", gemfile_path.display());
-            env.insert(
-                "BUNDLE_GEMFILE".to_string(),
-                gemfile_path.display().to_string(),
+        if let Some(bundler) = &self.bundler_runtime {
+            environment.insert(
+                "BUNDLE_GEMFILE".into(),
+                bundler.gemfile_path().into_os_string(),
             );
-
-            debug!("Setting BUNDLE_APP_CONFIG: {}", app_config_dir.display());
-            env.insert(
-                "BUNDLE_APP_CONFIG".to_string(),
-                app_config_dir.display().to_string(),
+            environment.insert(
+                "BUNDLE_APP_CONFIG".into(),
+                bundler.app_config_dir().into_os_string(),
             );
-
-            debug!("Setting BUNDLE_PATH: {}", vendor_dir.display());
-            env.insert("BUNDLE_PATH".to_string(), vendor_dir.display().to_string());
-        } else {
-            debug!("No bundler runtime detected - skipping bundler environment variables");
+            environment.insert("BUNDLE_PATH".into(), bundler.vendor_dir().into_os_string());
         }
-
-        env.extend(self.package_environment.clone());
-        debug!("Environment composition complete: {} variables", env.len());
-        env
+        environment.extend(self.package_environment.clone());
+        environment
     }
 
     /// Convenience function to create a ButlerRuntime by discovering and selecting Ruby

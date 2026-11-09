@@ -14,29 +14,32 @@ pub struct InstalledBundle {
 
 impl InstalledBundle {
     pub fn environment(&self) -> BTreeMap<String, String> {
+        self.environment_os()
+            .into_iter()
+            .map(|(key, value)| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.to_string_lossy().into_owned(),
+                )
+            })
+            .collect()
+    }
+
+    pub fn environment_os(&self) -> BTreeMap<std::ffi::OsString, std::ffi::OsString> {
         let mut environment = BTreeMap::from([
-            ("BUNDLE_WITHOUT".into(), self.without.join(":")),
-            ("BUNDLE_WITH".into(), self.with.join(":")),
-            (
-                "GEM_HOME".into(),
-                self.gem_home.to_string_lossy().into_owned(),
-            ),
-            (
-                "GEM_PATH".into(),
-                self.gem_home.to_string_lossy().into_owned(),
-            ),
+            ("BUNDLE_WITHOUT".into(), self.without.join(":").into()),
+            ("BUNDLE_WITH".into(), self.with.join(":").into()),
+            ("GEM_HOME".into(), self.gem_home.clone().into_os_string()),
+            ("GEM_PATH".into(), self.gem_home.clone().into_os_string()),
             (
                 "BUNDLE_PATH".into(),
-                self.bundle_path.to_string_lossy().into_owned(),
+                self.bundle_path.clone().into_os_string(),
             ),
             ("BUNDLE_DISABLE_SHARED_GEMS".into(), "true".into()),
             ("BUNDLE_IGNORE_CONFIG".into(), "true".into()),
         ]);
         if let Some(gemfile) = &self.gemfile {
-            environment.insert(
-                "BUNDLE_GEMFILE".into(),
-                gemfile.to_string_lossy().into_owned(),
-            );
+            environment.insert("BUNDLE_GEMFILE".into(), gemfile.clone().into_os_string());
         }
         environment
     }

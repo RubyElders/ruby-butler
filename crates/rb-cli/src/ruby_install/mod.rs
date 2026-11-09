@@ -1,15 +1,16 @@
 mod progress;
-mod request;
+pub(crate) mod request;
 
+use crate::invocation::SelectedRuby;
 use crate::{
-    config::ConfigValue,
     reporting::{Completion, PreparationReport},
     runtime_helpers::CommandContext,
 };
 use anyhow::{Context, Result, bail};
 use progress::InstallProgress;
-use rb_core::{butler::ButlerError, ruby::RubyRuntimeDetector};
-use rb_ruby_installer::{Installer, Platform, Request};
+use rb_core::butler::ButlerError;
+use rb_core::ruby::{RubyRuntime, RubyType};
+use rb_ruby_installer::{Installation, Installer, Platform, Request};
 
 pub(crate) fn install(context: &CommandContext, version: Option<&str>) -> Result<(), ButlerError> {
     request::resolve(context, version)
@@ -25,8 +26,12 @@ pub(crate) fn install(context: &CommandContext, version: Option<&str>) -> Result
         .map_err(error)
 }
 
-fn installer() -> Result<Installer> {
-    Installer::new(crate::cache::directory()?.join("rubies"))
+fn installer(context: &CommandContext) -> Result<Installer> {
+    Installer::with_inputs(
+        crate::cache::directory(&context.process)?.join("rubies"),
+        context.process.directory().to_owned(),
+        context.process.environment().clone(),
+    )
 }
 
 fn install_inner(
@@ -34,46 +39,55 @@ fn install_inner(
     request: &Request,
     completion: Completion,
     make_reporter: impl FnOnce(String) -> rb_progress::Reporter,
-) -> Result<semver::Version> {
-    let platform = Platform::current().with_context(|| {
-        format!(
-            "Unable to install Ruby in {}",
-            context.config.rubies_dir.get().display()
-        )
-    })?;
-    let installer = installer()?;
+) -> Result<Installation> {
+    let platform =
+        Platform::with_inputs(context.process.directory(), context.process.environment())
+            .with_context(|| {
+                format!(
+                    "Unable to install Ruby in {}",
+                    context.config().rubies_dir.get().display()
+                )
+            })?;
+    let installer = installer(context)?;
     let mut progress = InstallProgress::new(make_reporter(format!("Installing Ruby {request}")));
     let result = installer.install(
         request,
         platform,
-        context.config.rubies_dir.get(),
+        &context
+            .process
+            .directory()
+            .join(context.config().rubies_dir.get()),
         |event| progress.event(event),
     );
     progress.finish(result, completion)
 }
 
 pub(crate) fn prepare(
-    context: &mut CommandContext,
+    context: &CommandContext,
     report: &mut PreparationReport,
-) -> Result<(), ButlerError> {
+) -> Result<SelectedRuby, ButlerError> {
     prepare_inner(context, report).map_err(error)
 }
 
-fn prepare_inner(context: &mut CommandContext, report: &mut PreparationReport) -> Result<()> {
+fn prepare_inner(context: &CommandContext, report: &mut PreparationReport) -> Result<SelectedRuby> {
     let request = request::resolve(context, None)?;
-    let directory = context.config.rubies_dir.get();
-    let installed = match RubyRuntimeDetector::discover(directory) {
-        Ok(rubies) => rubies,
-        Err(rb_core::ruby::RubyDiscoveryError::DirectoryNotFound(_)) => Vec::new(),
+    let directory = context
+        .process
+        .directory()
+        .join(context.config().rubies_dir.get());
+    let mut installed = match context.ruby_inventory() {
+        Ok(rubies) => rubies.clone(),
+        Err(ButlerError::RubiesDirectoryNotFound(_)) => Vec::new(),
         Err(error) => return Err(anyhow::anyhow!(error.to_string())),
     };
     let selected = installed
-        .into_iter()
-        .find(|ruby| request.matches(&ruby.version));
-    let version = if let Some(ruby) = selected {
-        ruby.version
+        .iter()
+        .find(|ruby| request.matches(&ruby.version))
+        .cloned();
+    let runtime = if let Some(ruby) = selected {
+        ruby
     } else {
-        if !*context.config.auto_install_ruby.get() {
+        if !*context.config().auto_install_ruby.get() {
             let argument = shlex::try_quote(&request.to_string())
                 .context("Invalid Ruby request")?
                 .into_owned();
@@ -82,29 +96,31 @@ fn prepare_inner(context: &mut CommandContext, report: &mut PreparationReport) -
                 directory.display()
             );
         }
-        install_inner(context, &request, Completion::Tree, |title| {
+        let installation = install_inner(context, &request, Completion::Tree, |title| {
             report.child(title)
-        })?
+        })?;
+        let ruby = RubyRuntime::new(RubyType::CRuby, installation.version, installation.path);
+        installed.push(ruby.clone());
+        ruby
     };
-    let source = context
-        .config
-        .ruby_version
-        .as_ref()
-        .map(|value| value.source)
-        .unwrap_or(crate::config::ConfigSource::Resolved);
-    context.config.ruby_version = Some(ConfigValue::new(version.to_string(), source));
-    Ok(())
+    Ok(SelectedRuby {
+        runtime,
+        installations: installed,
+    })
 }
 
 pub(crate) fn available(context: &CommandContext) -> Result<(), ButlerError> {
     (|| -> Result<()> {
-        let platform = Platform::current()?;
-        for distribution in installer()?.catalog()?.distributions(platform) {
-            let path = context
-                .config
-                .rubies_dir
-                .get()
-                .join(format!("ruby-{}", distribution.version));
+        let platform =
+            Platform::with_inputs(context.process.directory(), context.process.environment())?;
+        for distribution in installer(context)?.catalog()?.distributions(platform) {
+            let path = context.process.directory().join(
+                context
+                    .config()
+                    .rubies_dir
+                    .get()
+                    .join(format!("ruby-{}", distribution.version)),
+            );
             println!(
                 "{}{}",
                 distribution.version,

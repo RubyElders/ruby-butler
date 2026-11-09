@@ -6,10 +6,11 @@ use std::path::PathBuf;
 
 fn create_test_context() -> CommandContext {
     let config = RbConfig::default();
-    CommandContext {
-        config: TrackedConfig::from_merged(&config, &RbConfig::default()),
-        project_file: None,
-    }
+    CommandContext::new(
+        TrackedConfig::from_merged(&config, &RbConfig::default()),
+        None,
+    )
+    .unwrap()
 }
 
 #[test]
@@ -33,23 +34,25 @@ fn test_dispatch_help_with_subcommand() {
     let context = create_test_context();
 
     // Just verify the dispatch doesn't panic - actual help output tested elsewhere
-    assert!(context.project_file.is_none()); // Verify context is valid
+    assert!(context.project_file().is_none()); // Verify context is valid
 }
 
 #[test]
 fn test_dispatch_new_command() {
-    let mut context = create_test_context();
-    let temp_dir = std::env::temp_dir().join(format!("rb-dispatch-new-{}", std::process::id()));
-    std::fs::create_dir_all(&temp_dir).unwrap();
-
+    let directory = tempfile::tempdir().unwrap();
     let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_dir).unwrap();
-
-    let result = dispatch_command(Commands::New, &mut context);
-    assert!(result.is_ok());
-
-    std::env::set_current_dir(&original_dir).unwrap();
-    std::fs::remove_dir_all(&temp_dir).ok();
+    let config = RbConfig {
+        work_dir: Some(directory.path().into()),
+        ..Default::default()
+    };
+    let mut context = CommandContext::new(
+        TrackedConfig::from_merged(&config, &RbConfig::default()),
+        None,
+    )
+    .unwrap();
+    dispatch_command(Commands::New, &mut context).unwrap();
+    assert!(directory.path().join("rbproject.toml").is_file());
+    assert_eq!(std::env::current_dir().unwrap(), original_dir);
 }
 
 #[test]
@@ -89,14 +92,16 @@ fn test_context_preserves_config() {
         ..Default::default()
     };
 
-    let mut context = CommandContext {
-        config: TrackedConfig::from_merged(&config, &RbConfig::default()),
-        project_file: None,
-    };
+    let mut context = CommandContext::new(
+        TrackedConfig::from_merged(&config, &RbConfig::default()),
+        None,
+    )
+    .unwrap();
 
-    // Config should persist across command dispatch
-    let _ = dispatch_command(Commands::Version, &mut context);
-    // Note: TrackedConfig uses ConfigValue which wraps the value
-    // We verify it doesn't panic and context remains valid
-    assert!(context.project_file.is_none());
+    let before = toml::to_string(&context.config().to_rb_config()).unwrap();
+    dispatch_command(Commands::Version, &mut context).unwrap();
+    assert_eq!(
+        toml::to_string(&context.config().to_rb_config()).unwrap(),
+        before
+    );
 }

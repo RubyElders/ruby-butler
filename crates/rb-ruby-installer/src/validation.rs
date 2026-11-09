@@ -9,7 +9,12 @@ pub fn complete(path: &Path) -> bool {
     path.join("bin/ruby").is_file() && path.join("lib/ruby").is_dir()
 }
 
-pub(crate) fn validate(path: &Path, version: &Version) -> Result<()> {
+pub(crate) fn validate(
+    path: &Path,
+    version: &Version,
+    directory: &Path,
+    environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+) -> Result<()> {
     ensure!(
         complete(path),
         "Ruby archive is missing its executable or standard library"
@@ -18,6 +23,9 @@ pub(crate) fn validate(path: &Path, version: &Version) -> Result<()> {
         .join("lib/ruby/gems")
         .join(format!("{}.{}.0", version.major, version.minor));
     let output = Command::new(path.join("bin/ruby"))
+        .current_dir(directory)
+        .env_clear()
+        .envs(environment)
         .args([
             "-rrbconfig",
             "-ropenssl",

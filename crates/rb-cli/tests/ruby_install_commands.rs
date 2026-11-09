@@ -71,6 +71,51 @@ fn exec_and_run_install_before_launch_and_reuse_without_reporter() {
 }
 
 #[test]
+fn verbose_execution_reports_one_scan_before_runtime_composition() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    success(
+        fixture
+            .command()
+            .args(["install", "ruby", "3.4.10"])
+            .output()
+            .unwrap(),
+    );
+    fs::write(fixture.root.path().join(".ruby-version"), "3.4.10\n").unwrap();
+    fs::write(
+        fixture.root.path().join("rbproject.toml"),
+        "[scripts]\nsmoke = 'ruby sentinel'\n",
+    )
+    .unwrap();
+    for backend in ["bundler", "native"] {
+        for args in [vec!["x", "ruby", "sentinel"], vec!["r", "smoke"]] {
+            let output = success(
+                fixture
+                    .command()
+                    .args(["-V", "-B", "--package-backend", backend])
+                    .args(args)
+                    .output()
+                    .unwrap(),
+            );
+            let log = String::from_utf8(output.stderr).unwrap();
+            let start = "Starting Ruby discovery in directory:";
+            let summary = "Discovered 1 Ruby installations in";
+            let composition = "Environment composition complete: Ruby 3.4.10";
+            assert_eq!(log.matches(start).count(), 1, "{log}");
+            assert_eq!(log.matches(summary).count(), 1, "{log}");
+            assert!(
+                log.find(start).unwrap() < log.find(summary).unwrap(),
+                "{log}"
+            );
+            assert!(
+                log.find(summary).unwrap() < log.find(composition).unwrap(),
+                "{log}"
+            );
+        }
+    }
+}
+
+#[test]
 fn sync_installs_before_package_preparation() {
     let fixture = Fixture::new();
     fixture.seed();
