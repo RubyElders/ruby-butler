@@ -149,11 +149,13 @@ Describe "Ruby Butler Help System"
       End
     End
 
-    Context "when --help flag is used (deprecated)"
-      It "rejects --help flag with error"
+    Context "when help flags are used"
+      It "shows help and recommends the help command"
         When run rb --help
-        The status should not equal 0
-        The error should include "unexpected argument"
+        The status should equal 0
+        The output should include "Usage"
+        The output should include "Commands"
+        The error should include "use \`rb help\`"
       End
 
       It "rejects -h flag with error"
