@@ -5,6 +5,6 @@ require_relative 'rb_gem_installer/source_specifications'
 
 module RubyButler
   module GemInstaller
-    VERSION = '0.3.1'
+    VERSION = '0.4.0'
   end
 end

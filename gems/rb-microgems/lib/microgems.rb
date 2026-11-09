@@ -2,7 +2,7 @@ require 'rbconfig'
 require 'json'
 
 module MicroGems
-  VERSION = '0.3.1'
+  VERSION = '0.4.0'
   WIN_PATTERNS = [/mswin/, /mingw/, /cygwin/].freeze
   class Exception < StandardError; end
   class InstallError < Exception; end
