@@ -6,7 +6,7 @@
 
 **🎭 Development Fun**: The butler-themed language and refined terminology are just for entertainment during development and will be updated before any real production release, if any.
 
-Your Ruby Butler doesn't reinvent the wheel, but rather composes the already well-known tools (`gem`, `bundle`) for your best experience—it serves you with distinction. Install your Rubies with your favourite installer like `ruby-install` or `ruby-build`, and those Rubies will be in good Butler's hands. Rather than modifying your shell environment, it meticulously prepares isolated environments, executes commands within them, and tidily cleans up afterward—just as a proper butler should serve.
+Ruby Butler selects Ruby, prepares dependencies, and runs commands without changing your shell environment. Bundler is the default package backend. An opt-in native backend resolves and installs gems while retaining RubyGems and Bundler at application runtime. On Linux and macOS, Butler can also install missing Ruby runtimes.
 
 ## Hiring Your Butler (Installation)
 
@@ -29,9 +29,12 @@ Invoke-WebRequest -Uri "https://github.com/RubyElders/ruby-butler/releases/lates
 
 ## Quick Start
 
-First, check your Ruby estate (by default checking at `~/.rubies`, see `--help` for more options):
+Install Ruby on Linux or macOS, then check available installations (by default in `~/.rubies`):
 
 ```bash
+# Install the latest matching prebuilt CRuby
+rb install ruby 4.0
+
 # Survey your distinguished Ruby installations
 rb info runtime
 ```
@@ -79,9 +82,11 @@ This approach mirrors how a distinguished butler operates: preparing everything 
 
 Ruby Butler expects Ruby installations in `~/.rubies/` (the standard location for `ruby-install` and similar tools). It discovers and composes:
 
-- **Ruby Runtimes**: Installed via `ruby-install`, `ruby-build`, etc.
+- **Ruby Runtimes**: Installed via `rb install ruby` on Linux/macOS, or an external installer on any supported platform
 - **Gem Environments**: User gem directories (`~/.gem/ruby/X.Y.Z/`)  
 - **Bundler Projects**: Detected automatically via `Gemfile` presence
+
+Missing Ruby runtimes are installed automatically for `sync`, `exec`, and `run` on Linux/macOS. Disable this with `--no-auto-install-ruby`, `RB_AUTO_INSTALL_RUBY=false`, or `auto-install-ruby = false` in your global config. Native gem compilation still requires a compiler and the gem's system libraries.
 
 ## Commands
 
@@ -93,6 +98,8 @@ Ruby Butler expects Ruby installations in `~/.rubies/` (the standard location fo
 - `rb info env` - Display current environment composition
 - `rb info project` - Show resolved project settings
 - `rb info config` - Display merged configuration with sources
+- `rb install ruby [version]` - Install a matching prebuilt CRuby on Linux/macOS
+- `rb export-gemfile` - Export Gemfile declarations to stdout as TOML (or `--format kdl`)
 - `rb version` - Display version information
 - `rb shell-integration bash` - Generate bash completions (`eval "$(rb shell-integration bash)"`)
 
@@ -100,6 +107,14 @@ Ruby Butler expects Ruby installations in `~/.rubies/` (the standard location fo
 
 - **`rb.toml`** - Global configuration file (in `~/.config/rb/` or `~/.rb.toml`)
 - **`rbproject.toml`** or **`gem.toml`** - Project-level script definitions and metadata
+
+To use native dependency preparation by default, add to your global `rb.toml`:
+
+```toml
+package-backend = "native"
+```
+
+Use `package-backend "native"` in KDL. `RB_PACKAGE_BACKEND=native` selects it for a shell session; `--package-backend native` selects it for one command. Set it to `bundler` to switch back. Inspect effective settings with `rb info config`. See the [0.4.0 changelog](CHANGELOG.md#040---2026-11-09) for new features, defaults, and limitations.
 
 ## Development
 
@@ -145,7 +160,7 @@ If you're curious about what Butler does under the hood, add `-v` or `-V` to see
 
 To create a new release with cross-platform binaries:
 
-1. **Update version** in root `Cargo.toml` (workspace version)
+1. **Update version** in root `Cargo.toml` (workspace version), refresh `Cargo.lock`, and update the Ruby helper versions under `gems/`
 2. **Update CHANGELOG.md** with release notes
 3. **Create and push tag**:
    ```bash

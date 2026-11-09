@@ -5,6 +5,67 @@ All notable changes to Ruby Butler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-09
+
+### Added
+- `rb --help` displays help and suggests using `rb help`.
+- **Ruby installation:** `rb install ruby 4.0` selects the newest matching stable prebuilt CRuby on Linux/macOS; `rb info runtime --available` lists downloadable versions. Downloads are cached, SHA-256 verified, safely extracted, and validated before installation. Existing complete installations are reused. The destination respects `-R`, `RB_RUBIES_DIR`, and `rubies-dir`, defaulting to `~/.rubies`.
+- **Automatic Ruby preparation:** `rb sync`, `rb exec`/`rb x`, and `rb run`/`rb r` install missing Ruby runtimes before preparing dependencies. This is enabled by default on supported platforms, with configuration, environment, and command-line opt-outs.
+- **Progress reporting:** live terminal trees show phases, parallel workers, recent build output, errors, human-readable transfer sizes, and consistent elapsed times. Nested operations share one display, including automatic Ruby installation followed by dependency preparation. Small terminals use a compact view, and redirected output uses an append-only log.
+- **Gemfile export:** `rb export-gemfile` writes TOML to stdout; `--format kdl` writes KDL. Export supports sources, groups, platforms, Git/path dependencies, included Gemfiles, and local gemspecs, omitting inactive declarations. Gemfile discovery respects an explicit path, `BUNDLE_GEMFILE`, `gems.rb`/`Gemfile`, and global project/working-directory options.
+- **Native package backend (opt-in):** resolves and installs dependencies from a Gemfile or project dependency declarations without Bundler performing resolution or installation. It supports registry, Git and path gems, platform-specific gems, and native extension compilation. Application runtime still uses RubyGems and Bundler.
+- **Compatible lockfiles:** native preparation reuses valid locked graphs, resolves changed dependency graphs, and writes Bundler-compatible lockfiles. Existing target platforms are resolved together when refreshing a lock; only the local platform is installed.
+- **Shared gem cache:** native downloads are cached per normalized registry source and SHA-256, verified before reuse, and shared across projects. Git sources use shared cached repositories and pinned snapshots; installed bundles remain project-local under `.rb`.
+- **Private registries:** native preparation reads Bundler-compatible local, environment, and global credentials without loading Bundler. Command-based credential providers can be configured in `rb/auth.toml`, including commands that obtain a GitHub token. See [registry authentication](https://github.com/RubyElders/ruby-butler/blob/v0.4.0/crates/rb-packages/README.md).
+
+### Changed
+- Runtime discovery, project loading, and execution environment preparation are reused within each command, without sharing invocation state between runs.
+- Explicit `rb sync` keeps its completed progress tree; automatic preparation before `exec` and `run` collapses to a summary. Already prepared native environments launch without repeating preparation.
+- Native prepared state tracks dependency manifests, loaded dependency files, lockfiles, relevant environment reads, and declared path inputs. Application code and Ruby installation contents are not scanned. Unrelated launcher rebuilds do not invalidate prepared bundles.
+- Environment information and executable completion use the selected package backend, including executables supplied by installed gems.
+- Rust builds use a shared `rust-toolchain.toml`. Building from source now requires Rust 1.98.1; distributed binaries do not require Rust.
+
+### Fixed
+- `.ruby-version` accepts CRuby-prefixed versions such as `ruby-4.0.5` alongside `4.0.5`.
+- Automatic Bundler preparation reconciles a stale lockfile even when all remaining Gemfile dependencies are already installed, including after removing a dependency.
+- Package discovery, environment inspection, completion, and execution share backend selection and project paths.
+- Native source selection, platform locks, archive identity checks, and private registry access received compatibility fixes.
+
+### Enabling the new features
+
+Bundler remains the default package backend. To make native preparation the default, add this to your global `rb.toml` (`$XDG_CONFIG_HOME/rb/rb.toml`, normally `~/.config/rb/rb.toml`; `%APPDATA%/rb/rb.toml` on Windows):
+
+```toml
+package-backend = "native"
+```
+
+For KDL config (`rb.kdl`), use `package-backend "native"`. For one command, use `rb --package-backend native sync`; for a shell session, export `RB_PACKAGE_BACKEND=native`. This also selects the backend for `rb x` and `rb run`. Set the value to `bundler` to switch back. Command-line settings override environment variables, which override file settings. Run `rb info config` to inspect effective settings and their sources.
+
+Automatic Ruby installation is already enabled. To require an existing Ruby, add `auto-install-ruby = false` to your global TOML config, export `RB_AUTO_INSTALL_RUBY=false`, or pass `--no-auto-install-ruby`. Use `--auto-install-ruby` for a one-command override. KDL uses `auto-install-ruby false`.
+
+Ruby installation on Windows and installation from source are not supported. Native gem compilation needs the selected Ruby's development headers, a compiler, and any system libraries required by the gem. The native backend does not yet support Bundler plugins, custom lockfile paths, differing registry sources for the same gem across targets, or MicroGems as the application runtime.
+
+### Libraries
+
+The new standalone crates separate work from presentation and can be used independently of the CLI:
+
+| Crate | Purpose |
+| --- | --- |
+| `rb-task` | Dependency graphs, bounded parallel execution, lifecycle/progress/output events, and typed failures. |
+| `rb-progress` | Terminal and plain reporting, nested operations, worker output, and optional `rb-task` integration. |
+| `rb-gemfile` | Trusted Gemfile evaluation, typed manifests, cached evaluation, and TOML/KDL export. |
+| `rb-compact-index` | Registry metadata and archive access, source-scoped caches, ETags, checksum verification, and legacy index fallback. |
+| `rb-gem-types` | Ruby-compatible gem versions, requirements, platforms, and package identities. |
+| `rb-resolver` | PubGrub resolution with Ruby/platform filtering, locked preferences, prereleases, and multiple targets. |
+| `rb-lockfile` | Parsing and deterministic rendering of registry, Git, path, platform, and checksum lockfile sections. |
+| `rb-gem-archive` | Bounded `.gem` metadata reading and archive member checksum verification without Ruby. |
+| `rb-gem-installer` | Staged payload installation and extconf/make, rake/mkrf, configure, CMake, and Cargo builds. |
+| `rb-microgems` | Minimal RubyGems-compatible APIs for isolated native extension build subprocesses. |
+| `rb-packages` | Manifest loading, source acquisition, resolution, lockfiles, installation, and prepared-state reuse. |
+| `rb-ruby-installer` | Cached, verified prebuilt CRuby installation from rv-ruby distributions. |
+
+The Ruby helpers live under `gems/`, with independent Ruby tests and linting, and are embedded in the distributed executable. This release does not publish them as Ruby gems or publish the Rust crates to crates.io.
+
 ## [0.3.1] - 2026-05-03
 
 ### Fixed
