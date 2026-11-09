@@ -23,7 +23,8 @@ impl FromStr for Request {
         if text.is_empty() {
             bail!("Ruby version must not be empty");
         }
-        let prefix = text
+        let version = text.strip_prefix("ruby-").unwrap_or(text);
+        let prefix = version
             .split('.')
             .map(str::parse::<u64>)
             .collect::<Result<Vec<_>, _>>()
@@ -31,8 +32,8 @@ impl FromStr for Request {
             .filter(|parts| (1..=3).contains(&parts.len()));
         let selection = match prefix {
             Some(prefix) => Selection::Prefix(prefix),
-            None if text == "latest" => Selection::Latest,
-            None => Selection::Requirement(text.parse()?),
+            None if version == "latest" => Selection::Latest,
+            None => Selection::Requirement(version.parse()?),
         };
         Ok(Self {
             text: text.into(),

@@ -52,6 +52,26 @@ fn matches_installed_versions_with_the_same_rules() {
 }
 
 #[test]
+fn accepts_explicit_cruby_version_requests() {
+    let request: Request = " ruby-4.0.5\n".parse().unwrap();
+    assert_eq!(request.exact_version(), Some(Version::new(4, 0, 5)));
+    assert!(request.matches(&Version::new(4, 0, 5)));
+    assert!(!request.matches(&Version::new(4, 0, 6)));
+    assert_eq!(request.to_string(), "ruby-4.0.5");
+    let minor: Request = "ruby-3.4".parse().unwrap();
+    assert!(minor.matches(&Version::new(3, 4, 10)));
+    assert!(!minor.matches(&Version::new(4, 0, 5)));
+    assert!(
+        release()
+            .select(&"ruby-3.4.10".parse().unwrap(), Platform::LinuxX86_64)
+            .is_ok()
+    );
+    for unsupported in ["ruby-", "jruby-4.0.5", "truffleruby-4.0.5"] {
+        assert!(unsupported.parse::<Request>().is_err(), "{unsupported}");
+    }
+}
+
+#[test]
 fn supported_hosts_are_explicit() {
     for (os, arch, musl, expected) in [
         ("linux", "x86_64", false, Platform::LinuxX86_64),
