@@ -1,9 +1,31 @@
 require 'minitest/autorun'
 require 'tmpdir'
 require 'fileutils'
+require 'json'
+require 'open3'
 require_relative '../lib/rb_gem_installer'
 
 class SourceSpecificationsTest < Minitest::Test
+  def test_exports_gemspec_and_loaded_helper_inputs
+    Dir.mktmpdir do |directory|
+      fixtures = File.expand_path('../../../crates/rb-packages/tests/fixtures/sources', __dir__)
+      FileUtils.cp_r(File.join(fixtures, '.'), directory)
+      request = File.join(directory, 'request.json')
+      output = File.join(directory, 'specifications.json')
+      File.write(request, JSON.generate(directory: directory, glob: 'fixture.gemspec', output: output))
+      tracker = File.expand_path('../../rb-gemfile/lib/rb_gemfile/file_inputs.rb', __dir__)
+      helper = File.expand_path('../lib/rb_gem_installer/source_specifications.rb', __dir__)
+      _stdout, stderr, status = Open3.capture3(
+        RbConfig.ruby, '-r', tracker, '-r', helper, '-e',
+        'RubyButler::GemInstaller::SourceSpecifications.export(ARGV.fetch(0), RubyButler::FileInputs.new)', request
+      )
+      assert status.success?, stderr
+      specifications = JSON.parse(File.read(output))
+      expected = ['fixture.gemspec', 'lib/fixture/version.rb'].map { |path| File.join(directory, path) }.sort
+      assert_equal expected, specifications.fetch(0).fetch('inputs').sort
+    end
+  end
+
   def test_reads_gemspec_with_relative_project_helpers
     Dir.mktmpdir do |directory|
       fixtures = File.expand_path('../../../crates/rb-packages/tests/fixtures/sources', __dir__)

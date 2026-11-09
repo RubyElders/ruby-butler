@@ -128,6 +128,7 @@ impl Candidate {
         &self,
         options: &PrepareOptions,
         input: &ProjectInput,
+        source_inputs: &BTreeSet<PathBuf>,
     ) -> Result<(BTreeSet<PathBuf>, String)> {
         ensure!(
             self.before
@@ -140,18 +141,7 @@ impl Candidate {
             "Project changed during evaluation"
         );
         let mut paths: BTreeSet<_> = input.evaluation_inputs.iter().cloned().collect();
-        for dependency in input
-            .manifest
-            .dependencies
-            .values()
-            .flat_map(|dependency| std::iter::once(dependency).chain(&dependency.variants))
-        {
-            if dependency.enabled
-                && let Some(path) = &dependency.path
-            {
-                paths.insert(path.into());
-            }
-        }
+        paths.extend(source_inputs.iter().cloned());
         Ok((
             paths.clone(),
             inputs(

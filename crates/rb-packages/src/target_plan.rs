@@ -32,6 +32,14 @@ impl TargetPlan {
                 let applies = platform_applies(&declaration.platforms, runtime)?;
 
                 let constraint: Requirement = declaration.version.join(", ").parse()?;
+                let lock_constraint = if manifest.gemspecs.iter().any(|package| {
+                    package.name == *name
+                        && declaration.path.as_deref() == Some(package.path.as_str())
+                }) {
+                    Requirement::default()
+                } else {
+                    constraint.clone()
+                };
                 let value = if let Some(previous) = roots.get(name) {
                     format!("{previous}, {constraint}").parse()?
                 } else {
@@ -40,14 +48,14 @@ impl TargetPlan {
                 if let Some(previous) = declarations.get(name) {
                     let previous: &Dependency = previous;
                     ensure!(
-                        previous.requirement == constraint,
+                        previous.requirement == lock_constraint,
                         "Different requirements across declarations for {name} are not supported"
                     );
                 }
                 declarations.insert(
                     name.clone(),
                     Dependency {
-                        requirement: constraint,
+                        requirement: lock_constraint,
                         pinned: declaration.source.is_some()
                             || declaration.git.is_some()
                             || declaration.path.is_some(),

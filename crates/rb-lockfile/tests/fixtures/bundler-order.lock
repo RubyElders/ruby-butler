@@ -1,0 +1,21 @@
+PATH
+  remote: .
+  specs:
+    fixture (1.0.0)
+      dependency (~> 1, >= 1.0.2)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    dependency (1.0.2)
+    variant (2.0.0)
+    variant (2.0.0-arm64-darwin)
+    variant (2.0.0-x86_64-linux)
+
+PLATFORMS
+  arm64-darwin
+  ruby
+  x86_64-linux
+
+DEPENDENCIES
+  fixture!

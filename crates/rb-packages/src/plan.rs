@@ -353,7 +353,7 @@ pub(crate) fn resolve(
         );
         sections
             .entry(record.source.clone())
-            .or_insert_with(|| record.source.lock_source())
+            .or_insert_with(|| record.source.lock_source_in(options.source_root.as_deref()))
             .packages
             .push(package);
     }

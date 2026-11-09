@@ -92,6 +92,7 @@ pub(crate) fn plan(
                     .flatten()
                     .unwrap_or_else(|| "0".repeat(crate::constants::CHECKSUM_CHARACTERS)),
                 rubygems: None,
+                declared_ruby: None,
             };
             locked
                 .packages

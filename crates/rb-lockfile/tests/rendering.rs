@@ -1,6 +1,26 @@
 use rb_lockfile::Lockfile;
 
 #[test]
+fn bundler_order_is_preserved_for_sources_platform_variants_and_requirements() {
+    let text = include_str!("fixtures/bundler-order.lock");
+    let lock = Lockfile::parse(text).unwrap();
+    assert_eq!(lock.render().unwrap(), text);
+    let mut reversed = lock;
+    reversed.sources.reverse();
+    for source in &mut reversed.sources {
+        source.packages.reverse();
+        for package in &mut source.packages {
+            for requirements in package.dependencies.values_mut() {
+                for requirement in requirements {
+                    *requirement = ">= 1.0.2, ~> 1".parse().unwrap();
+                }
+            }
+        }
+    }
+    assert_eq!(reversed.render().unwrap(), text);
+}
+
+#[test]
 fn rendering_is_independent_of_source_package_and_platform_order() {
     let lock = Lockfile::parse(include_str!("fixtures/mixed.lock")).unwrap();
     let expected = lock.render().unwrap();

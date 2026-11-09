@@ -133,17 +133,6 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
             input_options.install.build.inherited_environment(),
         )
     })?;
-    let observed = if let Some(candidate) = candidate.clone() {
-        let options = options.clone();
-        let input = input.clone();
-        crate::task::run("track preparation inputs", events.clone(), move |_| {
-            Ok(crate::prepared_state::attempt(
-                candidate.observe(&options, &input),
-            ))
-        })?
-    } else {
-        None
-    };
     let source_input = input.clone();
     let source_runtime = runtime.clone();
     let mut plan_options = options.plan.clone();
@@ -175,6 +164,20 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
         )?;
         Ok((plan, index))
     })?;
+    let observed = if let Some(candidate) = candidate.clone() {
+        let options = options.clone();
+        let input = input.clone();
+        let source_inputs = index.preparation_inputs();
+        crate::task::run("check local gem files", events.clone(), move |_| {
+            Ok(crate::prepared_state::attempt(candidate.observe(
+                &options,
+                &input,
+                &source_inputs,
+            )))
+        })?
+    } else {
+        None
+    };
     ensure!(
         options.plan.mode != LockMode::Locked || !plan.lock_changed,
         "Lockfile changed in locked mode"

@@ -198,6 +198,7 @@ pub fn install(
         );
         let slot_extract = slots[&name].clone();
         let home_extract = staged_home.clone();
+        let ruby = runtime.version.clone();
         actions.insert(
             extract,
             Arc::new(move |context| {
@@ -215,7 +216,7 @@ pub fn install(
                     &directory,
                 )
                 .map_err(|e| format!("{e:#}"))?;
-                ensure_record(&metadata, &record).map_err(|e| format!("{e:#}"))?;
+                ensure_record(&metadata, &record, &ruby).map_err(|e| format!("{e:#}"))?;
                 slot.staging = Some(staging);
                 slot.metadata = Some(metadata);
                 context.progress("extract", 1, 1, Some(name.clone()));

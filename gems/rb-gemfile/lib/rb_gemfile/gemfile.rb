@@ -13,6 +13,7 @@ module RubyButler
       @gemspecs = []
       @gemspec_development = {}
       @inputs = []
+      @file_inputs = FileInputs.new(@inputs)
       @environment_inputs = EnvironmentInputs.new
       @stack = []
       @context = { groups: [], platforms: [], conditions: [] }
@@ -51,7 +52,9 @@ module RubyButler
       @inputs << path unless @inputs.include?(path)
       @stack.push(path)
       begin
-        @environment_inputs.capture { instance_eval(contents || read_file(path), path, 1) }
+        @file_inputs.capture do
+          @environment_inputs.capture { instance_eval(contents || read_file(path), path, 1) }
+        end
       ensure
         @stack.pop
       end

@@ -140,17 +140,21 @@ impl SourceIndex {
                     directory,
                 )
             };
-            let snapshot = crate::source_files::fingerprint(&directory)?;
             let specifications = crate::source_specs::read_with_environment(
                 &runtime.executable,
                 &directory,
                 declaration.glob.as_deref(),
                 environment,
             )?;
-            ensure!(
-                crate::source_files::fingerprint(&directory)? == snapshot,
-                "Gemspec evaluation modified its source directory"
-            );
+            let inputs = specifications
+                .iter()
+                .map(|spec| spec.tracked_paths(&directory))
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .flatten()
+                .filter_map(|path| path.strip_prefix(&directory).ok().map(Path::to_owned))
+                .collect::<Vec<_>>();
+            let snapshot = crate::source_files::fingerprint(&directory, &inputs)?;
             for spec in specifications {
                 let package = SourcePackage::new(spec, &source, &directory, cache, &snapshot)?;
                 packages
@@ -158,6 +162,10 @@ impl SourceIndex {
                     .or_default()
                     .push(package);
             }
+            ensure!(
+                crate::source_files::fingerprint(&directory, &inputs)? == snapshot,
+                "Source files changed during packaging"
+            );
         }
         let mut registry = RegistryIndex::new(&input.manifest, cache, offline)?;
         registry.load_credentials_with_environment(&input.root, offline, environment)?;
@@ -174,6 +182,15 @@ impl SourceIndex {
             .get(&record.package.id.name)
             .and_then(|entries| entries.iter().find(|entry| entry.record == *record))
             .context("Source package is unavailable")
+    }
+
+    pub(crate) fn preparation_inputs(&self) -> std::collections::BTreeSet<PathBuf> {
+        self.packages
+            .values()
+            .flatten()
+            .filter(|package| matches!(package.record.source, PackageSource::Path { .. }))
+            .flat_map(|package| package.inputs.iter().cloned())
+            .collect()
     }
 
     pub(crate) fn sources_current(

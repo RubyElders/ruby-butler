@@ -17,6 +17,22 @@ pub(crate) fn write(
     }
     let mut manifest = input.manifest.clone();
     let mut lock = plan.lockfile.clone();
+    for package in &manifest.gemspecs {
+        if let (Some(dependency), Some(locked)) = (
+            manifest.dependencies.get_mut(&package.name),
+            lock.dependencies.get(&package.name),
+        ) {
+            let update = |declaration: &mut rb_gemfile::Dependency| {
+                if declaration.path.as_deref() == Some(package.path.as_str()) {
+                    declaration.version = vec![locked.requirement.to_string()];
+                }
+            };
+            update(dependency);
+            for declaration in &mut dependency.variants {
+                update(declaration);
+            }
+        }
+    }
     let mut paths = std::collections::BTreeMap::new();
     for package in &plan.packages {
         if matches!(package.record.source, PackageSource::Path { .. }) {

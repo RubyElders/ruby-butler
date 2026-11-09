@@ -1,20 +1,28 @@
-use crate::{Lockfile, ParseError, constants::SOURCE_OPTION_ORDER};
+use crate::{Lockfile, ParseError, Source, SourceKind, constants::SOURCE_OPTION_ORDER};
 use rb_gem_types::Requirement;
 use std::fmt::Write;
 
 pub(crate) fn render(lock: &Lockfile) -> Result<String, ParseError> {
     let mut canonical = lock.clone();
     for source in &mut canonical.sources {
-        source.packages.sort_by(|a, b| {
-            a.name
-                .cmp(&b.name)
-                .then(a.version.cmp(&b.version))
-                .then(a.platform.cmp(&b.platform))
+        source.packages.sort_by_cached_key(|package| {
+            format!("{}-{}", package.name, package.archive_version())
         });
+        for package in &mut source.packages {
+            for requirements in package.dependencies.values_mut() {
+                for requirement in requirements {
+                    *requirement = canonical_requirement(requirement);
+                }
+            }
+        }
+    }
+    for dependency in canonical.dependencies.values_mut() {
+        dependency.requirement = canonical_requirement(&dependency.requirement);
     }
     canonical.sources.sort_by(|a, b| {
-        a.kind
-            .cmp(&b.kind)
+        (a.kind == SourceKind::Registry)
+            .cmp(&(b.kind == SourceKind::Registry))
+            .then_with(|| source_identifier(a).cmp(&source_identifier(b)))
             .then(a.remotes.cmp(&b.remotes))
             .then(a.options.cmp(&b.options))
             .then_with(|| {
@@ -86,6 +94,25 @@ pub(crate) fn render(lock: &Lockfile) -> Result<String, ParseError> {
         });
     }
     Ok(out)
+}
+
+fn source_identifier(source: &Source) -> String {
+    match source.kind {
+        SourceKind::Path => format!("source at `{}`", source.remotes.join(", ")),
+        _ => source.remotes.join(", "),
+    }
+}
+
+fn canonical_requirement(requirement: &Requirement) -> Requirement {
+    let mut constraints = requirement
+        .constraints()
+        .map(|(operator, version)| format!("{operator} {version}"))
+        .collect::<Vec<_>>();
+    constraints.sort_by(|a, b| b.cmp(a));
+    constraints
+        .join(", ")
+        .parse()
+        .expect("existing lockfile requirements")
 }
 
 fn write_dependency(

@@ -32,6 +32,39 @@ impl From<&str> for PackageSource {
 }
 
 impl PackageSource {
+    pub(crate) fn lock_source_in(&self, root: Option<&Path>) -> Source {
+        let mut source = self.lock_source();
+        if let (Self::Path { directory, .. }, Some(root)) = (self, root) {
+            let directory: Vec<_> = directory.components().collect();
+            let root: Vec<_> = root.components().collect();
+            let shared = directory
+                .iter()
+                .zip(&root)
+                .take_while(|(a, b)| a == b)
+                .count();
+            if shared > 0 && directory.first() == root.first() {
+                let mut relative = PathBuf::new();
+                for _ in &root[shared..] {
+                    relative.push("..");
+                }
+                for component in &directory[shared..] {
+                    relative.push(component.as_os_str());
+                }
+                if relative.as_os_str().is_empty() {
+                    relative.push(".");
+                }
+                source.remotes = vec![
+                    relative
+                        .components()
+                        .map(|component| component.as_os_str().to_string_lossy())
+                        .collect::<Vec<_>>()
+                        .join("/"),
+                ];
+            }
+        }
+        source
+    }
+
     pub fn lock_source(&self) -> Source {
         match self {
             Self::Registry(url) => Source::new(SourceKind::Registry, url),

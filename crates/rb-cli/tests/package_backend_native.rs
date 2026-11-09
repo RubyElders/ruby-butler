@@ -16,7 +16,7 @@ fn native_sync_exec_and_run_use_the_same_bundler_compatible_installation() {
     let report = String::from_utf8_lossy(&output.stderr);
     for phase in [
         "check dependency inputs",
-        "track preparation inputs",
+        "check local gem files",
         "record prepared environment",
     ] {
         assert!(report.contains(&format!("started: {phase}")), "{report}");

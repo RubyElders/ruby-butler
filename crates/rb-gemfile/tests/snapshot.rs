@@ -12,6 +12,63 @@ fn write(root: &Path, file: &str, text: &str) {
 }
 
 #[test]
+fn loaded_helpers_and_read_data_invalidate_without_tracking_unrelated_files() {
+    let root = tempfile::tempdir().unwrap();
+    write(
+        root.path(),
+        "Gemfile",
+        include_str!("fixtures/snapshot/loaded_inputs.Gemfile"),
+    );
+    write(
+        root.path(),
+        "helper.rb",
+        "module Helper; NAME = 'rack'; end\n",
+    );
+    write(
+        root.path(),
+        "version.rb",
+        "module Helper; VERSION = File.read(File.join(__dir__, 'version.txt')).strip; end\n",
+    );
+    write(root.path(), "version.txt", "3.1.0\n");
+    let cache = SnapshotCache::new(root.path().join(".rb/snapshot.json"));
+    let gemfile = root.path().join("Gemfile");
+    let first = cache.evaluate(&evaluator(), &gemfile).unwrap();
+    for name in ["Gemfile", "helper.rb", "version.rb", "version.txt"] {
+        assert!(
+            first
+                .evaluation
+                .inputs
+                .contains(&dunce::canonicalize(root.path().join(name)).unwrap()),
+            "{name}"
+        );
+    }
+    assert!(cache.evaluate(&evaluator(), &gemfile).unwrap().reused);
+    write(root.path(), ".trees/unrelated/file", "not an input");
+    assert!(cache.evaluate(&evaluator(), &gemfile).unwrap().reused);
+    write(root.path(), "version.txt", "3.2.0\n");
+    let changed = cache.evaluate(&evaluator(), &gemfile).unwrap();
+    assert!(!changed.reused);
+    assert_eq!(
+        changed.evaluation.manifest.dependencies["rack"].version,
+        ["3.2.0"]
+    );
+    write(
+        root.path(),
+        "helper.rb",
+        "module Helper; NAME = 'rake'; end\n",
+    );
+    let changed = cache.evaluate(&evaluator(), &gemfile).unwrap();
+    assert!(!changed.reused);
+    assert!(
+        changed
+            .evaluation
+            .manifest
+            .dependencies
+            .contains_key("rake")
+    );
+}
+
+#[test]
 fn explicit_inputs_drive_evaluation_and_snapshot_freshness() {
     let root = tempfile::tempdir().unwrap();
     write(
