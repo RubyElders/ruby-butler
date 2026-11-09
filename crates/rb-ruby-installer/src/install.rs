@@ -100,7 +100,7 @@ impl Installer {
             .tempdir_in(directory)?;
         let extracted = crate::archive::extract(&archive, stage.path())?;
         report(Event::Phase(Phase::Validating));
-        validate(&extracted, &version)?;
+        validate(&extracted, &version, &self.directory, &self.environment)?;
         let version_text = version.to_string();
         let receipt = Receipt {
             version: &version_text,

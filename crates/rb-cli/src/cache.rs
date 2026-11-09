@@ -1,9 +1,9 @@
-use crate::config::locator::{EnvReader, StdEnvReader};
+use crate::config::locator::EnvReader;
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 
-pub(crate) fn directory() -> Result<PathBuf> {
-    locate(&StdEnvReader, home::home_dir())
+pub(crate) fn directory(inputs: &rb_core::process_context::ProcessContext) -> Result<PathBuf> {
+    locate(inputs, inputs.home_directory())
 }
 
 fn locate(environment: &dyn EnvReader, home: Option<PathBuf>) -> Result<PathBuf> {

@@ -25,7 +25,22 @@ pub(crate) fn filename(metadata: &GemMetadata, archive_version: &str, home: &Pat
         .join(format!("{}-{archive_version}.gemspec", metadata.id.name))
 }
 
+#[cfg(test)]
 pub(crate) fn write_all(ruby: &Path, records: &[(GemMetadata, String, PathBuf)]) -> Result<()> {
+    write_all_with_inputs(
+        ruby,
+        records,
+        &std::env::current_dir()?,
+        &std::env::vars_os().collect(),
+    )
+}
+
+pub(crate) fn write_all_with_inputs(
+    ruby: &Path,
+    records: &[(GemMetadata, String, PathBuf)],
+    directory: &Path,
+    environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+) -> Result<()> {
     if records.is_empty() {
         return Ok(());
     }
@@ -45,6 +60,7 @@ pub(crate) fn write_all(ruby: &Path, records: &[(GemMetadata, String, PathBuf)])
         include_str!("../../../gems/rb-gem-installer/lib/rb_gem_installer/specification.rb"),
     )?;
     let output = Command::new(ruby)
+        .current_dir(directory).env_clear().envs(environment)
         .env_remove("RUBYOPT")
         .env_remove("RUBYLIB")
         .args([

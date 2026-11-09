@@ -24,11 +24,22 @@ pub struct RegistryIndex {
 }
 
 impl RegistryIndex {
+    #[cfg(test)]
     pub(crate) fn load_credentials(&mut self, project: &Path, offline: bool) -> Result<()> {
+        self.load_credentials_with_environment(project, offline, &std::env::vars_os().collect())
+    }
+
+    pub(crate) fn load_credentials_with_environment(
+        &mut self,
+        project: &Path,
+        offline: bool,
+        environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+    ) -> Result<()> {
         if offline {
             return Ok(());
         }
-        let settings = crate::credentials::Credentials::load(project)?;
+        let settings =
+            crate::credentials::Credentials::load_with_environment(project, environment)?;
         for (source, client) in &mut self.clients {
             if let Some(credentials) = settings.credentials(source)? {
                 *client = client.clone().with_credentials(&credentials)?;

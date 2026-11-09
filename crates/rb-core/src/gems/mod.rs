@@ -48,6 +48,20 @@ impl GemRuntime {
     pub fn bin_dirs(&self) -> Vec<PathBuf> {
         vec![self.gem_bin.clone()]
     }
+
+    pub(crate) fn gem_path_detector() -> crate::gems::gem_path_detector::CompositeGemPathDetector {
+        use crate::gems::gem_path_detector::{CustomGemBaseDetector, UserGemsDetector};
+
+        // Gem environment (non-bundler): standard priority
+        // 1. Custom gem base (RB_GEM_BASE override)
+        // 2. User gems (always available fallback)
+        //
+        // BundlerIsolationDetector is intentionally excluded - only used in BundlerRuntime
+        crate::gems::gem_path_detector::CompositeGemPathDetector::new(vec![
+            Box::new(CustomGemBaseDetector),
+            Box::new(UserGemsDetector),
+        ])
+    }
 }
 
 impl RuntimeProvider for GemRuntime {
@@ -72,17 +86,7 @@ impl RuntimeProvider for GemRuntime {
     fn compose_gem_path_detector(
         &self,
     ) -> crate::gems::gem_path_detector::CompositeGemPathDetector {
-        use crate::gems::gem_path_detector::{CustomGemBaseDetector, UserGemsDetector};
-
-        // Gem environment (non-bundler): standard priority
-        // 1. Custom gem base (RB_GEM_BASE override)
-        // 2. User gems (always available fallback)
-        //
-        // BundlerIsolationDetector is intentionally excluded - only used in BundlerRuntime
-        crate::gems::gem_path_detector::CompositeGemPathDetector::new(vec![
-            Box::new(CustomGemBaseDetector),
-            Box::new(UserGemsDetector),
-        ])
+        Self::gem_path_detector()
     }
 }
 

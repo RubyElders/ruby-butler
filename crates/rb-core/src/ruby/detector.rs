@@ -4,9 +4,13 @@ use semver::Version;
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::LazyLock,
 };
 
 use super::{RubyDiscoveryError, RubyRuntime, RubyType};
+
+static RUBY_DIRECTORY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^ruby-(\d+)\.(\d+)\.(\d+)$").expect("static regex"));
 
 pub struct RubyRuntimeDetector;
 
@@ -29,7 +33,6 @@ impl RubyRuntimeDetector {
         }
 
         let mut out = Vec::new();
-        let re = Regex::new(r"^ruby-(\d+)\.(\d+)\.(\d+)$").expect("static regex");
 
         let entries = fs::read_dir(root_dir).map_err(|e| {
             RubyDiscoveryError::IoError(format!(
@@ -52,7 +55,7 @@ impl RubyRuntimeDetector {
             let name = entry.file_name().to_string_lossy().to_string();
             debug!("Examining directory: {}", name);
 
-            if let Some(c) = re.captures(&name) {
+            if let Some(c) = RUBY_DIRECTORY.captures(&name) {
                 let v = format!("{}.{}.{}", &c[1], &c[2], &c[3]);
                 debug!(
                     "Found potential Ruby directory matching pattern: {} -> version {}",

@@ -203,6 +203,8 @@ impl NativeBuilder {
     ) -> Command {
         let mut command = Command::new(program);
         command
+            .env_clear()
+            .envs(&self.options.inherited_environment)
             .current_dir(directory)
             .env_remove("RUBYLIB")
             .envs(&self.options.environment);
@@ -218,7 +220,12 @@ impl NativeBuilder {
             .environment
             .get(std::ffi::OsStr::new("MAKEFLAGS"))
             .cloned()
-            .or_else(|| std::env::var_os("MAKEFLAGS"))
+            .or_else(|| {
+                self.options
+                    .inherited_environment
+                    .get(std::ffi::OsStr::new("MAKEFLAGS"))
+                    .cloned()
+            })
             .unwrap_or_default();
         if !make_flags.is_empty() {
             make_flags.push(" ");

@@ -92,10 +92,11 @@ fn export(
         }
         Err(error) => return Err(error),
     };
-    let mut evaluator = Evaluator::new(ruby);
-    for (key, value) in runtime.env_vars(std::env::var("PATH").ok()) {
-        evaluator = evaluator.env(key, value);
-    }
+    let evaluator = Evaluator::with_inputs(
+        ruby,
+        runtime.current_dir().to_owned(),
+        runtime.execution_environment().clone(),
+    );
     let evaluation = evaluator.env("BUNDLE_GEMFILE", gemfile).evaluate(gemfile)?;
     eprint!("{}{}", evaluation.stdout, evaluation.stderr);
     let mut project = evaluation.manifest.merge_project_format(&project, format)?;

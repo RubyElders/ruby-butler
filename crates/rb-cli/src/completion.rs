@@ -1,12 +1,12 @@
-use crate::{Cli, resolve_search_dir};
+use crate::Cli;
 use clap::CommandFactory;
-use rb_core::ruby::RubyRuntimeDetector;
 use std::path::PathBuf;
 
 pub(crate) struct CompletionEnvironment {
     pub bin_dirs: Vec<PathBuf>,
-    pub project_file: Option<PathBuf>,
-    pub rubies_dir: PathBuf,
+    pub project: Option<rb_core::project::ProjectRuntime>,
+    pub directory: PathBuf,
+    pub ruby_versions: Vec<String>,
 }
 
 pub(crate) fn before_cursor<'a>(line: &'a str, point: &str) -> &'a str {
@@ -17,7 +17,12 @@ pub(crate) fn before_cursor<'a>(line: &'a str, point: &str) -> &'a str {
     &line[..end]
 }
 
+#[cfg(test)]
 pub(crate) fn completed_matches(line: &str) -> clap::ArgMatches {
+    completed_matches_in(line, None)
+}
+
+pub(crate) fn completed_matches_in(line: &str, home: Option<PathBuf>) -> clap::ArgMatches {
     let mut lexer = shlex::Shlex::new(line);
     let mut words = lexer.by_ref().collect::<Vec<_>>();
     if !lexer.had_error && !line.ends_with(char::is_whitespace) {
@@ -33,6 +38,21 @@ pub(crate) fn completed_matches(line: &str) -> clap::ArgMatches {
     for id in ids {
         command = command.mut_arg(id, |arg| arg.env(None::<&str>));
     }
+    for id in ["rubies_dir", "gem_home", "work_dir"] {
+        let home = home.clone();
+        command = command.mut_arg(id, |arg| {
+            arg.value_parser(move |path: &str| {
+                let expanded = home.as_ref().and_then(|home| {
+                    if path == "~" {
+                        Some(home.clone())
+                    } else {
+                        path.strip_prefix("~/").map(|suffix| home.join(suffix))
+                    }
+                });
+                Ok::<PathBuf, String>(expanded.unwrap_or_else(|| PathBuf::from(path)))
+            })
+        });
+    }
     command
         .disable_help_flag(true)
         .disable_version_flag(true)
@@ -40,7 +60,7 @@ pub(crate) fn completed_matches(line: &str) -> clap::ArgMatches {
         .unwrap_or_else(|_| Cli::command().ignore_errors(true).get_matches_from(["rb"]))
 }
 
-fn suggest_directories(current: &str) {
+fn suggest_directories(current: &str, directory: &std::path::Path) {
     let current_path = std::path::Path::new(current);
 
     let (search_dir, prefix) = if current.is_empty() {
@@ -60,7 +80,7 @@ fn suggest_directories(current: &str) {
         }
     };
 
-    let Ok(entries) = std::fs::read_dir(&search_dir) else {
+    let Ok(entries) = std::fs::read_dir(directory.join(&search_dir)) else {
         return;
     };
 
@@ -110,7 +130,7 @@ fn suggest_directories(current: &str) {
     }
 }
 
-fn suggest_files(current: &str) {
+fn suggest_files(current: &str, directory: &std::path::Path) {
     let current_path = std::path::Path::new(current);
 
     let (search_dir, prefix) = if current.is_empty() {
@@ -130,7 +150,7 @@ fn suggest_files(current: &str) {
         }
     };
 
-    let Ok(entries) = std::fs::read_dir(&search_dir) else {
+    let Ok(entries) = std::fs::read_dir(directory.join(&search_dir)) else {
         return;
     };
 
@@ -193,14 +213,13 @@ pub(crate) fn generate_completions(
     line: &str,
     cursor_pos: &str,
     environment: &CompletionEnvironment,
+    matches: &clap::ArgMatches,
 ) {
     let line = before_cursor(line, cursor_pos);
 
     let tokens =
         shlex::split(line).unwrap_or_else(|| line.split_whitespace().map(String::from).collect());
     let words: Vec<&str> = tokens.iter().map(String::as_str).collect();
-
-    let rubies_dir = Some(environment.rubies_dir.clone());
 
     if words.is_empty() || words.len() == 1 {
         print_commands("");
@@ -216,7 +235,6 @@ pub(crate) fn generate_completions(
         )
     };
 
-    let matches = completed_matches(line);
     let subcommand = matches.subcommand();
     let program_started = subcommand.is_some_and(|(name, args)| match name {
         "exec" => args.get_many::<String>("args").is_some(),
@@ -229,27 +247,27 @@ pub(crate) fn generate_completions(
 
     if let Some(prev) = prev_word {
         if prev == "-r" || prev == "--ruby" {
-            suggest_ruby_versions(rubies_dir, current_word);
+            suggest_ruby_versions(&environment.ruby_versions, current_word);
             return;
         }
         if prev == "-R" || prev == "--rubies-dir" {
-            suggest_directories(current_word);
+            suggest_directories(current_word, &environment.directory);
             return;
         }
         if prev == "-C" || prev == "--work-dir" {
-            suggest_directories(current_word);
+            suggest_directories(current_word, &environment.directory);
             return;
         }
         if prev == "-G" || prev == "--gem-home" {
-            suggest_directories(current_word);
+            suggest_directories(current_word, &environment.directory);
             return;
         }
         if prev == "-c" || prev == "--config" {
-            suggest_files(current_word);
+            suggest_files(current_word, &environment.directory);
             return;
         }
         if prev == "-P" || prev == "--project" {
-            suggest_files(current_word);
+            suggest_files(current_word, &environment.directory);
             return;
         }
         if prev == "shell-integration" {
@@ -267,9 +285,9 @@ pub(crate) fn generate_completions(
 
     match subcommand {
         None => print_commands(current_word),
-        Some(("run", _)) => suggest_script_names(current_word, environment.project_file.as_deref()),
+        Some(("run", _)) => suggest_script_names(current_word, environment.project.as_ref()),
         Some(("exec", _)) => suggest_binstubs(current_word, &environment.bin_dirs),
-        _ => print_nested_commands(&matches, current_word),
+        _ => print_nested_commands(matches, current_word),
     }
 }
 
@@ -328,29 +346,15 @@ fn print_flags() {
     }
 }
 
-fn suggest_ruby_versions(rubies_dir: Option<PathBuf>, prefix: &str) {
-    let search_dir = resolve_search_dir(rubies_dir);
-
-    if let Ok(rubies) = RubyRuntimeDetector::discover(&search_dir) {
-        for ruby in rubies {
-            let version = ruby.version.to_string();
-            if version.starts_with(prefix) {
-                println!("{}", version);
-            }
+fn suggest_ruby_versions(versions: &[String], prefix: &str) {
+    for version in versions {
+        if version.starts_with(prefix) {
+            println!("{version}");
         }
     }
 }
 
-fn suggest_script_names(prefix: &str, project_file: Option<&std::path::Path>) {
-    let project = if let Some(file) = project_file {
-        rb_core::project::ProjectRuntime::from_file(file).ok()
-    } else {
-        std::env::current_dir().ok().and_then(|directory| {
-            rb_core::project::RbprojectDetector::discover(&directory)
-                .ok()
-                .flatten()
-        })
-    };
+fn suggest_script_names(prefix: &str, project: Option<&rb_core::project::ProjectRuntime>) {
     if let Some(project) = project {
         for name in project.script_names() {
             if name.starts_with(prefix) {

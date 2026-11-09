@@ -2,7 +2,6 @@ use crate::reporting::Completion;
 use anyhow::Result;
 use rb_progress::{ProgressHandle, Reporter};
 use rb_ruby_installer::{Event, Installation, Phase};
-use semver::Version;
 use std::time::{Duration, Instant};
 
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
@@ -67,7 +66,7 @@ impl InstallProgress {
         self,
         result: Result<Installation>,
         completion: Completion,
-    ) -> Result<Version> {
+    ) -> Result<Installation> {
         match result {
             Ok(installation) => {
                 self.complete_phase();
@@ -78,7 +77,7 @@ impl InstallProgress {
                 };
                 let summary = format!("{outcome} in {}", installation.path.display());
                 completion.finish(self.reporter, summary);
-                Ok(installation.version)
+                Ok(installation)
             }
             Err(error) => {
                 self.handle.fail(format!("{error:#}"));

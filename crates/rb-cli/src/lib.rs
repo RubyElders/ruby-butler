@@ -5,6 +5,7 @@ pub mod config;
 pub mod dispatch;
 pub mod error_display;
 pub mod help_formatter;
+mod invocation;
 mod packages;
 mod reporting;
 mod ruby_install;
@@ -335,8 +336,15 @@ impl Cli {
     /// Merge CLI arguments with config file, returning both for tracked config
     /// Returns (cli_with_merged_config, file_config) for source tracking
     pub fn with_config_defaults_tracked(self) -> Result<(Self, config::RbConfig), ConfigError> {
-        self.config.validate_environment()?;
-        let file_config = config::loader::load_config(self.config_file.clone())?;
+        self.with_config_defaults_tracked_in(&rb_core::process_context::ProcessContext::capture()?)
+    }
+
+    pub fn with_config_defaults_tracked_in(
+        self,
+        inputs: &rb_core::process_context::ProcessContext,
+    ) -> Result<(Self, config::RbConfig), ConfigError> {
+        self.config.validate_environment_in(inputs)?;
+        let file_config = config::loader::load_config_in(self.config_file.clone(), inputs)?;
         Ok((self, file_config))
     }
 }

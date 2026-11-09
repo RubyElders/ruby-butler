@@ -6,10 +6,11 @@ use anyhow::{Result, ensure};
 use rb_task::TaskEvents;
 use std::{path::PathBuf, sync::Arc};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct PrepareOptions {
     pub project: PathBuf,
     pub project_file: Option<PathBuf>,
+    pub gemfile: Option<PathBuf>,
     pub record_state: bool,
     pub ruby: PathBuf,
     pub cache: PathBuf,
@@ -18,23 +19,67 @@ pub struct PrepareOptions {
     pub install: InstallOptions,
 }
 
+impl std::fmt::Debug for PrepareOptions {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PrepareOptions")
+            .field("project", &self.project)
+            .field("project_file", &self.project_file)
+            .field("record_state", &self.record_state)
+            .field("ruby", &self.ruby)
+            .field("cache", &self.cache)
+            .field("offline", &self.offline)
+            .field("plan", &self.plan)
+            .field("install", &self.install)
+            .finish()
+    }
+}
+
 impl PrepareOptions {
-    pub fn new(
+    pub fn with_inputs(
         project: impl Into<PathBuf>,
         ruby: impl Into<PathBuf>,
         cache: impl Into<PathBuf>,
+        directory: PathBuf,
+        environment: std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
     ) -> Self {
         let ruby = ruby.into();
         Self {
             project: project.into(),
             project_file: None,
+            gemfile: environment
+                .get(std::ffi::OsStr::new("BUNDLE_GEMFILE"))
+                .filter(|file| !file.is_empty())
+                .map(|file| directory.join(file)),
             record_state: false,
             cache: cache.into(),
             offline: false,
             plan: PlanOptions::default(),
-            install: InstallOptions::new(&ruby),
+            install: InstallOptions::with_inputs(&ruby, directory, environment),
             ruby,
         }
+    }
+
+    pub(crate) fn evaluator(&self) -> rb_gemfile::Evaluator {
+        rb_gemfile::Evaluator::with_inputs(
+            &self.ruby,
+            self.install.build.directory().to_owned(),
+            self.install.build.inherited_environment().clone(),
+        )
+    }
+
+    pub fn new(
+        project: impl Into<PathBuf>,
+        ruby: impl Into<PathBuf>,
+        cache: impl Into<PathBuf>,
+    ) -> Self {
+        Self::with_inputs(
+            project,
+            ruby,
+            cache,
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            std::env::vars_os().collect(),
+        )
     }
 }
 
@@ -65,15 +110,28 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
         None
     };
     let cache_options = options.clone();
+    let runtime_options = options.clone();
     let ruby = options.ruby.clone();
     let runtime = crate::task::run("inspect Ruby", events.clone(), move |_| {
-        RubyEnvironment::inspect(&ruby)
+        RubyEnvironment::inspect_with_inputs(
+            &ruby,
+            runtime_options.install.build.directory(),
+            runtime_options.install.build.inherited_environment(),
+        )
     })?;
     let project = options.project.clone();
     let ruby = options.ruby.clone();
     let project_file = options.project_file.clone();
+    let input_options = options.clone();
     let input = crate::task::run("load dependencies", events.clone(), move |_| {
-        ProjectInput::load_with_project_file(&project, &ruby, project_file.as_deref())
+        ProjectInput::load_with_inputs(
+            &project,
+            &ruby,
+            project_file.as_deref(),
+            input_options.gemfile.as_deref(),
+            input_options.install.build.directory(),
+            input_options.install.build.inherited_environment(),
+        )
     })?;
     let observed = if let Some(candidate) = candidate.clone() {
         let options = options.clone();
@@ -92,19 +150,21 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
     plan_options.source_root = Some(input.root.clone());
     let cache = options.cache.clone();
     let offline = options.offline;
+    let source_environment = options.install.build.inherited_environment().clone();
     let (plan, index) = crate::task::run("resolve dependencies", events.clone(), move |_| {
         let previous = match std::fs::read_to_string(&source_input.lockfile) {
             Ok(text) => Some(rb_lockfile::Lockfile::parse(&text)?),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => return Err(error.into()),
         };
-        let index = Arc::new(SourceIndex::new(
+        let index = Arc::new(SourceIndex::with_environment(
             &source_input,
             &source_runtime,
             &cache,
             offline,
             previous.as_ref(),
             plan_options.mode,
+            &source_environment,
         )?);
         let plan = crate::plan(
             &source_input.manifest,

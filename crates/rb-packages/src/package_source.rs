@@ -60,10 +60,11 @@ impl PackageSource {
             SourceKind::Registry => Self::Registry(crate::provider::source_url(remote)?),
             SourceKind::Path => Self::Path {
                 directory: {
-                    let path = root
-                        .map(Path::to_owned)
-                        .unwrap_or(std::env::current_dir()?)
-                        .join(remote);
+                    let directory = match root {
+                        Some(root) => root.to_owned(),
+                        None => std::env::current_dir()?,
+                    };
+                    let path = directory.join(remote);
                     dunce::canonicalize(&path).unwrap_or(path)
                 },
                 glob: normalized_glob(source.options.get("glob").map(String::as_str)),

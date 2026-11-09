@@ -51,10 +51,20 @@ impl SourceSpecification {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn read(
     ruby: &Path,
     directory: &Path,
     glob: Option<&str>,
+) -> Result<Vec<SourceSpecification>> {
+    read_with_environment(ruby, directory, glob, &std::env::vars_os().collect())
+}
+
+pub(crate) fn read_with_environment(
+    ruby: &Path,
+    directory: &Path,
+    glob: Option<&str>,
+    environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
 ) -> Result<Vec<SourceSpecification>> {
     let helper = tempfile::Builder::new().suffix(".rb").tempfile()?;
     std::fs::write(
@@ -73,7 +83,7 @@ pub(crate) fn read(
             "output": result.path(),
         }))?,
     )?;
-    let output = Command::new(ruby).env_remove("RUBYOPT").env_remove("RUBYLIB").env_remove("BUNDLE_GEMFILE")
+    let output = Command::new(ruby).env_clear().envs(environment).env_remove("RUBYOPT").env_remove("RUBYLIB").env_remove("BUNDLE_GEMFILE")
         .args(["-rjson", "-r"]).arg(helper.path()).args(["-e", "request = JSON.parse(File.read(ARGV.fetch(0))); specs = RubyButler::GemInstaller::SourceSpecifications.read(request.fetch('directory'), request.fetch('glob')); File.write(request.fetch('output'), JSON.generate(specs))"])
         .arg(request.path())
         .current_dir(directory).output().context("Evaluating source gemspecs")?;

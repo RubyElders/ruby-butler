@@ -6,8 +6,15 @@ use std::{
     process::Command,
 };
 
-pub(crate) fn run(command: &mut Command) -> Result<String> {
+fn run(
+    command: &mut Command,
+    root: &Path,
+    environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+) -> Result<String> {
     let output = command
+        .current_dir(root)
+        .env_clear()
+        .envs(environment)
         .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .context("Running source command")?;
@@ -26,7 +33,9 @@ pub(crate) fn checkout(
     cache: &Path,
     pinned: Option<&str>,
     offline: bool,
+    environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
 ) -> Result<(String, PathBuf)> {
+    let run = |command: &mut Command| run(command, root, environment);
     ensure!(
         !remote.is_empty() && !remote.starts_with('-') && !remote.chars().any(char::is_control),
         "Invalid Git remote"

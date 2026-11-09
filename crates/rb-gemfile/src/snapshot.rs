@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
-    ffi::OsStr,
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
@@ -76,18 +75,18 @@ impl SnapshotCache {
         evaluator: &Evaluator,
         input: impl AsRef<Path>,
     ) -> io::Result<String> {
-        let input = gemfile_path(input.as_ref())?;
+        let input = gemfile_path(&evaluator.directory.join(input.as_ref()))?;
         let ruby = evaluator.ruby_executable()?;
         let inputs = self
             .inputs
             .iter()
-            .map(|path| absolute(path))
+            .map(|path| absolute(path, &evaluator.directory))
             .collect::<io::Result<Vec<_>>>()?;
         let mut excluded = self
             .outputs
             .iter()
             .chain(&self.output_directories)
-            .map(|path| absolute(path))
+            .map(|path| absolute(path, &evaluator.directory))
             .collect::<io::Result<Vec<_>>>()?;
         if excluded.iter().any(|output| {
             input.starts_with(output)
@@ -99,7 +98,7 @@ impl SnapshotCache {
                 "Generated outputs must not contain inputs",
             ));
         }
-        let path = absolute(&self.path)?;
+        let path = absolute(&self.path, &evaluator.directory)?;
         let mut lock = path.as_os_str().to_owned();
         lock.push(".lock");
         let lock = PathBuf::from(lock);
@@ -129,9 +128,9 @@ impl SnapshotCache {
         evaluator: &Evaluator,
         gemfile: impl AsRef<Path>,
     ) -> io::Result<CachedEvaluation> {
-        let gemfile = gemfile_path(gemfile.as_ref())?;
+        let gemfile = gemfile_path(&evaluator.directory.join(gemfile.as_ref()))?;
         let directory = gemfile.parent().unwrap();
-        let path = absolute(&self.path)?;
+        let path = absolute(&self.path, &evaluator.directory)?;
         let filename = path.file_name().ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "Snapshot must be a file path")
         })?;
@@ -140,7 +139,7 @@ impl SnapshotCache {
         let inputs = self
             .inputs
             .iter()
-            .map(|path| absolute(path))
+            .map(|path| absolute(path, &evaluator.directory))
             .collect::<io::Result<Vec<_>>>()?;
         let ruby = evaluator.ruby_executable()?;
         if path == gemfile || path == ruby || inputs.iter().any(|input| input == &path) {
@@ -151,7 +150,7 @@ impl SnapshotCache {
         }
         let mut excluded = vec![path.clone()];
         for output in &self.output_directories {
-            let output = absolute(output)?;
+            let output = absolute(output, &evaluator.directory)?;
             if output == directory
                 || gemfile.starts_with(&output)
                 || ruby.starts_with(&output)
@@ -166,7 +165,7 @@ impl SnapshotCache {
             excluded.push(output);
         }
         for output in &self.outputs {
-            let output = absolute(output)?;
+            let output = absolute(output, &evaluator.directory)?;
             if output.is_dir() || output == gemfile || output == ruby || inputs.contains(&output) {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -284,14 +283,16 @@ fn evaluation_checksum(evaluation: &Evaluation) -> io::Result<String> {
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
-fn absolute(path: &Path) -> io::Result<PathBuf> {
+fn absolute(path: &Path, directory: &Path) -> io::Result<PathBuf> {
+    let path = directory.join(path);
+    let path = path.as_path();
     if path.exists() {
         return dunce::canonicalize(path);
     }
     if path.is_absolute() {
         Ok(path.to_owned())
     } else {
-        Ok(std::env::current_dir()?.join(path))
+        Ok(directory.join(path))
     }
 }
 
@@ -329,16 +330,28 @@ fn fingerprint(
             field(&mut hash, source.as_bytes());
         }
     }
-    let mut environment: std::collections::BTreeMap<_, _> = std::env::vars_os().collect();
-    environment.extend(evaluator.environment.clone());
-    environment.remove(std::ffi::OsStr::new("RUBYOPT"));
+    let mut environment = evaluator.effective_environment();
+    let environment_name = |name: &str| {
+        #[cfg(windows)]
+        {
+            std::ffi::OsString::from(name.to_ascii_uppercase())
+        }
+        #[cfg(not(windows))]
+        {
+            std::ffi::OsString::from(name)
+        }
+    };
     if let Some(names) = names {
-        environment.retain(|name, _| names.iter().any(|candidate| name == OsStr::new(candidate)));
+        environment.retain(|name, _| {
+            names
+                .iter()
+                .any(|candidate| name == &environment_name(candidate))
+        });
         for name in names {
             field(&mut hash, name.as_bytes());
             field(
                 &mut hash,
-                &[u8::from(environment.contains_key(OsStr::new(name)))],
+                &[u8::from(environment.contains_key(&environment_name(name)))],
             );
         }
     }

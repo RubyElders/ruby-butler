@@ -1,65 +1,9 @@
 use crate::Shell;
 use crate::commands::{new_command, shell_integration_command};
-use crate::config::TrackedConfig;
 use rb_core::butler::{ButlerError, ButlerRuntime};
 use std::path::PathBuf;
 
-/// Context information for command execution and error handling
-pub struct CommandContext {
-    pub config: TrackedConfig,
-    pub project_file: Option<PathBuf>,
-}
-
-impl CommandContext {
-    pub(crate) fn for_completion(&self, line: &str, point: &str) -> Result<Self, ButlerError> {
-        use clap::FromArgMatches;
-        let matches =
-            crate::completion::completed_matches(crate::completion::before_cursor(line, point));
-        let mut config = crate::config::RbConfig::from_arg_matches(&matches)
-            .map_err(|error| ButlerError::General(error.to_string()))?;
-        let config_file = matches.get_one::<PathBuf>("config_file").cloned();
-        let project_file = matches.get_one::<PathBuf>("project_file").cloned();
-        let explicit = clap::parser::ValueSource::CommandLine;
-        if matches.value_source("no_bundler") != Some(explicit) {
-            config.no_bundler = None;
-        }
-        let selected_file = matches.value_source("config_file") == Some(explicit);
-        let file = if selected_file {
-            crate::config::loader::load_config(config_file)
-                .map_err(|error| ButlerError::General(error.to_string()))?
-        } else {
-            self.config.to_rb_config()
-        };
-        let config = TrackedConfig::from_merged(&config, &file);
-        Ok(Self {
-            config,
-            project_file: project_file.or_else(|| self.project_file.clone()),
-        })
-    }
-
-    pub(crate) fn enter_working_directory(&self) -> Result<(), ButlerError> {
-        if !self.config.work_dir.source.is_default() {
-            let directory = self.config.work_dir.get();
-            std::env::set_current_dir(directory).map_err(|error| {
-                ButlerError::General(format!(
-                    "Failed to change to directory '{}': {error}",
-                    directory.display()
-                ))
-            })?;
-            log::debug!("Changed working directory to: {}", directory.display());
-        }
-        Ok(())
-    }
-
-    pub(crate) fn runtime(&self, skip_bundler: bool) -> Result<ButlerRuntime, ButlerError> {
-        ButlerRuntime::discover_and_compose_with_gem_base(
-            self.config.rubies_dir.get().clone(),
-            self.config.ruby_version_for_runtime(),
-            Some(self.config.gem_home.get().clone()),
-            skip_bundler,
-        )
-    }
-}
+pub use crate::invocation::CommandContext;
 
 pub(crate) fn with_command_runtime<F>(
     context: &mut CommandContext,
@@ -70,15 +14,16 @@ pub(crate) fn with_command_runtime<F>(
 where
     F: FnOnce(
         &crate::packages::PackageRuntime,
+        &crate::packages::PackageBackend,
         &mut crate::reporting::PreparationReport,
     ) -> Result<(), ButlerError>,
 {
     let mut report = crate::reporting::PreparationReport::new(completion);
     let result = (|| {
         if requires_ruby {
-            crate::ruby_install::prepare(context, &mut report)?;
+            context.ruby = Some(crate::ruby_install::prepare(context, &mut report)?);
         }
-        with_package_runtime(context, |runtime| f(runtime, &mut report))
+        with_package_runtime(context, |runtime, backend| f(runtime, backend, &mut report))
     })();
     match &result {
         Ok(()) => report.finish("Your environment is ready"),
@@ -89,17 +34,14 @@ where
 
 pub(crate) fn with_package_runtime<F>(context: &mut CommandContext, f: F) -> Result<(), ButlerError>
 where
-    F: FnOnce(&crate::packages::PackageRuntime) -> Result<(), ButlerError>,
+    F: FnOnce(
+        &crate::packages::PackageRuntime,
+        &crate::packages::PackageBackend,
+    ) -> Result<(), ButlerError>,
 {
     let runtime = crate::packages::PackageRuntime::discover(context)?;
-    if context.config.has_unresolved()
-        && let Ok(ruby) = runtime.selected_ruby()
-    {
-        context
-            .config
-            .resolve_ruby_version(ruby.version.to_string());
-    }
-    f(&runtime)
+    let backend = crate::packages::PackageBackend::from_context(context);
+    f(&runtime, &backend)
 }
 
 fn with_ruby_runtime<F>(context: &mut CommandContext, f: F) -> Result<(), ButlerError>
@@ -119,13 +61,6 @@ where
 {
     let butler_runtime = context.runtime(skip_bundler)?;
 
-    if context.config.has_unresolved()
-        && let Ok(ruby_runtime) = butler_runtime.selected_ruby()
-    {
-        let resolved_version = ruby_runtime.version.to_string();
-        context.config.resolve_ruby_version(resolved_version);
-    }
-
     f(&butler_runtime)
 }
 
@@ -136,12 +71,13 @@ pub fn export_gemfile_command_wrapper(
     format: crate::ProjectFormat,
 ) -> Result<(), ButlerError> {
     let gemfile = crate::commands::export_gemfile::find_gemfile(
-        &std::env::current_dir().map_err(|error| ButlerError::General(error.to_string()))?,
+        context.process.directory(),
         gemfile.as_deref(),
-        std::env::var_os("BUNDLE_GEMFILE").as_deref(),
+        context.process.var("BUNDLE_GEMFILE"),
     )
     .map_err(|error| ButlerError::General(error.to_string()))?;
-    let project_file = context.project_file.clone();
+    let project_file = context.project_file().clone();
+    let output = output.map(|file| context.process.directory().join(file));
     with_ruby_runtime(context, |runtime| {
         crate::commands::export_gemfile::export_gemfile_command(
             runtime,
@@ -154,9 +90,8 @@ pub fn export_gemfile_command_wrapper(
 }
 
 /// New command wrapper - no runtime needed
-pub fn new_command_wrapper() -> Result<(), ButlerError> {
-    let current_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    new_command(&current_dir).map_err(ButlerError::General)
+pub fn new_command_wrapper(context: &CommandContext) -> Result<(), ButlerError> {
+    new_command(context.process.directory()).map_err(ButlerError::General)
 }
 
 /// Shell integration command wrapper - no runtime needed
@@ -177,21 +112,47 @@ pub fn bash_complete_command(
     point: &str,
 ) -> Result<(), ButlerError> {
     let context = context.for_completion(line, point)?;
-    context.enter_working_directory()?;
-    let backend = crate::packages::PackageBackend::from_context(&context);
-    bash_complete_with_backend(&context, line, point, &backend)
+    context.validate_working_directory()?;
+    bash_complete_in(&context, line, point)
 }
 
-pub(crate) fn bash_complete_with_backend(
+pub(crate) fn bash_complete_in(
     context: &CommandContext,
     line: &str,
     point: &str,
-    backend: &crate::packages::PackageBackend,
 ) -> Result<(), ButlerError> {
-    let butler_runtime = crate::packages::PackageRuntime::discover(context).ok();
-
+    let matches = context
+        .completion_matches
+        .as_ref()
+        .expect("completion context");
+    let line_before = crate::completion::before_cursor(line, point);
+    let mut words = shlex::split(line_before).unwrap_or_default();
+    if !line_before.ends_with(char::is_whitespace) {
+        words.pop();
+    }
+    let versions = words
+        .last()
+        .is_some_and(|word| matches!(word.as_str(), "-r" | "--ruby"));
+    let ruby_versions = if versions {
+        context
+            .ruby_inventory()
+            .map(|inventory| {
+                inventory
+                    .iter()
+                    .map(|ruby| ruby.version.to_string())
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let butler_runtime = if matches.subcommand_name() == Some("exec") {
+        crate::packages::PackageRuntime::discover(context).ok()
+    } else {
+        None
+    };
     let bin_dirs = butler_runtime.and_then(|runtime| {
-        backend
+        crate::packages::PackageBackend::from_context(context)
             .inspect(&runtime)
             .map(|environment| environment.bin_dirs())
             .map_err(|error| {
@@ -202,9 +163,14 @@ pub(crate) fn bash_complete_with_backend(
     });
     let environment = crate::completion::CompletionEnvironment {
         bin_dirs: bin_dirs.unwrap_or_default(),
-        project_file: context.project_file.clone(),
-        rubies_dir: context.config.rubies_dir.get().clone(),
+        project: if matches.subcommand_name() == Some("run") {
+            context.script_project().ok().flatten()
+        } else {
+            None
+        },
+        directory: context.process.directory().into(),
+        ruby_versions,
     };
-    crate::completion::generate_completions(line, point, &environment);
+    crate::completion::generate_completions(line, point, &environment, matches);
     Ok(())
 }

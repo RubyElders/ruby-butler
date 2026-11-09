@@ -3,7 +3,6 @@ use crate::{
     constants::{MANIFEST_FILE, PREPARED_STATE, PROJECT_LOCK, STATE_DIRECTORY},
 };
 use anyhow::{Context, Result, ensure};
-use rb_gemfile::Evaluator;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -223,8 +222,8 @@ fn anchor(options: &PrepareOptions) -> Result<PathBuf> {
     if let Some(file) = &options.project_file {
         return Ok(dunce::canonicalize(options.project.join(file))?);
     }
-    if let Some(file) = std::env::var_os("BUNDLE_GEMFILE").filter(|file| !file.is_empty()) {
-        return Ok(dunce::canonicalize(std::env::current_dir()?.join(file))?);
+    if let Some(file) = &options.gemfile {
+        return Ok(dunce::canonicalize(file)?);
     }
     ["rbproject.kdl", "rbproject.toml", "gems.rb", "Gemfile"]
         .iter()
@@ -241,7 +240,8 @@ fn inputs(
     paths: &BTreeSet<PathBuf>,
     environment: Option<&BTreeSet<String>>,
 ) -> Result<String> {
-    let mut cache = crate::input::snapshot_cache(&options.project, PREPARED_STATE);
+    let mut cache =
+        crate::input::snapshot_cache(&options.project, PREPARED_STATE, options.gemfile.as_deref());
     if let Some(environment) = environment {
         let mut names = environment.clone();
         names.extend(
@@ -265,7 +265,7 @@ fn inputs(
     for path in paths {
         cache = cache.input(path);
     }
-    Ok(cache.fingerprint(&Evaluator::new(&options.ruby), anchor)?)
+    Ok(cache.fingerprint(&options.evaluator(), anchor)?)
 }
 
 fn metadata(

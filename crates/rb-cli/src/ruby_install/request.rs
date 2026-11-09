@@ -2,25 +2,16 @@ use crate::runtime_helpers::CommandContext;
 use anyhow::{Context, Result};
 use rb_core::ruby::GemfileDetector;
 use rb_ruby_installer::Request;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::Path};
 
-pub(super) fn resolve(context: &CommandContext, version: Option<&str>) -> Result<Request> {
-    let configured = context.config.ruby_version_for_runtime();
+pub(crate) fn resolve(context: &CommandContext, version: Option<&str>) -> Result<Request> {
+    let configured = context.config().ruby_version_for_runtime();
     if let Some(version) = version.or(configured.as_deref()) {
         return version.parse();
     }
-    let cwd = std::env::current_dir()?;
-    let file = if let Some(file) = &context.project_file {
-        Some(cwd.join(file))
-    } else if let Some(file) = std::env::var_os("BUNDLE_GEMFILE").filter(|file| !file.is_empty()) {
-        Some(cwd.join(file))
-    } else {
-        project_file(&cwd)
-    };
-    let root = file.as_ref().and_then(|file| file.parent()).unwrap_or(&cwd);
+    let cwd = context.process.directory();
+    let file = context.projects().ruby_input.clone();
+    let root = file.as_ref().and_then(|file| file.parent()).unwrap_or(cwd);
     let version_file = root.join(".ruby-version");
     if version_file.is_file() {
         return fs::read_to_string(&version_file)?
@@ -46,26 +37,6 @@ pub(super) fn resolve(context: &CommandContext, version: Option<&str>) -> Result
         }
     }
     "latest".parse()
-}
-
-fn project_file(directory: &Path) -> Option<PathBuf> {
-    for directory in directory.ancestors() {
-        for name in [
-            "gem.kdl",
-            "gem.toml",
-            "rbproject.kdl",
-            "rbproject.toml",
-            "gems.rb",
-            "Gemfile",
-            ".ruby-version",
-        ] {
-            let file = directory.join(name);
-            if file.is_file() {
-                return Some(file);
-            }
-        }
-    }
-    None
 }
 
 fn manifest_requirement(path: &Path) -> Result<Option<String>> {

@@ -25,7 +25,7 @@ fn append(tail: &mut Vec<u8>, bytes: &[u8]) {
     }
 }
 
-fn terminate(child: &mut Child) {
+fn terminate(child: &mut Child, _command: &Command) {
     #[cfg(unix)]
     {
         if let Some(pid) = rustix::process::Pid::from_raw(child.id() as i32) {
@@ -34,7 +34,16 @@ fn terminate(child: &mut Child) {
     }
     #[cfg(windows)]
     {
-        let _ = Command::new("taskkill")
+        let mut cleanup = Command::new("taskkill");
+        cleanup.env_clear().envs(
+            _command
+                .get_envs()
+                .filter_map(|(key, value)| value.map(|value| (key, value))),
+        );
+        if let Some(directory) = _command.get_current_dir() {
+            cleanup.current_dir(directory);
+        }
+        let _ = cleanup
             .args(["/F", "/T", "/PID", &child.id().to_string()])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -44,28 +53,29 @@ fn terminate(child: &mut Child) {
     let _ = child.wait();
 }
 
-struct RunningChild {
+struct RunningChild<'a> {
+    command: &'a Command,
     child: Child,
     finished: bool,
 }
 
-impl std::ops::Deref for RunningChild {
+impl std::ops::Deref for RunningChild<'_> {
     type Target = Child;
     fn deref(&self) -> &Child {
         &self.child
     }
 }
 
-impl std::ops::DerefMut for RunningChild {
+impl std::ops::DerefMut for RunningChild<'_> {
     fn deref_mut(&mut self) -> &mut Child {
         &mut self.child
     }
 }
 
-impl Drop for RunningChild {
+impl Drop for RunningChild<'_> {
     fn drop(&mut self) {
         if !self.finished {
-            terminate(&mut self.child);
+            terminate(&mut self.child, self.command);
         }
     }
 }
@@ -99,6 +109,7 @@ pub(crate) fn run(
         .spawn()
         .with_context(|| format!("Cannot start build tool {}", program.to_string_lossy()))?;
     let mut child = RunningChild {
+        command: &command,
         child,
         finished: false,
     };
@@ -185,7 +196,7 @@ pub(crate) fn run(
         }
     })();
     if result.is_err() {
-        terminate(&mut child);
+        terminate(&mut child, &command);
     }
     child.finished = true;
     drop(receiver);

@@ -344,6 +344,33 @@ impl BundlerRuntime {
             }
         }
     }
+
+    pub(crate) fn version_detector() -> crate::ruby::CompositeDetector {
+        use crate::ruby::version_detector::{GemfileDetector, RubyVersionFileDetector};
+
+        // Bundler environment: check .ruby-version first, then Gemfile
+        // Future: could add vendor/.ruby-version for bundler-specific version pinning
+        crate::ruby::CompositeDetector::new(vec![
+            Box::new(RubyVersionFileDetector),
+            Box::new(GemfileDetector),
+        ])
+    }
+
+    pub(crate) fn gem_path_detector() -> crate::gems::gem_path_detector::CompositeGemPathDetector {
+        use crate::gems::gem_path_detector::{BundlerIsolationDetector, CustomGemBaseDetector};
+
+        // Bundler environment: NO user gems detector
+        // Bundler manages its own isolation, so we only check for:
+        // 1. Custom gem base (RB_GEM_BASE override)
+        // 2. Bundler isolation (returns empty to let bundler handle everything)
+        //
+        // UserGemsDetector is intentionally excluded - bundler gems are isolated
+        // and user gems would pollute the bundle environment
+        crate::gems::gem_path_detector::CompositeGemPathDetector::new(vec![
+            Box::new(CustomGemBaseDetector),
+            Box::new(BundlerIsolationDetector),
+        ])
+    }
 }
 
 /// Result of a bundler synchronization operation
@@ -379,32 +406,13 @@ impl RuntimeProvider for BundlerRuntime {
     }
 
     fn compose_version_detector(&self) -> crate::ruby::CompositeDetector {
-        use crate::ruby::version_detector::{GemfileDetector, RubyVersionFileDetector};
-
-        // Bundler environment: check .ruby-version first, then Gemfile
-        // Future: could add vendor/.ruby-version for bundler-specific version pinning
-        crate::ruby::CompositeDetector::new(vec![
-            Box::new(RubyVersionFileDetector),
-            Box::new(GemfileDetector),
-        ])
+        Self::version_detector()
     }
 
     fn compose_gem_path_detector(
         &self,
     ) -> crate::gems::gem_path_detector::CompositeGemPathDetector {
-        use crate::gems::gem_path_detector::{BundlerIsolationDetector, CustomGemBaseDetector};
-
-        // Bundler environment: NO user gems detector
-        // Bundler manages its own isolation, so we only check for:
-        // 1. Custom gem base (RB_GEM_BASE override)
-        // 2. Bundler isolation (returns empty to let bundler handle everything)
-        //
-        // UserGemsDetector is intentionally excluded - bundler gems are isolated
-        // and user gems would pollute the bundle environment
-        crate::gems::gem_path_detector::CompositeGemPathDetector::new(vec![
-            Box::new(CustomGemBaseDetector),
-            Box::new(BundlerIsolationDetector),
-        ])
+        Self::gem_path_detector()
     }
 }
 

@@ -14,10 +14,10 @@ use rb_core::butler::ButlerError;
 fn handle_command_error(error: ButlerError, context: &CommandContext) -> ! {
     let message = match &error {
         ButlerError::NoSuitableRuby(_) => {
-            let rubies_dir = context.config.rubies_dir.get();
-            let source = context.config.rubies_dir.source.to_string();
+            let rubies_dir = context.config().rubies_dir.get();
+            let source = context.config().rubies_dir.source.to_string();
             let version_info = context
-                .config
+                .config()
                 .ruby_version
                 .as_ref()
                 .map(|v| (v.get().clone(), v.source.to_string()));
@@ -33,8 +33,11 @@ fn handle_command_error(error: ButlerError, context: &CommandContext) -> ! {
 }
 
 fn main() {
+    let inputs = rb_core::process_context::ProcessContext::capture().unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(1)
+    });
     let matches = Cli::command().get_matches();
-    let package_backend_source = matches.value_source("package_backend");
     let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
     if cli.help {
         eprintln!("Warning: use `rb help` instead of `rb --help`.");
@@ -46,7 +49,7 @@ fn main() {
         init_logger(cli.effective_log_level());
     }
 
-    let (cli_parsed, file_config) = match cli.with_config_defaults_tracked() {
+    let (cli_parsed, file_config) = match cli.with_config_defaults_tracked_in(&inputs) {
         Ok(result) => result,
         Err(e) => {
             eprintln!("Configuration error: {}", e);
@@ -61,15 +64,10 @@ fn main() {
         std::process::exit(0);
     };
 
-    let mut tracked_config = TrackedConfig::from_merged(&cli_parsed.config, &file_config);
-    if package_backend_source == Some(clap::parser::ValueSource::EnvVariable) {
-        tracked_config.package_backend.source = rb_cli::config::ConfigSource::EnvVar;
-    }
-
-    let mut context = CommandContext {
-        config: tracked_config,
-        project_file: cli_parsed.project_file.clone(),
-    };
+    let tracked_config =
+        TrackedConfig::from_matches(&cli_parsed.config, &file_config, &matches, &inputs);
+    let mut context =
+        CommandContext::from_inputs(tracked_config, cli_parsed.project_file.clone(), inputs);
 
     let result = dispatch_command(command, &mut context);
 

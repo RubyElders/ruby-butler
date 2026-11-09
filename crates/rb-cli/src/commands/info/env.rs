@@ -1,15 +1,14 @@
 use crate::packages::PackageRuntime;
 use crate::packages::{PackageBackend, PackageEnvironment, PackageStatus};
 use colored::*;
-use log::{debug, info, warn};
+use log::{debug, info};
 use rb_core::butler::ButlerError;
-use rb_core::project::{ProjectRuntime, RbprojectDetector};
+use rb_core::project::ProjectRuntime;
 use rb_core::ruby::RubyType;
-use std::path::PathBuf;
 
 pub(crate) fn environment_command(
     runtime: &PackageRuntime,
-    project_file: Option<PathBuf>,
+    project_runtime: Option<ProjectRuntime>,
     backend: &PackageBackend,
 ) -> Result<(), ButlerError> {
     info!("Presenting current Ruby environment from the working directory");
@@ -32,12 +31,12 @@ pub(crate) fn environment_command(
     } else {
         Some(false)
     };
-    present_current_environment(&environment, project_file, synchronized)
+    present_current_environment(&environment, project_runtime, synchronized)
 }
 
 fn present_current_environment(
     environment: &PackageEnvironment,
-    project_file: Option<PathBuf>,
+    project_runtime: Option<ProjectRuntime>,
     synchronized: Option<bool>,
 ) -> Result<(), ButlerError> {
     println!("{}", "🌍 Your Current Ruby Environment".to_string().bold());
@@ -46,42 +45,6 @@ fn present_current_environment(
     let current_dir = environment.current_dir();
     debug!("Current working directory: {}", current_dir.display());
     let ruby = environment.ruby()?;
-
-    let project_runtime = if let Some(path) = project_file {
-        debug!(
-            "Loading project config from specified path: {}",
-            path.display()
-        );
-        match ProjectRuntime::from_file(&path) {
-            Ok(project) => {
-                debug!(
-                    "Loaded {} with {} scripts",
-                    project.config_filename,
-                    project.scripts.len()
-                );
-                Some(project)
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to load specified project config at {}: {}",
-                    path.display(),
-                    e
-                );
-                None
-            }
-        }
-    } else {
-        RbprojectDetector::discover(current_dir)
-            .ok()
-            .flatten()
-            .inspect(|project| {
-                debug!(
-                    "Discovered {} with {} scripts",
-                    project.config_filename,
-                    project.scripts.len()
-                );
-            })
-    };
 
     // Present the environment
     present_environment_details(ruby, project_runtime.as_ref(), environment, synchronized);

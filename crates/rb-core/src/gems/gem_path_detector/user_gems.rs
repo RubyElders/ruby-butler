@@ -16,20 +16,18 @@ impl GemPathDetector for UserGemsDetector {
     fn detect(&self, context: &GemPathContext) -> Option<GemPathConfig> {
         debug!("Using standard user gems configuration");
 
-        let ruby_gem_runtime = context.ruby_runtime.infer_gem_runtime().ok()?;
-
-        let user_gem_base = home::home_dir()?.join(".gem");
+        let user_gem_base = context.home_directory.as_ref()?.join(".gem");
         let user_gem_runtime =
             GemRuntime::for_base_dir(&user_gem_base, &context.ruby_runtime.version);
 
         let gem_dirs = vec![
             user_gem_runtime.gem_home.clone(),
-            ruby_gem_runtime.gem_home.clone(),
+            context.ruby_runtime.lib_dir(),
         ];
 
         let gem_bin_dirs = vec![
             user_gem_runtime.gem_bin.clone(),
-            ruby_gem_runtime.gem_bin.clone(),
+            context.ruby_runtime.bin_dir(),
         ];
 
         Some(GemPathConfig::new(gem_dirs, gem_bin_dirs))
@@ -75,6 +73,9 @@ mod tests {
         let config = detector.detect(&context).unwrap();
 
         assert_eq!(config.gem_dirs().len(), 2);
+        assert_eq!(config.gem_dirs()[1], ruby.lib_dir());
+        assert_eq!(config.gem_bin_dirs()[1], ruby.bin_dir());
+        assert_ne!(config.gem_dirs()[0], config.gem_dirs()[1]);
 
         let gem_home = config.gem_home().unwrap();
         assert!(gem_home.to_string_lossy().contains(".gem"));

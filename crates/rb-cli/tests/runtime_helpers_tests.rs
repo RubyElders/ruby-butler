@@ -4,10 +4,11 @@ use std::{path::PathBuf, process::Command};
 
 fn create_test_context() -> CommandContext {
     let config = RbConfig::default();
-    CommandContext {
-        config: TrackedConfig::from_merged(&config, &RbConfig::default()),
-        project_file: None,
-    }
+    CommandContext::new(
+        TrackedConfig::from_merged(&config, &RbConfig::default()),
+        None,
+    )
+    .unwrap()
 }
 
 #[test]
@@ -47,7 +48,7 @@ fn test_new_command_wrapper_fails_if_file_exists() {
 fn test_command_context_initialization() {
     let context = create_test_context();
 
-    assert!(context.project_file.is_none());
+    assert!(context.project_file().is_none());
 }
 
 #[test]
@@ -57,19 +58,26 @@ fn test_command_context_stores_config() {
         ..Default::default()
     };
 
-    let context = CommandContext {
-        config: TrackedConfig::from_merged(&config, &RbConfig::default()),
-        project_file: None,
-    };
+    let context = CommandContext::new(
+        TrackedConfig::from_merged(&config, &RbConfig::default()),
+        None,
+    )
+    .unwrap();
 
-    assert!(context.project_file.is_none());
+    assert!(context.project_file().is_none());
 }
 
 #[test]
 fn test_bash_complete_context_safety() {
-    let mut context = create_test_context();
     let directory = tempfile::tempdir().unwrap();
-    context.config.rubies_dir =
-        rb_cli::config::value::ConfigValue::from_cli(directory.path().join("missing"));
+    let config = RbConfig {
+        rubies_dir: Some(directory.path().join("missing")),
+        ..Default::default()
+    };
+    let context = CommandContext::new(
+        TrackedConfig::from_merged(&config, &RbConfig::default()),
+        None,
+    )
+    .unwrap();
     assert!(rb_cli::runtime_helpers::bash_complete_command(&context, "rb sy", "5").is_ok());
 }

@@ -1,6 +1,7 @@
 pub mod bundler;
 pub mod butler;
 pub mod gems;
+pub mod process_context;
 pub mod project;
 pub mod ruby;
 

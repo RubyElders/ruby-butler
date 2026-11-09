@@ -28,6 +28,30 @@ impl ProjectInput {
         ruby: impl AsRef<Path>,
         project_file: Option<&Path>,
     ) -> Result<Self> {
+        let directory = std::env::current_dir()?;
+        let environment = std::env::vars_os().collect::<std::collections::BTreeMap<_, _>>();
+        let gemfile = environment
+            .get(std::ffi::OsStr::new("BUNDLE_GEMFILE"))
+            .filter(|file| !file.is_empty())
+            .map(|file| directory.join(file));
+        Self::load_with_inputs(
+            root.as_ref(),
+            ruby.as_ref(),
+            project_file,
+            gemfile.as_deref(),
+            &directory,
+            &environment,
+        )
+    }
+
+    pub fn load_with_inputs(
+        root: &Path,
+        ruby: &Path,
+        project_file: Option<&Path>,
+        gemfile_override: Option<&Path>,
+        directory: &Path,
+        environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+    ) -> Result<Self> {
         let root = dunce::canonicalize(root)?;
         let selected = project_file
             .map(|file| dunce::canonicalize(root.join(file)))
@@ -51,10 +75,8 @@ impl ProjectInput {
         } else {
             None
         };
-        let gemfile = std::env::var_os("BUNDLE_GEMFILE")
-            .filter(|name| !name.is_empty())
-            .map(|name| std::env::current_dir().map(|cwd| cwd.join(name)))
-            .transpose()?
+        let gemfile = gemfile_override
+            .map(|file| directory.join(file))
             .or_else(|| {
                 ["gems.rb", "Gemfile"]
                     .into_iter()
@@ -82,8 +104,11 @@ impl ProjectInput {
             let gemfile = gemfile.context("No rbproject dependencies, gems.rb or Gemfile found")?;
             let state = root.join(STATE_DIRECTORY);
             fs::create_dir_all(&state)?;
-            let snapshot = snapshot_cache(&root, SNAPSHOT_FILE);
-            let cached = snapshot.evaluate(&Evaluator::new(ruby.as_ref()), &gemfile)?;
+            let snapshot = snapshot_cache(&root, SNAPSHOT_FILE, gemfile_override);
+            let cached = snapshot.evaluate(
+                &Evaluator::with_inputs(ruby, directory.to_owned(), environment.clone()),
+                &gemfile,
+            )?;
             evaluation_inputs = cached.evaluation.inputs.clone();
             evaluation_environment = cached.evaluation.environment.clone();
             let document = if let Some(settings) = project {
@@ -180,7 +205,7 @@ fn parse_kdl_project(input: &str) -> Result<Option<Manifest>> {
     Ok(Some(Manifest::from_kdl(&document.to_string())?))
 }
 
-pub(crate) fn snapshot_cache(root: &Path, filename: &str) -> SnapshotCache {
+pub(crate) fn snapshot_cache(root: &Path, filename: &str, gemfile: Option<&Path>) -> SnapshotCache {
     let cache = SnapshotCache::new(root.join(STATE_DIRECTORY).join(filename))
         .output_directory(root.join(STATE_DIRECTORY))
         .output(root.join("Gemfile.lock"))
@@ -193,11 +218,8 @@ pub(crate) fn snapshot_cache(root: &Path, filename: &str) -> SnapshotCache {
             cache.output_directory(path)
         }
     });
-    if let Some(file) = std::env::var_os("BUNDLE_GEMFILE").filter(|file| !file.is_empty()) {
-        let mut filename = std::env::current_dir()
-            .unwrap_or_else(|_| root.to_path_buf())
-            .join(file)
-            .into_os_string();
+    if let Some(file) = gemfile {
+        let mut filename = file.as_os_str().to_owned();
         filename.push(".lock");
         cache.output(PathBuf::from(filename))
     } else {
