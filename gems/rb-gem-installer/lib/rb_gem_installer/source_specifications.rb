@@ -3,6 +3,14 @@ module RubyButler
     module SourceSpecifications
       DEFAULT_GLOB = "{,*,*/*}.gemspec".freeze
 
+      def self.export(request_path, tracker)
+        require 'json'
+        request = JSON.parse(File.read(request_path))
+        specifications = tracker.capture { read(request.fetch('directory'), request.fetch('glob')) }
+        specifications.each { |specification| specification[:inputs] = tracker.paths }
+        File.write(request.fetch('output'), JSON.generate(specifications))
+      end
+
       def self.read(directory, glob = DEFAULT_GLOB)
         require 'rubygems'
         root = File.realpath(directory)

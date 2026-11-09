@@ -45,5 +45,5 @@ fn real_bundler_locks_round_trip_without_losing_metadata() {
         );
         count += 1;
     }
-    assert_eq!(count, 15);
+    assert_eq!(count, 16);
 }

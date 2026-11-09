@@ -13,6 +13,7 @@ pub struct PackageRecord {
     pub source: crate::PackageSource,
     pub archive_version: String,
     pub checksum: String,
+    pub declared_ruby: Option<rb_gem_types::Requirement>,
     pub rubygems: Option<rb_gem_types::Requirement>,
 }
 
@@ -53,6 +54,11 @@ impl PackageRecord {
             .version
             .split_once('-')
             .unwrap_or((&record.version, "ruby"));
+        let declared_ruby = record
+            .metadata
+            .get("ruby")
+            .map(|value| value.replace('&', ", ").parse())
+            .transpose()?;
         Ok(Self {
             package: Package {
                 id: PackageId {
@@ -65,13 +71,9 @@ impl PackageRecord {
                     .iter()
                     .map(|(name, value)| Ok((name.clone(), value.replace('&', ", ").parse()?)))
                     .collect::<Result<_>>()?,
-                ruby: record
-                    .metadata
-                    .get("ruby")
-                    .map(|v| v.replace('&', ", ").parse())
-                    .transpose()?
-                    .unwrap_or_default(),
+                ruby: declared_ruby.clone().unwrap_or_default(),
             },
+            declared_ruby,
             rubygems: record
                 .metadata
                 .get("rubygems")

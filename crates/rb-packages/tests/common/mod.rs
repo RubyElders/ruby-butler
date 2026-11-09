@@ -43,6 +43,7 @@ pub fn record(name: &str, version: &str, dependencies: &[(&str, &str)]) -> Packa
         archive_version: version.into(),
         checksum: "a".repeat(64),
         rubygems: None,
+        declared_ruby: Some(Default::default()),
     }
 }
 pub fn add(index: &mut MemoryIndex, record: PackageRecord) {
@@ -60,7 +61,27 @@ pub fn add_archive(
     extensions: &[&str],
     files: &[(&str, &[u8])],
 ) {
-    let metadata = serde_json::json!({ "name": name, "version": "1.0.0", "platform": "ruby", "dependencies": dependencies.iter().map(|(n,r)| serde_json::json!({"name":n,"requirement": {"requirements": [[">=", {"version":r.trim_start_matches(">= ")}]]}, "type":"runtime"})).collect::<Vec<_>>(), "require_paths": ["lib"], "extensions": extensions, "files": files.iter().map(|(p,_)| *p).collect::<Vec<_>>(), "executables": if files.iter().any(|(p,_)| p.starts_with("bin/")) { vec![name] } else { vec![] }, "bindir":"bin" });
+    add_archive_with_ruby(
+        index,
+        directory,
+        name,
+        dependencies,
+        extensions,
+        files,
+        ">= 0",
+    );
+}
+
+pub fn add_archive_with_ruby(
+    index: &mut MemoryIndex,
+    directory: &Path,
+    name: &str,
+    dependencies: &[(&str, &str)],
+    extensions: &[&str],
+    files: &[(&str, &[u8])],
+    ruby: &str,
+) {
+    let metadata = serde_json::json!({ "name": name, "version": "1.0.0", "platform": "ruby", "required_ruby_version": ruby, "dependencies": dependencies.iter().map(|(n,r)| serde_json::json!({"name":n,"requirement": {"requirements": [[">=", {"version":r.trim_start_matches(">= ")}]]}, "type":"runtime"})).collect::<Vec<_>>(), "require_paths": ["lib"], "extensions": extensions, "files": files.iter().map(|(p,_)| *p).collect::<Vec<_>>(), "executables": if files.iter().any(|(p,_)| p.starts_with("bin/")) { vec![name] } else { vec![] }, "bindir":"bin" });
     let payload = tar(files);
     let archive = tar(&[
         (

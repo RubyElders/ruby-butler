@@ -14,6 +14,7 @@ pub(crate) struct SourcePackage {
     pub(crate) serialized: String,
     pub(crate) snapshot: String,
     pub(crate) payload: Vec<PathBuf>,
+    pub(crate) inputs: Vec<PathBuf>,
 }
 
 impl SourcePackage {
@@ -29,6 +30,7 @@ impl SourcePackage {
             gem_root.starts_with(directory),
             "Gemspec directory escapes source"
         );
+        let inputs = spec.tracked_paths(directory)?;
         let payload = spec.payload(&gem_root)?;
         let bytes = crate::source_archive::archive(&gem_root, &spec.metadata, &payload)?;
         let checksum = format!("{:x}", Sha256::digest(&bytes));
@@ -42,6 +44,7 @@ impl SourcePackage {
             },
             source: source.clone(),
             checksum: checksum.clone(),
+            declared_ruby: Some(metadata.ruby.clone()),
             rubygems: Some(metadata.rubygems),
         };
         record.validate()?;
@@ -63,6 +66,7 @@ impl SourcePackage {
             serialized: spec.specification,
             snapshot: snapshot.into(),
             payload,
+            inputs,
         })
     }
 }

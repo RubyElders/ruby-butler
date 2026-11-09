@@ -158,6 +158,87 @@ fn git_source_locks_commit_installs_for_bundler_and_reuses_offline() {
 }
 
 #[test]
+fn generated_path_locks_are_relative_and_local_gemspec_pins_match_bundler() {
+    let root = tempfile::tempdir().unwrap();
+    let source = source(root.path());
+    let consumer = root.path().join("consumer");
+    fs::create_dir(&consumer).unwrap();
+    fs::write(
+        consumer.join("Gemfile"),
+        "gem 'fixture', path: '../source-repository'\n",
+    )
+    .unwrap();
+    let first = prepare(options(&consumer), TaskEvents::default()).unwrap();
+    let lock = fs::read_to_string(&first.input.lockfile).unwrap();
+    assert!(
+        lock.starts_with("PATH\n  remote: ../source-repository\n"),
+        "{lock}"
+    );
+    let mut frozen = options(&consumer);
+    frozen.plan.mode = LockMode::Locked;
+    let same = prepare(frozen, TaskEvents::default()).unwrap();
+    assert!(!same.plan.lock_changed);
+    assert_eq!(fs::read_to_string(&same.input.lockfile).unwrap(), lock);
+
+    fs::write(source.join("Gemfile"), "gemspec\n").unwrap();
+    let local = prepare(options(&source), TaskEvents::default()).unwrap();
+    assert_eq!(
+        require(&local, "require 'fixture'; puts Fixture::VERSION"),
+        "1.0.0\n"
+    );
+    let lock = fs::read_to_string(&local.input.lockfile).unwrap();
+    assert!(lock.starts_with("PATH\n  remote: .\n"), "{lock}");
+    assert!(lock.contains("\n  fixture!\n"), "{lock}");
+    assert!(!lock.contains("fixture (= "), "{lock}");
+    let mut frozen = options(&source);
+    frozen.plan.mode = LockMode::Locked;
+    let same = prepare(frozen, TaskEvents::default()).unwrap();
+    assert!(!same.plan.lock_changed);
+    assert_eq!(fs::read_to_string(&same.input.lockfile).unwrap(), lock);
+}
+
+#[test]
+#[cfg(unix)]
+fn path_gem_freshness_tracks_its_inputs_without_walking_unrelated_directories() {
+    let root = tempfile::tempdir().unwrap();
+    let external = tempfile::tempdir().unwrap();
+    let source = source(root.path());
+    fs::create_dir(source.join(".trees")).unwrap();
+    std::os::unix::fs::symlink(external.path(), source.join(".trees/unrelated")).unwrap();
+    fs::write(
+        root.path().join("Gemfile"),
+        "gemspec path: 'source-repository'\n",
+    )
+    .unwrap();
+    let mut options = options(root.path());
+    options.record_state = true;
+    let first = prepare(options.clone(), TaskEvents::default()).unwrap();
+    assert!(rb_packages::prepared(&options).unwrap().is_some());
+    fs::write(external.path().join("unrelated"), "changed").unwrap();
+    fs::write(source.join("notes.txt"), "not packaged").unwrap();
+    assert!(rb_packages::prepared(&options).unwrap().is_some());
+    fs::write(source.join("lib/new_file.rb"), "NEW_FILE = 42\n").unwrap();
+    assert!(rb_packages::prepared(&options).unwrap().is_none());
+    let changed = prepare(options.clone(), TaskEvents::default()).unwrap();
+    assert_ne!(first.fingerprint, changed.fingerprint);
+    assert_eq!(
+        require(&changed, "require 'new_file'; puts NEW_FILE"),
+        "42\n"
+    );
+    fs::write(
+        source.join("lib/fixture/version.rb"),
+        "module Fixture; VERSION = '1.0.1'; end\n",
+    )
+    .unwrap();
+    assert!(rb_packages::prepared(&options).unwrap().is_none());
+    let changed = prepare(options, TaskEvents::default()).unwrap();
+    assert_eq!(
+        require(&changed, "require 'fixture'; puts Fixture::VERSION"),
+        "1.0.1\n"
+    );
+}
+
+#[test]
 fn path_source_is_snapshotted_without_mutating_project_and_refreshes_on_edit() {
     let root = tempfile::tempdir().unwrap();
     let source = source(root.path());
@@ -181,10 +262,7 @@ fn path_source_is_snapshotted_without_mutating_project_and_refreshes_on_edit() {
             .find(|s| s.kind == rb_lockfile::SourceKind::Path)
             .unwrap()
             .remotes,
-        [dunce::canonicalize(&source)
-            .unwrap()
-            .to_string_lossy()
-            .into_owned()]
+        ["source-repository"]
     );
     let second = prepare(options(root.path()), TaskEvents::default()).unwrap();
     assert_eq!(second.installed.reused, 1);
@@ -348,11 +426,11 @@ fn source_gems_from_one_repository_resolve_transitive_siblings() {
 
 #[cfg(unix)]
 #[test]
-fn source_symlink_cannot_escape_the_package_directory() {
+fn packaged_symlink_cannot_escape_the_package_directory() {
     let root = tempfile::tempdir().unwrap();
     let source = source(root.path());
     fs::write(root.path().join("outside"), "private\n").unwrap();
-    std::os::unix::fs::symlink(root.path().join("outside"), source.join("leak")).unwrap();
+    std::os::unix::fs::symlink(root.path().join("outside"), source.join("lib/leak")).unwrap();
     fs::write(
         root.path().join("Gemfile"),
         "gem 'fixture', path: 'source-repository'\n",
@@ -677,7 +755,7 @@ fn compatibility_gemfile_keeps_optional_groups_inactive() {
 }
 
 #[test]
-fn unchanged_archives_refresh_path_snapshot_locations_when_unlisted_source_files_change() {
+fn unlisted_source_files_preserve_path_snapshot_locations() {
     let root = tempfile::tempdir().unwrap();
     let source = source(root.path());
     fs::write(
@@ -697,7 +775,7 @@ fn unchanged_archives_refresh_path_snapshot_locations_when_unlisted_source_files
         &second,
         "require 'fixture'; puts Gem.loaded_specs.fetch('fixture').full_gem_path",
     );
-    assert_ne!(before, after);
+    assert_eq!(before, after);
     assert_eq!(
         require(&second, "require 'fixture'; puts Fixture::VERSION"),
         "1.0.0\n"

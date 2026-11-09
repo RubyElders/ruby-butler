@@ -5,63 +5,77 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(crate) fn files(root: &Path) -> Result<Vec<PathBuf>> {
-    enumerate(root, true)
-}
-pub(crate) fn payload_files(root: &Path) -> Result<Vec<PathBuf>> {
-    enumerate(root, false)
+pub(crate) fn selected(root: &Path, paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    enumerate(root, paths, true)
 }
 
-fn enumerate(root: &Path, source: bool) -> Result<Vec<PathBuf>> {
-    fn visit(root: &Path, path: &Path, output: &mut Vec<PathBuf>, source: bool) -> Result<()> {
-        let mut entries = fs::read_dir(path)?.collect::<std::io::Result<Vec<_>>>()?;
-        entries.sort_by_key(|entry| entry.file_name());
-        for entry in entries {
-            if source
-                && matches!(
-                    entry.file_name().to_str(),
-                    Some(".git" | ".rb" | ".rb-native")
-                )
-            {
-                continue;
+pub(crate) fn payload_files(root: &Path) -> Result<Vec<PathBuf>> {
+    enumerate(root, &[PathBuf::from(".")], false)
+}
+
+fn enumerate(root: &Path, paths: &[PathBuf], source: bool) -> Result<Vec<PathBuf>> {
+    fn visit(
+        root: &Path,
+        path: &Path,
+        output: &mut std::collections::BTreeSet<PathBuf>,
+        source: bool,
+    ) -> Result<()> {
+        if source
+            && matches!(
+                path.file_name().and_then(|name| name.to_str()),
+                Some(".git" | ".rb" | ".rb-native")
+            )
+        {
+            return Ok(());
+        }
+        let metadata = match fs::symlink_metadata(path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error.into()),
+        };
+        if source {
+            ensure!(
+                dunce::canonicalize(path)?.starts_with(dunce::canonicalize(root)?),
+                "Source link escapes its directory"
+            );
+        }
+        let kind = metadata.file_type();
+        if kind.is_dir() {
+            for entry in fs::read_dir(path)? {
+                visit(root, &entry?.path(), output, source)?;
             }
-            let path = entry.path();
-            let kind = entry.file_type()?;
-            if kind.is_dir() {
-                visit(root, &path, output, source)?;
-            } else {
-                ensure!(
-                    kind.is_file() || kind.is_symlink(),
-                    "Unsupported source file"
-                );
-                let relative = path.strip_prefix(root)?;
-                ensure!(
-                    !relative.components().any(|part| part
-                        .as_os_str()
-                        .as_encoded_bytes()
-                        .iter()
-                        .any(|byte| matches!(byte, b'\\' | b':'))),
-                    "Nonportable source file"
-                );
-                if source && kind.is_symlink() {
-                    ensure!(
-                        dunce::canonicalize(&path)?.starts_with(dunce::canonicalize(root)?),
-                        "Source link escapes its directory"
-                    );
-                }
-                output.push(relative.to_owned());
-            }
+        } else {
+            ensure!(
+                kind.is_file() || kind.is_symlink(),
+                "Unsupported source file"
+            );
+            let relative = path.strip_prefix(root)?;
+            ensure!(
+                !relative.components().any(|part| part
+                    .as_os_str()
+                    .as_encoded_bytes()
+                    .iter()
+                    .any(|byte| matches!(byte, b'\\' | b':'))),
+                "Nonportable source file"
+            );
+            output.insert(relative.to_owned());
         }
         Ok(())
     }
-    let mut output = Vec::new();
-    visit(root, root, &mut output, source)?;
-    Ok(output)
+    let mut output = std::collections::BTreeSet::new();
+    for path in paths {
+        let path: PathBuf = path
+            .components()
+            .filter(|part| !matches!(part, std::path::Component::CurDir))
+            .collect();
+        visit(root, &root.join(path), &mut output, source)?;
+    }
+    Ok(output.into_iter().collect())
 }
 
-pub(crate) fn fingerprint(root: &Path) -> Result<String> {
+pub(crate) fn fingerprint(root: &Path, paths: &[PathBuf]) -> Result<String> {
     let mut hash = Sha256::new();
-    for path in files(root)? {
+    for path in selected(root, paths)? {
         let name = path.as_os_str().as_encoded_bytes();
         hash.update(name.len().to_le_bytes());
         hash.update(name);
@@ -87,6 +101,17 @@ pub(crate) fn fingerprint(root: &Path) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn selected_files_cannot_escape_through_symlinked_parents() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("secret"), "not package data").unwrap();
+        std::os::unix::fs::symlink(outside.path(), root.path().join("link")).unwrap();
+        let error = selected(root.path(), &[PathBuf::from("link/secret")]).unwrap_err();
+        assert!(error.to_string().contains("Source link escapes"));
+    }
 
     #[test]
     fn native_filesystem_separators_work_in_nested_payloads() {

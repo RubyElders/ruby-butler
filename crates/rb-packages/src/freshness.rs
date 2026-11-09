@@ -20,6 +20,7 @@ pub fn fingerprint(
                 "install": package.install,
                 "dependencies": record.package.dependencies,
                 "ruby": record.package.ruby,
+                "declared_ruby": record.declared_ruby,
                 "rubygems": record.rubygems,
             }),
         );
