@@ -1,0 +1,8 @@
+source ENV.fetch('FIXTURE_REGISTRY')
+ruby '>= 3.3'
+gemspec
+gem 'napkins', path: '../napkins'
+gem 'silver', git: ENV.fetch('FIXTURE_GIT'), branch: 'main'
+group :test do
+  gem 'tea', '~> 1.0'
+end

@@ -6,10 +6,12 @@ module RubyButler
       def self.read
         require 'rubygems'
         bundlers = Gem::Specification.find_all_by_name('bundler')
+        bundler = bundlers.max_by(&:version)
         { executable: RbConfig.ruby, version: RUBY_VERSION, engine: RUBY_ENGINE,
           engine_version: RUBY_ENGINE_VERSION, patchlevel: RUBY_PATCHLEVEL,
           platform: Gem::Platform.local.to_s, abi: Gem.extension_api_version,
-          rubygems: Gem::VERSION, bundler: bundlers.map(&:version).max&.to_s,
+          rubygems: Gem::VERSION, bundler: bundler&.version&.to_s,
+          bundler_archive: bundler&.cache_file,
           build_tools: build_tools, configuration_inputs: configuration_inputs(bundlers) }
       end
 

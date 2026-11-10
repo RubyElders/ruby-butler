@@ -131,3 +131,33 @@ fn scripts_only_kdl_project_still_reads_gemfile() {
     assert!(input.manifest.dependencies.contains_key("rake"));
     assert!(input.gemfile.is_some());
 }
+
+#[cfg(unix)]
+#[test]
+fn gemspec_metadata_and_dependency_paths_share_the_canonical_identity() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("source");
+    fs::create_dir_all(source.join("lib/fixture")).unwrap();
+    fs::write(
+        source.join("fixture.gemspec"),
+        include_str!("fixtures/sources/fixture.gemspec"),
+    )
+    .unwrap();
+    fs::write(
+        source.join("lib/fixture/version.rb"),
+        include_str!("fixtures/sources/lib/fixture/version.rb"),
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(&source, root.path().join("alias")).unwrap();
+    fs::write(root.path().join("Gemfile"), "gemspec path: 'alias'\n").unwrap();
+    let input = ProjectInput::load(root.path(), common::ruby()).unwrap();
+    let expected = dunce::canonicalize(source)
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(input.manifest.gemspecs[0].path, expected);
+    assert_eq!(
+        input.manifest.dependencies["fixture"].path.as_deref(),
+        Some(expected.as_str())
+    );
+}

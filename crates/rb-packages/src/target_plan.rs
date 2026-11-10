@@ -2,7 +2,10 @@ use crate::RubyEnvironment;
 use anyhow::{Result, ensure};
 use rb_gem_types::Requirement;
 use rb_lockfile::Dependency;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 pub(crate) struct TargetPlan {
     pub(crate) roots: BTreeMap<String, Requirement>,
@@ -34,7 +37,8 @@ impl TargetPlan {
                 let constraint: Requirement = declaration.version.join(", ").parse()?;
                 let lock_constraint = if manifest.gemspecs.iter().any(|package| {
                     package.name == *name
-                        && declaration.path.as_deref() == Some(package.path.as_str())
+                        && declaration.path.as_deref().map(Path::new)
+                            == Some(Path::new(&package.path))
                 }) {
                     Requirement::default()
                 } else {

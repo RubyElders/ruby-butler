@@ -221,18 +221,18 @@ fn declared_ruby_and_engine_are_checked_and_recorded_in_lock() {
     runtime.patchlevel = 1;
     let mut manifest = manifest("https://rubygems.org", "");
     manifest.bundle.ruby = vec![">= 3.3".into()];
-    let result = plan(
-        &manifest,
-        &runtime,
-        None,
-        &MemoryIndex::default(),
-        &PlanOptions::default(),
-    )
-    .unwrap();
-    assert_eq!(
-        result.lockfile.ruby_version.as_deref(),
-        Some("ruby 3.4.10p1")
-    );
+    for (bundler, expected) in [("2.6.9", "ruby 3.4.10p1"), ("4.0.20", "ruby 3.4.10")] {
+        runtime.bundler = Some(bundler.parse().unwrap());
+        let result = plan(
+            &manifest,
+            &runtime,
+            None,
+            &MemoryIndex::default(),
+            &PlanOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(result.lockfile.ruby_version.as_deref(), Some(expected));
+    }
     manifest.bundle.engine_version = Some("3.3.7".into());
     assert!(
         plan(
@@ -443,4 +443,99 @@ fn updating_multiple_targets_resolves_native_dependencies_and_installs_only_loca
     .unwrap();
     assert_eq!(frozen.lockfile, updated.lockfile);
     assert!(!frozen.lock_changed);
+}
+
+#[test]
+fn fresh_portable_graphs_include_ruby_on_generic_hosts() {
+    let mut index = MemoryIndex::default();
+    add(&mut index, record("tea", "1.0", &[]));
+    let manifest = manifest("https://rubygems.org", "tea = '>= 0'");
+    let mut runtime = runtime();
+    for (platform, generic) in [
+        ("x86_64-linux", true),
+        ("arm64-darwin", true),
+        ("x64-mingw-ucrt", false),
+        ("java", false),
+    ] {
+        runtime.platform = platform.into();
+        let result = plan(&manifest, &runtime, None, &index, &PlanOptions::default()).unwrap();
+        assert!(result.lockfile.platforms.contains(&platform.to_string()));
+        assert_eq!(result.lockfile.platforms.contains(&"ruby".into()), generic);
+    }
+}
+
+#[test]
+fn bundler_checksum_survives_cache_removal_but_not_a_version_change() {
+    let root = tempfile::tempdir().unwrap();
+    let archive = root.path().join("bundler.gem");
+    std::fs::write(&archive, b"cached bundler archive").unwrap();
+    let mut runtime = runtime();
+    runtime.bundler = Some("4.0.21".parse().unwrap());
+    runtime.bundler_archive = Some(archive.clone());
+    let mut index = MemoryIndex::default();
+    add(&mut index, record("tea", "1.0", &[]));
+    let manifest = manifest("https://rubygems.org", "tea = '>= 0'");
+    let options = PlanOptions {
+        mode: LockMode::Update,
+        ..Default::default()
+    };
+    let first = plan(&manifest, &runtime, None, &index, &options).unwrap();
+    let checksums = first.lockfile.checksums.as_ref().unwrap();
+    assert!(checksums["bundler (4.0.21)"].is_some());
+    std::fs::remove_file(archive).unwrap();
+    let second = plan(&manifest, &runtime, Some(&first.lockfile), &index, &options).unwrap();
+    assert_eq!(second.lockfile.checksums, first.lockfile.checksums);
+    runtime.bundler = Some("4.0.22".parse().unwrap());
+    let changed = plan(
+        &manifest,
+        &runtime,
+        Some(&second.lockfile),
+        &index,
+        &options,
+    )
+    .unwrap();
+    assert!(
+        !changed
+            .lockfile
+            .checksums
+            .unwrap()
+            .keys()
+            .any(|key| key.starts_with("bundler ("))
+    );
+}
+
+#[test]
+fn local_gemspec_identity_uses_paths_instead_of_string_spelling() {
+    let root = tempfile::tempdir().unwrap();
+    let directory = dunce::canonicalize(root.path()).unwrap();
+    let mut package = record("fixture", "1.0", &[]);
+    package.source = rb_packages::PackageSource::Path {
+        directory: directory.clone(),
+        glob: None,
+    };
+    let mut index = MemoryIndex::default();
+    add(&mut index, package);
+    let mut manifest = manifest("https://rubygems.org", "fixture = '= 1.0'");
+    let declaration = manifest.dependencies.get_mut("fixture").unwrap();
+    declaration.path = Some(directory.join(".").to_string_lossy().into_owned());
+    manifest.gemspecs.push(rb_gemfile::Package {
+        name: "fixture".into(),
+        version: "1.0".into(),
+        platform: "ruby".into(),
+        path: directory.to_string_lossy().into_owned(),
+        required_ruby_version: vec![],
+        required_rubygems_version: vec![],
+        runtime_dependencies: Default::default(),
+        development_dependencies: Default::default(),
+    });
+    let result = plan(&manifest, &runtime(), None, &index, &PlanOptions::default()).unwrap();
+    assert_eq!(
+        result.lockfile.dependencies["fixture"].requirement,
+        Default::default()
+    );
+    assert!(result.lockfile.dependencies["fixture"].pinned);
+    assert_eq!(
+        result.packages[0].record.package.id.version.to_string(),
+        "1.0"
+    );
 }

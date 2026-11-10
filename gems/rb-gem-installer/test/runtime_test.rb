@@ -13,6 +13,7 @@ class RuntimeTest < Minitest::Test
     assert_equal Gem.extension_api_version, runtime.fetch(:abi)
     assert_equal Gem::VERSION, runtime.fetch(:rubygems)
     assert_equal Gem::Specification.find_all_by_name('bundler').map(&:version).max&.to_s, runtime.fetch(:bundler)
+    assert_equal Gem::Specification.find_all_by_name('bundler').max_by(&:version)&.cache_file, runtime.fetch(:bundler_archive)
   end
 
   def test_build_tools_belong_to_the_selected_ruby
