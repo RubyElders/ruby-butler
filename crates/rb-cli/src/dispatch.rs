@@ -87,6 +87,10 @@ pub fn dispatch_command(
 
         Commands::Info { command } => match command {
             InfoCommands::Runtime { available: true } => crate::ruby_install::available(context),
+            InfoCommands::Setup {
+                probe,
+                resolve_ruby,
+            } => crate::commands::info::setup::setup_command(context, probe, resolve_ruby),
             InfoCommands::Config => info_config_command(context.config()),
             InfoCommands::Project => crate::commands::info::project::project_command(
                 context.config(),

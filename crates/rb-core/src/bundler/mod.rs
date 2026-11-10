@@ -30,6 +30,7 @@ pub struct BundlerRuntime {
     pub root: PathBuf,
     /// Ruby version for this bundler context
     pub ruby_version: Version,
+    gemfile: PathBuf,
 }
 
 impl BundlerRuntime {
@@ -42,12 +43,36 @@ impl BundlerRuntime {
             ruby_version
         );
 
-        Self { root, ruby_version }
+        let gemfile = root.join("Gemfile");
+        Self {
+            root,
+            ruby_version,
+            gemfile,
+        }
     }
 
     /// Returns the full path to the Gemfile
     pub fn gemfile_path(&self) -> PathBuf {
-        self.root.join("Gemfile")
+        self.gemfile.clone()
+    }
+
+    pub fn with_gemfile(mut self, file: impl AsRef<Path>) -> Self {
+        self.gemfile = self.root.join(file);
+        self
+    }
+
+    pub fn lockfile_path(&self) -> PathBuf {
+        if self
+            .gemfile
+            .file_name()
+            .is_some_and(|name| name == "gems.rb")
+        {
+            self.gemfile.with_file_name("gems.locked")
+        } else {
+            let mut file = self.gemfile.as_os_str().to_owned();
+            file.push(".lock");
+            file.into()
+        }
     }
 
     /// Returns the application config directory (.rb)
@@ -290,7 +315,7 @@ impl BundlerRuntime {
     }
 
     fn lockfile_contents(&self) -> std::io::Result<Option<Vec<u8>>> {
-        match std::fs::read(self.root.join("Gemfile.lock")) {
+        match std::fs::read(self.lockfile_path()) {
             Ok(contents) => Ok(Some(contents)),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error),
@@ -423,6 +448,21 @@ mod tests {
     use std::fs;
     use std::io;
     use std::path::Path;
+
+    #[test]
+    fn custom_dependency_files_use_their_own_lockfile() {
+        let root = tempfile::tempdir().unwrap();
+        for (gemfile, lockfile) in [
+            ("Gemfile", "Gemfile.lock"),
+            ("Dependencies", "Dependencies.lock"),
+            ("gems.rb", "gems.locked"),
+        ] {
+            let runtime =
+                BundlerRuntime::new(root.path(), Version::new(4, 0, 9)).with_gemfile(gemfile);
+            assert_eq!(runtime.gemfile_path(), root.path().join(gemfile));
+            assert_eq!(runtime.lockfile_path(), root.path().join(lockfile));
+        }
+    }
 
     fn bundler_rt(root: impl AsRef<Path>) -> BundlerRuntime {
         BundlerRuntime::new(root, Version::new(3, 3, 7))

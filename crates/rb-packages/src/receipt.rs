@@ -63,7 +63,7 @@ pub(crate) const BUILD_ENVIRONMENT: &[&str] = &[
     "SDKROOT",
 ];
 
-fn configuration_hash(
+pub(crate) fn configuration_hash(
     build: &BuildOptions,
     runtime: &RubyEnvironment,
     tools: &[&PackageRecord],

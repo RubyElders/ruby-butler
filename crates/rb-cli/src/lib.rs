@@ -273,6 +273,14 @@ pub enum InstallCommands {
 
 #[derive(Subcommand)]
 pub enum InfoCommands {
+    /// 🧾 Machine-readable setup paths and cache inputs
+    Setup {
+        #[arg(long, help = "Evaluate dependency inputs using the selected Ruby")]
+        probe: bool,
+        #[arg(long, help = "Select a downloadable Ruby when none is installed")]
+        resolve_ruby: bool,
+    },
+
     /// 🔍 Detected Rubies and selected runtime
     Runtime {
         #[arg(long, help = "List compatible downloadable Ruby versions")]

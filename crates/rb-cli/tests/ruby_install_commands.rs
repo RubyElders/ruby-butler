@@ -462,7 +462,10 @@ fn nested_command_completion_comes_from_the_cli_grammar_without_installing() {
         ("rb install r", vec!["ruby"]),
         ("rb install ruby ", vec![]),
         ("rb r", vec!["r", "run"]),
-        ("rb i ", vec!["config", "env", "project", "runtime"]),
+        (
+            "rb i ",
+            vec!["config", "env", "project", "runtime", "setup"],
+        ),
     ] {
         let output = success(
             fixture

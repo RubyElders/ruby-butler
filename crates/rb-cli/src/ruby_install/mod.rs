@@ -26,7 +26,7 @@ pub(crate) fn install(context: &CommandContext, version: Option<&str>) -> Result
         .map_err(error)
 }
 
-fn installer(context: &CommandContext) -> Result<Installer> {
+pub(crate) fn installer(context: &CommandContext) -> Result<Installer> {
     Installer::with_inputs(
         crate::cache::directory(&context.process)?.join("rubies"),
         context.process.directory().to_owned(),

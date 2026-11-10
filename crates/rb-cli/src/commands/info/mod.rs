@@ -2,6 +2,7 @@ pub mod config;
 pub mod env;
 pub mod project;
 pub mod runtime;
+pub(crate) mod setup;
 
 use crate::config::TrackedConfig;
 use rb_core::butler::ButlerError;

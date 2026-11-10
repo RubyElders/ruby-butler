@@ -3,6 +3,7 @@
 mod build_tools;
 mod bundle_layout;
 mod bundler_credentials;
+mod cache;
 mod constants;
 mod copy_tree;
 mod credentials;
@@ -40,6 +41,7 @@ mod validation;
 mod wrappers;
 
 pub use bundle_layout::BundleLayout;
+pub use cache::{CacheInputs, inspect_cache, inspect_gemfile_cache};
 pub use input::ProjectInput;
 pub use install::install;
 pub use install_options::InstallOptions;
