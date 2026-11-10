@@ -15,6 +15,7 @@ pub(crate) struct SourcePackage {
     pub(crate) snapshot: String,
     pub(crate) payload: Vec<PathBuf>,
     pub(crate) inputs: Vec<PathBuf>,
+    pub(crate) environment: Option<std::collections::BTreeSet<String>>,
 }
 
 impl SourcePackage {
@@ -67,6 +68,7 @@ impl SourcePackage {
             snapshot: snapshot.into(),
             payload,
             inputs,
+            environment: spec.environment,
         })
     }
 }

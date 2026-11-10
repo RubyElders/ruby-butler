@@ -123,7 +123,7 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
     let ruby = options.ruby.clone();
     let project_file = options.project_file.clone();
     let input_options = options.clone();
-    let input = crate::task::run("load dependencies", events.clone(), move |_| {
+    let mut input = crate::task::run("load dependencies", events.clone(), move |_| {
         ProjectInput::load_with_inputs(
             &project,
             &ruby,
@@ -164,6 +164,10 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
         )?;
         Ok((plan, index))
     })?;
+    input.evaluation_environment = input.evaluation_environment.and_then(|mut names| {
+        names.extend(index.preparation_environment()?);
+        Some(names)
+    });
     let observed = if let Some(candidate) = candidate.clone() {
         let options = options.clone();
         let input = input.clone();

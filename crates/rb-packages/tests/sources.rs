@@ -781,3 +781,42 @@ fn unlisted_source_files_preserve_path_snapshot_locations() {
         "1.0.0\n"
     );
 }
+
+#[test]
+fn local_gemspec_environment_changes_invalidate_prepared_state() {
+    let root = tempfile::tempdir().unwrap();
+    let source = source(root.path());
+    fs::write(source.join("fixture.gemspec"), "Gem::Specification.new { |s| s.name='fixture'; s.version=ENV.fetch('RAILS_ENV', '1.0.0'); s.summary='Fixture'; s.authors=['Fixture']; s.files=['lib/fixture.rb', 'lib/fixture/version.rb'] }\n").unwrap();
+    fs::write(
+        root.path().join("Gemfile"),
+        "gem 'fixture', path: 'source-repository'\n",
+    )
+    .unwrap();
+    let options_for = |version: &str| {
+        let mut options = options(root.path());
+        let mut environment = options.install.build.inherited_environment().clone();
+        environment.insert("RAILS_ENV".into(), version.into());
+        options.install.build = rb_gem_installer::BuildOptions::with_inputs(
+            &options.ruby,
+            root.path().to_owned(),
+            environment,
+        );
+        options.record_state = true;
+        options
+    };
+    let first = options_for("1.0.0");
+    prepare(first.clone(), TaskEvents::default()).unwrap();
+    assert!(rb_packages::prepared(&first).unwrap().is_some());
+    let changed = options_for("2.0.0");
+    assert!(rb_packages::prepared(&changed).unwrap().is_none());
+    let prepared = prepare(changed, TaskEvents::default()).unwrap();
+    assert_eq!(
+        prepared.plan.packages[0]
+            .record
+            .package
+            .id
+            .version
+            .to_string(),
+        "2.0.0"
+    );
+}

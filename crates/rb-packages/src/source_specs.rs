@@ -9,6 +9,8 @@ use std::{
 pub(crate) struct SourceSpecification {
     pub(crate) gemspec: PathBuf,
     pub(crate) inputs: Vec<PathBuf>,
+    #[serde(default)]
+    pub(crate) environment: Option<std::collections::BTreeSet<String>>,
     pub(crate) metadata: String,
     pub(crate) specification: String,
     pub(crate) files: Vec<PathBuf>,
@@ -81,6 +83,10 @@ pub(crate) fn read_with_environment(
     let helper = tempfile::tempdir()?;
     for (path, source) in [
         (
+            "lib/rb_gemfile/environment_inputs.rb",
+            include_str!("../../../gems/rb-gemfile/lib/rb_gemfile/environment_inputs.rb"),
+        ),
+        (
             "lib/rb_gemfile/file_inputs.rb",
             include_str!("../../../gems/rb-gemfile/lib/rb_gemfile/file_inputs.rb"),
         ),
@@ -112,8 +118,9 @@ pub(crate) fn read_with_environment(
         .env_remove("RUBYLIB")
         .env_remove("BUNDLE_GEMFILE")
         .arg("-r").arg(helper.path().join("lib/rb_gemfile/file_inputs.rb"))
+        .arg("-r").arg(helper.path().join("lib/rb_gemfile/environment_inputs.rb"))
         .arg("-r").arg(helper.path().join("lib/rb_gem_installer/source_specifications.rb"))
-        .args(["-e", "RubyButler::GemInstaller::SourceSpecifications.export(ARGV.fetch(0), RubyButler::FileInputs.new)"])
+        .args(["-e", "RubyButler::GemInstaller::SourceSpecifications.export(ARGV.fetch(0), RubyButler::FileInputs.new, RubyButler::EnvironmentInputs.new)"])
         .arg(request.path())
         .current_dir(directory)
         .output()
