@@ -67,6 +67,20 @@ fn inspect(options: &PrepareOptions, kind: InputKind) -> Result<CacheInputs> {
         compatibility,
         fingerprint: None,
     };
+    if input
+        .manifest
+        .bundle
+        .source
+        .iter()
+        .chain(input.manifest.dependencies.values().flat_map(|dependency| {
+            std::iter::once(dependency)
+                .chain(&dependency.variants)
+                .flat_map(|dependency| dependency.source.iter().chain(&dependency.git))
+        }))
+        .any(|source| credential_url(source))
+    {
+        return Ok(result);
+    }
     let Some(mut names) = input.evaluation_environment.clone() else {
         return Ok(result);
     };
@@ -149,6 +163,13 @@ fn inspect(options: &PrepareOptions, kind: InputKind) -> Result<CacheInputs> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(result),
         Err(error) => return Err(error.into()),
     };
+    if String::from_utf8_lossy(&lock)
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("remote: "))
+        .any(credential_url)
+    {
+        return Ok(result);
+    }
     result.fingerprint = Some(digest(&(
         cache
             .environment_inputs(names)
@@ -157,6 +178,13 @@ fn inspect(options: &PrepareOptions, kind: InputKind) -> Result<CacheInputs> {
     ))?);
     result.complete = true;
     Ok(result)
+}
+
+fn credential_url(source: &str) -> bool {
+    url::Url::parse(source).is_ok_and(|url| {
+        url.password().is_some()
+            || (matches!(url.scheme(), "https" | "http") && !url.username().is_empty())
+    })
 }
 
 fn safe_environment(name: &str) -> bool {

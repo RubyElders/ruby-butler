@@ -140,3 +140,34 @@ fn native_project_formats_report_the_generated_lock_and_complete_fingerprints() 
         assert_eq!(after.fingerprint.unwrap().len(), 64);
     }
 }
+
+#[test]
+fn inline_source_credentials_are_not_part_of_public_cache_keys() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join("Gemfile"),
+        "source 'https://username:private-token@gems.example.test'\ngem 'rake'\n",
+    )
+    .unwrap();
+    fs::write(root.path().join("Gemfile.lock"), "fixture\n").unwrap();
+    let options = options(root.path());
+    let result = inspect_cache(&options).unwrap();
+    assert!(!result.complete);
+    assert!(result.fingerprint.is_none());
+    assert!(
+        !serde_json::to_string(&result)
+            .unwrap()
+            .contains("private-token")
+    );
+    fs::write(
+        root.path().join("Gemfile"),
+        "source 'https://rubygems.org'\ngem 'rake'\n",
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("Gemfile.lock"),
+        "GEM\n  remote: https://username:private-token@gems.example.test/\n",
+    )
+    .unwrap();
+    assert!(inspect_cache(&options).unwrap().fingerprint.is_none());
+}
