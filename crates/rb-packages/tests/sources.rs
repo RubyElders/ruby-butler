@@ -820,3 +820,53 @@ fn local_gemspec_environment_changes_invalidate_prepared_state() {
         "2.0.0"
     );
 }
+
+#[test]
+fn annotated_git_tags_keep_bundler_lock_identity_and_checkout_the_commit() {
+    let root = tempfile::tempdir().unwrap();
+    let source = source(root.path());
+    git(&source, &["init", "--initial-branch=main"]);
+    let commit = commit(&source);
+    git(
+        &source,
+        &[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.test",
+            "tag",
+            "-a",
+            "v1",
+            "-m",
+            "Fixture",
+        ],
+    );
+    let tag = git(&source, &["rev-parse", "v1"]);
+    assert_ne!(tag, commit);
+    fs::write(
+        root.path().join("Gemfile"),
+        format!(
+            "gem 'fixture', git: {:?}, tag: 'v1'\n",
+            source.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    let prepared = prepare(options(root.path()), TaskEvents::default()).unwrap();
+    let source = prepared
+        .plan
+        .lockfile
+        .sources
+        .iter()
+        .find(|source| source.kind == rb_lockfile::SourceKind::Git)
+        .unwrap();
+    assert_eq!(source.options["revision"], tag);
+    assert_eq!(
+        require(&prepared, "require 'fixture'; puts Fixture::VERSION"),
+        "1.0.0\n"
+    );
+    let lock = fs::read_to_string(&prepared.input.lockfile).unwrap();
+    let mut frozen = options(root.path());
+    frozen.plan.mode = LockMode::Locked;
+    let warm = prepare(frozen, TaskEvents::default()).unwrap();
+    assert_eq!(fs::read_to_string(warm.input.lockfile).unwrap(), lock);
+}

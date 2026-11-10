@@ -139,7 +139,7 @@ pub(crate) fn checkout(
             ])?;
         }
     }
-    let resolve = || git(&["rev-parse", "--verify", &format!("{selector}^{{commit}}")]);
+    let resolve = || git(&["rev-parse", "--verify", &selector]);
     let revision = match resolve() {
         Ok(revision) => revision,
         Err(error) if offline => return Err(error.context("Git commit is not cached")),
@@ -153,9 +153,10 @@ pub(crate) fn checkout(
             && revision.bytes().all(|byte| byte.is_ascii_hexdigit()),
         "Invalid Git object ID"
     );
+    let commit = git(&["rev-parse", "--verify", &format!("{revision}^{{commit}}")])?;
     git(&["update-ref", &format!("refs/rb/{revision}"), &revision])?;
     let key = format!(
-        "{revision}-{}",
+        "{commit}-{}",
         options.get("submodules").is_some_and(|v| v == "true")
     );
     let checkout = directory
@@ -172,7 +173,7 @@ pub(crate) fn checkout(
         run(Command::new("git")
             .arg("-C")
             .arg(&target)
-            .args(["checkout", "--detach", &revision]))?;
+            .args(["checkout", "--detach", &commit]))?;
         run(Command::new("git")
             .arg("-C")
             .arg(&target)
@@ -198,7 +199,7 @@ pub(crate) fn checkout(
         "--untracked-files=all",
     ]))?;
     ensure!(
-        head == revision && changes.is_empty(),
+        head == commit && changes.is_empty(),
         "Cached Git checkout has been modified"
     );
     Ok((revision, checkout))
