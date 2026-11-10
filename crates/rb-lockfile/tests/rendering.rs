@@ -53,3 +53,19 @@ fn repeated_source_headers_have_deterministic_package_group_order() {
     lock.sources.reverse();
     assert_eq!(lock.render().unwrap(), expected);
 }
+
+#[test]
+fn metadata_indentation_matches_the_bundler_version() {
+    for (version, indent) in [("2.6.9", "   "), ("4.0.20", "  ")] {
+        let mut lock = Lockfile::parse(include_str!("fixtures/bundler-order.lock")).unwrap();
+        lock.ruby_version = Some("ruby 3.4.10p0".into());
+        lock.bundled_with = Some(version.parse().unwrap());
+        let rendered = lock.render().unwrap();
+        assert!(
+            rendered.ends_with(&format!(
+                "\nRUBY VERSION\n{indent}ruby 3.4.10p0\n\nBUNDLED WITH\n{indent}{version}\n"
+            )),
+            "{rendered}"
+        );
+    }
+}

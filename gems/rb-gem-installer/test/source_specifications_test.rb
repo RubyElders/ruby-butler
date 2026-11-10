@@ -21,7 +21,7 @@ class SourceSpecificationsTest < Minitest::Test
       )
       assert status.success?, stderr
       specifications = JSON.parse(File.read(output))
-      expected = ['fixture.gemspec', 'lib/fixture/version.rb'].map { |path| File.join(directory, path) }.sort
+      expected = ['fixture.gemspec', 'lib/fixture/version.rb'].map { |path| File.realpath(File.join(directory, path)) }.sort
       assert_equal expected, specifications.fetch(0).fetch('inputs').sort
     end
   end

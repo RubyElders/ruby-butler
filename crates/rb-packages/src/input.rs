@@ -122,8 +122,8 @@ impl ProjectInput {
             )?;
             (parse_project(&document)?, cached.reused, Some(gemfile))
         };
-        for dependency in manifest.dependencies.values_mut() {
-            for path in std::iter::once(&mut dependency.path)
+        let dependency_paths = manifest.dependencies.values_mut().flat_map(|dependency| {
+            std::iter::once(&mut dependency.path)
                 .chain(
                     dependency
                         .variants
@@ -131,11 +131,16 @@ impl ProjectInput {
                         .map(|variant| &mut variant.path),
                 )
                 .flatten()
-            {
-                *path = dunce::canonicalize(root.join(&*path))?
-                    .to_string_lossy()
-                    .into_owned();
-            }
+        });
+        for path in dependency_paths.chain(
+            manifest
+                .gemspecs
+                .iter_mut()
+                .map(|package| &mut package.path),
+        ) {
+            *path = dunce::canonicalize(root.join(&*path))?
+                .to_string_lossy()
+                .into_owned();
         }
         ensure!(
             manifest.bundle.lockfile.is_none(),

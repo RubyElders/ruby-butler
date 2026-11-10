@@ -151,7 +151,7 @@ jobs:
     - uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby }}
-        bundler: none
+        bundler: latest
 
     - name: Test gem installation and build compatibility
       run: cargo test -p rb-gem-installer -p rb-microgems -p rb-packages
@@ -189,7 +189,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ env.RUBY_TEST_VERSION }}
-        bundler: none
+        bundler: latest
 
     - name: Run tests
       run: cargo test --verbose

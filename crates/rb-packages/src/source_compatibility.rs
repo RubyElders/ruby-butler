@@ -1,6 +1,6 @@
 use crate::{InstalledBundle, PackageIndex, PackagePlan, PackageSource, ProjectInput};
 use anyhow::{Context, Result};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(crate) fn write(
     input: &ProjectInput,
@@ -23,7 +23,7 @@ pub(crate) fn write(
             lock.dependencies.get(&package.name),
         ) {
             let update = |declaration: &mut rb_gemfile::Dependency| {
-                if declaration.path.as_deref() == Some(package.path.as_str()) {
+                if declaration.path.as_deref().map(Path::new) == Some(Path::new(&package.path)) {
                     declaration.version = vec![locked.requirement.to_string()];
                 }
             };

@@ -1,4 +1,7 @@
-use crate::{Lockfile, ParseError, Source, SourceKind, constants::SOURCE_OPTION_ORDER};
+use crate::{
+    Lockfile, ParseError, Source, SourceKind,
+    constants::{ENVIRONMENT_INDENT, SECTION_INDENT, SOURCE_OPTION_ORDER},
+};
 use rb_gem_types::Requirement;
 use std::fmt::Write;
 
@@ -81,11 +84,20 @@ pub(crate) fn render(lock: &Lockfile) -> Result<String, ParseError> {
             out.push('\n');
         }
     }
+    let indent = if canonical
+        .bundled_with
+        .as_ref()
+        .is_some_and(|version| version >= &"4.0.0".parse().unwrap())
+    {
+        SECTION_INDENT
+    } else {
+        ENVIRONMENT_INDENT
+    };
     if let Some(ruby) = &canonical.ruby_version {
-        write!(out, "\nRUBY VERSION\n   {ruby}\n").unwrap();
+        write!(out, "\nRUBY VERSION\n{:indent$}{ruby}\n", "").unwrap();
     }
     if let Some(bundler) = &canonical.bundled_with {
-        write!(out, "\nBUNDLED WITH\n   {bundler}\n").unwrap();
+        write!(out, "\nBUNDLED WITH\n{:indent$}{bundler}\n", "").unwrap();
     }
     if Lockfile::parse(&out)? != canonical {
         return Err(ParseError {

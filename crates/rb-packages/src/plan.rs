@@ -314,7 +314,12 @@ pub(crate) fn resolve(
         bundled_with: runtime.bundler.clone(),
         ruby_version: (!manifest.bundle.ruby.is_empty()).then(|| {
             let mut ruby = format!("ruby {}", runtime.version);
-            if runtime.patchlevel >= 0 {
+            if runtime.patchlevel >= 0
+                && runtime
+                    .bundler
+                    .as_ref()
+                    .is_none_or(|version| version < &"4.0.0".parse().unwrap())
+            {
                 ruby.push_str(&format!("p{}", runtime.patchlevel));
             }
             if runtime.engine == "ruby" {
@@ -325,6 +330,18 @@ pub(crate) fn resolve(
         }),
         ..Default::default()
     };
+    let platform = runtime.target();
+    if previous.is_none()
+        && !matches!(platform.os.as_str(), "java" | "mingw" | "mingw32")
+        && !platform.os.starts_with("mswin")
+        && !lock.platforms.iter().any(|platform| platform == "ruby")
+        && locked_records
+            .values()
+            .all(|record| record.package.id.platform == Platform::parse("ruby"))
+    {
+        lock.platforms.push("ruby".into());
+    }
+    lock.platforms.sort();
     let mut sections: BTreeMap<crate::PackageSource, Source> = BTreeMap::new();
     let mut checksums = BTreeMap::new();
     for record in locked_records.values() {
@@ -375,6 +392,17 @@ pub(crate) fn resolve(
         let mut source = Source::new(SourceKind::Registry, "");
         source.remotes.clear();
         sections.insert(crate::PackageSource::Registry(String::new()), source);
+    }
+    if let Some(version) = &runtime.bundler {
+        let identity = format!("bundler ({version})");
+        let checksum = runtime.bundler_checksum()?.or_else(|| {
+            previous
+                .filter(|lock| lock.bundled_with.as_ref() == Some(version))
+                .and_then(|lock| lock.checksums.as_ref()?.get(&identity)?.clone())
+        });
+        if let Some(checksum) = checksum {
+            checksums.insert(identity, Some(checksum));
+        }
     }
     lock.sources = sections.into_values().collect();
     lock.checksums = Some(checksums);

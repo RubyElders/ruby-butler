@@ -34,6 +34,6 @@ Commands run directly, without a shell, from the config directory. Stdout suppli
 
 Credential stores, different sources for the same gem across targets, custom lock paths, plugins and MicroGems application runtime are not supported yet.
 
-Run `cargo test -p rb-packages`, or try `cargo run -p rb-packages --example prepare -- /path/to/app /path/to/ruby /path/to/cache`.
+Tests require Ruby with Bundler 2.6 or newer. Run `cargo test -p rb-packages`, or try `cargo run -p rb-packages --example prepare -- /path/to/app /path/to/ruby /path/to/cache`.
 
 Native CLI preparation shares downloads under `$XDG_CACHE_HOME/rb` (normally `~/.cache/rb` on Linux). Archives are scoped by normalized registry URL and verified SHA-256. Installed bundles remain project-local. Prepared-state checks inspect dependency inputs, lockfiles and recorded installation state; installed gem payloads are not scanned.
