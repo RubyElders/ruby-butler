@@ -38,7 +38,23 @@ pub(crate) struct Candidate {
     before: String,
 }
 
-pub(crate) fn lock(root: &Path) -> Result<File> {
+pub(crate) struct ProjectLock(File);
+
+impl std::ops::Deref for ProjectLock {
+    type Target = File;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Drop for ProjectLock {
+    fn drop(&mut self) {
+        let _ = self.0.unlock();
+    }
+}
+
+pub(crate) fn lock(root: &Path) -> Result<ProjectLock> {
     let state = root.join(STATE_DIRECTORY);
     fs::create_dir_all(&state)?;
     let file = fs::OpenOptions::new()
@@ -48,7 +64,7 @@ pub(crate) fn lock(root: &Path) -> Result<File> {
         .truncate(false)
         .open(state.join(PROJECT_LOCK))?;
     file.lock()?;
-    Ok(file)
+    Ok(ProjectLock(file))
 }
 
 /// Returns a successful installation when its dependency inputs and metadata still match.
@@ -69,6 +85,7 @@ pub fn prepared(options: &PrepareOptions) -> Result<Option<InstalledBundle>> {
     if _lock.try_lock_shared().is_err() {
         return Ok(None);
     }
+    let _lock = ProjectLock(_lock);
     Ok(attempt(read(options, &filename)))
 }
 
@@ -313,6 +330,18 @@ pub(crate) fn attempt<T>(result: Result<T>) -> Option<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn completed_preparation_releases_inherited_file_descriptors() {
+        let root = tempfile::tempdir().unwrap();
+        let writer = lock(root.path()).unwrap();
+        let inherited = writer.try_clone().unwrap();
+        drop(writer);
+        let reader = File::open(root.path().join(STATE_DIRECTORY).join(PROJECT_LOCK)).unwrap();
+        assert!(reader.try_lock_shared().is_ok());
+        drop(inherited);
+    }
 
     #[test]
     fn busy_preparation_is_a_cache_miss_without_waiting() {
