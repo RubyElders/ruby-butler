@@ -18,4 +18,6 @@ println!("{}", ruby.path.display());
 
 Downloads are cached and checked against published SHA-256 values. Extraction and runtime validation happen in staging before the installation becomes visible. Existing complete installations are reused. Progress is supplied as events for the caller to present.
 
+`GH_TOKEN` or `GITHUB_TOKEN` can authenticate the public GitHub catalog request to avoid shared rate limits. They are not sent to archive downloads or alternate catalogs.
+
 Windows installation and source builds are not supported. Native gem compilation still needs a system compiler and any libraries required by the gem.
