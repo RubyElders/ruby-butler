@@ -5,6 +5,14 @@ All notable changes to Ruby Butler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-11-10
+
+### Fixed
+- Native preparation checks local gemspecs, loaded helpers and selected gem files instead of scanning entire repositories and worktrees. Gemfile snapshots also track loaded helpers and data files read during evaluation.
+- Native installation accepts registry entries that omit Ruby requirements and checks the archive's actual requirement against the selected Ruby. Dependency mismatch errors identify the difference without dumping internal structures.
+- Native lockfiles keep local path remotes relative and recognize equivalent gemspec paths across Windows separators and filesystem aliases.
+- Native lockfile ordering, portable platform entries, Ruby/Bundler metadata and cached Bundler checksums follow Bundler.
+
 ## [0.4.0] - 2026-11-09
 
 ### Added
