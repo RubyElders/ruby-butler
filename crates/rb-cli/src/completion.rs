@@ -246,6 +246,26 @@ pub(crate) fn generate_completions(
     }
 
     if let Some(prev) = prev_word {
+        let command = active_command(matches);
+        if let Some(values) = command
+            .get_arguments()
+            .filter(|arg| arg.get_action().takes_values())
+            .find(|arg| {
+                arg.get_long()
+                    .is_some_and(|name| prev == format!("--{name}"))
+                    || arg
+                        .get_short()
+                        .is_some_and(|name| prev == format!("-{name}"))
+            })
+            .and_then(|arg| arg.get_value_parser().possible_values())
+        {
+            for value in values
+                .filter(|value| !value.is_hide_set() && value.get_name().starts_with(current_word))
+            {
+                println!("{}", value.get_name());
+            }
+            return;
+        }
         if prev == "-r" || prev == "--ruby" {
             suggest_ruby_versions(&environment.ruby_versions, current_word);
             return;
@@ -279,7 +299,7 @@ pub(crate) fn generate_completions(
     }
 
     if current_word.starts_with('-') {
-        print_flags();
+        print_flags(&active_command(matches));
         return;
     }
 
@@ -289,6 +309,20 @@ pub(crate) fn generate_completions(
         Some(("exec", _)) => suggest_binstubs(current_word, &environment.bin_dirs),
         _ => print_nested_commands(matches, current_word),
     }
+}
+
+fn active_command(matches: &clap::ArgMatches) -> clap::Command {
+    let mut command = Cli::command();
+    command.build();
+    let mut matches = matches;
+    while let Some((name, child)) = matches.subcommand() {
+        let Some(selected) = command.find_subcommand(name) else {
+            break;
+        };
+        command = selected.clone();
+        matches = child;
+    }
+    command
 }
 
 fn print_nested_commands(matches: &clap::ArgMatches, prefix: &str) {
@@ -328,10 +362,8 @@ fn print_command_candidates(command: &clap::Command, prefix: &str) {
     }
 }
 
-fn print_flags() {
-    let cmd = Cli::command();
-
-    for arg in cmd.get_arguments() {
+fn print_flags(command: &clap::Command) {
+    for arg in command.get_arguments() {
         if arg.is_positional() || arg.is_hide_set() {
             continue;
         }

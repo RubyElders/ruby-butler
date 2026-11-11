@@ -1,0 +1,37 @@
+🎩 Ruby Butler - Your distinguished Ruby environment manager
+
+<ESC>[1;32mUsage:<ESC>[0m <ESC>[1;36mrb<ESC>[0m <ESC>[36m[OPTIONS]<ESC>[0m <ESC>[1;36mCOMMAND<ESC>[0m <ESC>[36m[COMMAND_OPTIONS]<ESC>[0m
+
+<ESC>[1;32mCommands:<ESC>[0m
+  <ESC>[1;36mrun               <ESC>[0m 🎯 Execute project scripts defined in rbproject.toml <ESC>[36m[aliases: r]<ESC>[0m
+  <ESC>[1;36mexec              <ESC>[0m ⚡ Execute commands within your meticulously prepared Ruby environment <ESC>[36m[aliases: x]<ESC>[0m
+  <ESC>[1;36msync              <ESC>[0m 🔄 Synchronize your bundler environment with distinguished precision <ESC>[36m[aliases: s]<ESC>[0m
+
+<ESC>[1;32mDiagnostic Commands:<ESC>[0m
+  <ESC>[1;36minfo runtime      <ESC>[0m 🔍 Detected Rubies and selected runtime
+  <ESC>[1;36minfo env          <ESC>[0m 🌍 Effective Ruby/package environment
+  <ESC>[1;36minfo project      <ESC>[0m 📁 Resolved rbproject.toml and settings
+  <ESC>[1;36minfo config       <ESC>[0m ⚙️  Merged configuration with sources
+
+<ESC>[1;32mUtility Commands:<ESC>[0m
+  <ESC>[1;36minstall           <ESC>[0m 💎 Install a Ruby runtime
+  <ESC>[1;36mnew               <ESC>[0m 📝 Create a minimal rbproject.toml in the current directory
+  <ESC>[1;36mexport-gemfile    <ESC>[0m 📄 Export Gemfile declarations without Bundler
+  <ESC>[1;36mversion           <ESC>[0m 📋 Display Ruby Butler version information
+  <ESC>[1;36mhelp              <ESC>[0m 📖 Display help information for Ruby Butler or specific commands
+  <ESC>[1;36mshell-integration <ESC>[0m 🔧 Generate shell integration (completions)
+
+<ESC>[1;32mOptions:<ESC>[0m
+  <ESC>[1;36m-v, --verbose<ESC>[0m                  Enable informational diagnostic output (same as --log-level=info) <ESC>[36m [env: RB_VERBOSE]<ESC>[0m
+  <ESC>[1;36m-V, --very-verbose<ESC>[0m             Enable comprehensive diagnostic output (same as --log-level=debug) <ESC>[36m [env: RB_VERY_VERBOSE]<ESC>[0m
+  <ESC>[1;36m-L, --log-level<ESC>[0m<ESC>[36m <LOG-LEVEL><ESC>[0m    Specify verbosity for diagnostic output explicitly <ESC>[36m [env: RB_LOG_LEVEL]<ESC>[0m
+  <ESC>[1;36m-c, --config<ESC>[0m<ESC>[36m <CONFIG-FILE><ESC>[0m     Specify custom configuration file location <ESC>[36m [env: RB_CONFIG]<ESC>[0m
+  <ESC>[1;36m-P, --project<ESC>[0m<ESC>[36m <PROJECT-FILE><ESC>[0m   Specify custom rbproject.toml location (skips autodetection) <ESC>[36m [env: RB_PROJECT]<ESC>[0m
+  <ESC>[1;36m-R, --rubies-dir<ESC>[0m<ESC>[36m <RUBIES-DIR><ESC>[0m  Designate the directory containing your Ruby installations <ESC>[36m [env: RB_RUBIES_DIR]<ESC>[0m
+  <ESC>[1;36m-r, --ruby<ESC>[0m<ESC>[36m <RUBY-VERSION><ESC>[0m      Request a particular Ruby version for your environment <ESC>[36m [env: RB_RUBY_VERSION]<ESC>[0m
+  <ESC>[1;36m--auto-install-ruby<ESC>[0m<ESC>[36m <AUTO-INSTALL-RUBY><ESC>[0m Install a missing Ruby before run, exec, or sync
+  <ESC>[1;36m--no-auto-install-ruby<ESC>[0m         Require Ruby to be installed before run, exec, or sync
+  <ESC>[1;36m-G, --gem-home<ESC>[0m<ESC>[36m <GEM-HOME><ESC>[0m      Specify custom gem base directory for gem installations <ESC>[36m [env: RB_GEM_HOME]<ESC>[0m
+  <ESC>[1;36m-B, --no-bundler<ESC>[0m               Politely decline to activate bundler environment <ESC>[36m [env: RB_NO_BUNDLER]<ESC>[0m
+  <ESC>[1;36m--package-backend<ESC>[0m<ESC>[36m <PACKAGE-BACKEND><ESC>[0m Choose how dependencies are resolved and installed <ESC>[36m [env: RB_PACKAGE_BACKEND]<ESC>[0m
+  <ESC>[1;36m-C, --work-dir<ESC>[0m<ESC>[36m <WORK-DIR><ESC>[0m      Run as if started in the specified directory <ESC>[36m [env: RB_WORK_DIR]<ESC>[0m

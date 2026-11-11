@@ -3,23 +3,31 @@ use std::path::Path;
 
 /// Initialize a new rbproject.toml in the current directory
 pub fn init_command(current_dir: &Path) -> Result<(), String> {
+    init_with_output(current_dir, &crate::output::Output::default())
+}
+
+pub(crate) fn init_with_output(
+    current_dir: &Path,
+    output: &crate::output::Output,
+) -> Result<(), String> {
     create_default_project(current_dir)?;
 
-    println!("✨ Splendid! A new rbproject.toml has been created with appropriate ceremony.");
-    println!();
-    println!("📝 This template includes:");
-    println!("   • Project metadata (name and description)");
-    println!("   • A sample script (ruby-version) to demonstrate usage");
-    println!();
-    println!("🎯 You may now:");
-    println!("   • Edit rbproject.toml to add your own scripts");
-    println!("   • Run 'rb run' to list available scripts");
-    println!("   • Execute scripts with: rb run <script-name>");
-    println!();
-    println!("For comprehensive examples, please consult:");
-    println!("   https://github.com/RubyElders/ruby-butler/blob/main/examples/rbproject.toml");
+    output
+        .emit(
+            "new",
+            &CreatedProject {
+                path: current_dir.join("rbproject.toml"),
+            },
+            crate::presentation::new::document,
+        )
+        .map_err(|error| error.to_string())?;
 
     Ok(())
+}
+
+#[derive(serde::Serialize)]
+struct CreatedProject {
+    path: std::path::PathBuf,
 }
 
 #[cfg(test)]

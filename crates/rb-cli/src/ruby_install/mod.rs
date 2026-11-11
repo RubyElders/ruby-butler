@@ -12,8 +12,15 @@ use rb_core::butler::ButlerError;
 use rb_core::ruby::{RubyRuntime, RubyType};
 use rb_ruby_installer::{Installation, Installer, Platform, Request};
 
+#[derive(serde::Serialize)]
+struct InstallationReport {
+    version: String,
+    path: std::path::PathBuf,
+    installed: bool,
+}
+
 pub(crate) fn install(context: &CommandContext, version: Option<&str>) -> Result<(), ButlerError> {
-    request::resolve(context, version)
+    let installation = request::resolve(context, version)
         .and_then(|request| {
             install_inner(
                 context,
@@ -22,8 +29,17 @@ pub(crate) fn install(context: &CommandContext, version: Option<&str>) -> Result
                 crate::reporting::reporter,
             )
         })
-        .map(|_| ())
-        .map_err(error)
+        .map_err(error)?;
+    let report = InstallationReport {
+        version: installation.version.to_string(),
+        path: installation.path,
+        installed: installation.installed,
+    };
+    context.output.emit(
+        "install.ruby",
+        &report,
+        crate::output::document::Document::default,
+    )
 }
 
 fn installer(context: &CommandContext) -> Result<Installer> {
@@ -113,24 +129,27 @@ pub(crate) fn available(context: &CommandContext) -> Result<(), ButlerError> {
     (|| -> Result<()> {
         let platform =
             Platform::with_inputs(context.process.directory(), context.process.environment())?;
-        for distribution in installer(context)?.catalog()?.distributions(platform) {
-            let path = context.process.directory().join(
-                context
-                    .config()
-                    .rubies_dir
-                    .get()
-                    .join(format!("ruby-{}", distribution.version)),
-            );
-            println!(
-                "{}{}",
-                distribution.version,
-                if rb_ruby_installer::complete(&path) {
-                    " (installed)"
-                } else {
-                    ""
+        let rubies = installer(context)?
+            .catalog()?
+            .distributions(platform)
+            .into_iter()
+            .map(|distribution| {
+                let path = context.process.directory().join(
+                    context
+                        .config()
+                        .rubies_dir
+                        .get()
+                        .join(format!("ruby-{}", distribution.version)),
+                );
+                crate::commands::info::runtime::AvailableRuby {
+                    version: distribution.version.to_string(),
+                    installed: rb_ruby_installer::complete(&path),
                 }
-            );
-        }
+            })
+            .collect::<Vec<_>>();
+        context.output.emit("info.runtime.available", &rubies, || {
+            crate::presentation::info::runtime::available(&rubies)
+        })?;
         Ok(())
     })()
     .map_err(error)

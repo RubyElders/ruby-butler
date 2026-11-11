@@ -1,0 +1,15 @@
+<ESC>[1;32m🎯 Run Project Scripts<ESC>[0m
+
+Tea room
+<ESC>[90mA quiet room<ESC>[0m
+
+<ESC>[1;32mUsage:<ESC>[0m
+  rb run <SCRIPT> [ARGS]...
+
+<ESC>[1;32mScripts:<ESC>[0m
+  <ESC>[1;36mcheck<ESC>[0m  <ESC>[90mruby -v<ESC>[0m
+  <ESC>[1;36mserve<ESC>[0m  <ESC>[90mServe tea<ESC>[0m
+
+<ESC>[1;32mDetails:<ESC>[0m
+  <ESC>[90mProject<ESC>[0m: <ESC>[90m<PROJECT>/rbproject.toml<ESC>[0m
+  <ESC>[90mScripts<ESC>[0m: <ESC>[90m2<ESC>[0m

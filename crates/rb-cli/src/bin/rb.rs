@@ -5,7 +5,6 @@ use rb_cli::error_display::{
     error_exit_code, format_command_not_found, format_general_error, format_no_suitable_ruby,
     format_rubies_dir_not_found,
 };
-use rb_cli::help_formatter::print_custom_help;
 use rb_cli::runtime_helpers::CommandContext;
 use rb_cli::{Cli, Commands, init_logger};
 use rb_core::butler::ButlerError;
@@ -58,16 +57,22 @@ fn main() {
     };
 
     let Some(command) = cli_parsed.command else {
-        use clap::CommandFactory;
-        let cmd = Cli::command();
-        print_custom_help(&cmd);
+        rb_cli::commands::help::help_with_output(
+            None,
+            &rb_cli::output::Output::new(cli_parsed.format),
+        )
+        .unwrap_or_else(|error| {
+            eprintln!("{error}");
+            std::process::exit(1)
+        });
         std::process::exit(0);
     };
 
     let tracked_config =
         TrackedConfig::from_matches(&cli_parsed.config, &file_config, &matches, &inputs);
     let mut context =
-        CommandContext::from_inputs(tracked_config, cli_parsed.project_file.clone(), inputs);
+        CommandContext::from_inputs(tracked_config, cli_parsed.project_file.clone(), inputs)
+            .with_output(cli_parsed.format);
 
     let result = dispatch_command(command, &mut context);
 

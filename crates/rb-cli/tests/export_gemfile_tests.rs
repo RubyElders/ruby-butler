@@ -450,7 +450,7 @@ fn optional_kdl_output_uses_the_same_global_project_settings() {
         command
             .env("RB_WORK_DIR", "tea-room")
             .env("RB_PROJECT", "settings.toml")
-            .args(["export-gemfile", "--format", "kdl"]);
+            .args(["export-gemfile", "--project-format", "kdl"]);
         if let Some(path) = output_file {
             command.args(["--output", path]);
         }
@@ -495,7 +495,7 @@ fn optional_kdl_output_uses_the_same_global_project_settings() {
         assert_eq!(gem.get("require").unwrap().as_bool(), Some(false));
     }
     assert!(!fixture.project().join("rbproject.toml").exists());
-    let output = fixture.run(&["export-gemfile", "--format", "yaml"]);
+    let output = fixture.run(&["export-gemfile", "--project-format", "yaml"]);
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
 }
@@ -543,4 +543,56 @@ fn legacy_generated_header_refreshes_dependencies_and_identifies_sources() {
     assert!(text.contains("# Source Gemfile:"));
     assert!(text.contains("# Project settings:"));
     assert!(text.contains("Regenerate with rb export-gemfile"));
+}
+
+#[test]
+fn presentation_and_project_formats_are_independent_and_atomic() {
+    let fixture = Fixture::new();
+    fs::write(
+        fixture.project().join("Gemfile"),
+        "puts 'evaluating'; gem 'rake'",
+    )
+    .unwrap();
+    for format in ["toml", "kdl"] {
+        let args = [
+            "export-gemfile",
+            "tea-room/Gemfile",
+            "--project-format",
+            format,
+        ];
+        let text = fixture.run(&args);
+        success(&text);
+        let output = fixture
+            .command()
+            .env("RB_FORMAT", "json")
+            .args(args)
+            .output()
+            .unwrap();
+        success(&output);
+        assert!(String::from_utf8_lossy(&output.stderr).contains("evaluating"));
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["schema_version"], 1);
+        assert_eq!(report["command"], "export-gemfile");
+        assert_eq!(report["data"]["project_format"], format);
+        assert_eq!(
+            report["data"]["content"].as_str().unwrap().as_bytes(),
+            text.stdout
+        );
+        assert!(report["data"]["destination"].is_null());
+        let destination = format!("tea-room/result.{format}");
+        let output = fixture
+            .command()
+            .env("RB_FORMAT", "json")
+            .args(args)
+            .args(["-o", &destination])
+            .output()
+            .unwrap();
+        success(&output);
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert!(report["data"]["content"].is_null());
+        assert_eq!(
+            fs::read(fixture.root.path().join(destination)).unwrap(),
+            text.stdout
+        );
+    }
 }

@@ -32,7 +32,7 @@ Describe 'Ruby Butler - Gemfile export' {
 
     It 'exports KDL using global project settings' {
         $Original = Get-Content $Script:Settings -Raw
-        $Output = & $Script:RbPath -r 3.4.5 -C $Script:ProjectDir -P settings.toml export-gemfile --format kdl 2> $Script:Errors
+        $Output = & $Script:RbPath -r 3.4.5 -C $Script:ProjectDir -P settings.toml export-gemfile --project-format kdl 2> $Script:Errors
         $LASTEXITCODE | Should -Be 0
         Get-Content $Script:Errors -Raw | Should -BeNullOrEmpty
         $Text = $Output -join "`n"
@@ -48,5 +48,17 @@ Describe 'Ruby Butler - Gemfile export' {
         $LASTEXITCODE | Should -Not -Be 0
         $Output | Should -BeNullOrEmpty
         Get-Content $Script:Errors -Raw | Should -Match 'missing.rb'
+    }
+
+    It 'separates presentation format from project syntax' {
+        $Output = & $Script:RbPath -r 3.4.5 -C $Script:ProjectDir -F json export-gemfile --project-format kdl 2> $Script:Errors
+        $LASTEXITCODE | Should -Be 0
+        Get-Content $Script:Errors -Raw | Should -BeNullOrEmpty
+        $Report = ($Output -join "`n") | ConvertFrom-Json
+        $Report.schema_version | Should -Be 1
+        $Report.command | Should -BeExactly 'export-gemfile'
+        $Report.data.project_format | Should -BeExactly 'kdl'
+        $Report.data.content | Should -Match 'gem rails "~> 8.0"'
+        Test-Path (Join-Path $Script:ProjectDir 'rbproject.toml') | Should -BeFalse
     }
 }

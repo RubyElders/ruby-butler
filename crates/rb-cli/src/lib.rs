@@ -6,7 +6,9 @@ pub mod dispatch;
 pub mod error_display;
 pub mod help_formatter;
 mod invocation;
+pub mod output;
 mod packages;
+mod presentation;
 mod reporting;
 mod ruby_install;
 pub mod runtime_helpers;
@@ -55,6 +57,17 @@ impl From<LogLevel> for log::LevelFilter {
 #[command(styles = STYLES)]
 #[command(next_help_heading = "Commands")]
 pub struct Cli {
+    /// Select stdout presentation
+    #[arg(
+        short = 'F',
+        long = "format",
+        global = true,
+        env = "RB_FORMAT",
+        value_enum,
+        default_value = "text"
+    )]
+    pub format: output::OutputFormat,
+
     #[arg(long, hide = true)]
     pub help: bool,
 
@@ -212,9 +225,9 @@ pub enum Commands {
         #[arg(short, long, value_hint = clap::ValueHint::FilePath)]
         output: Option<std::path::PathBuf>,
 
-        /// Output format
-        #[arg(long, value_enum, default_value = "toml")]
-        format: ProjectFormat,
+        /// Generated project syntax
+        #[arg(long = "project-format", value_enum, default_value = "toml")]
+        project_format: ProjectFormat,
     },
 
     /// 📋 Display Ruby Butler version information
@@ -457,6 +470,7 @@ mod tests {
     fn test_effective_log_level_with_verbose_flags() {
         // Test with log_level set
         let cli = Cli {
+            format: output::OutputFormat::Text,
             help: false,
             log_level: Some(LogLevel::Info),
             verbose: false,
@@ -472,6 +486,7 @@ mod tests {
 
         // Test with -v flag (should override log_level to Info)
         let cli = Cli {
+            format: output::OutputFormat::Text,
             help: false,
             log_level: Some(LogLevel::None),
             verbose: true,
@@ -487,6 +502,7 @@ mod tests {
 
         // Test with -V flag (should override log_level to Debug)
         let cli = Cli {
+            format: output::OutputFormat::Text,
             help: false,
             log_level: Some(LogLevel::None),
             verbose: false,

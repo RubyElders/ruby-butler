@@ -17,7 +17,17 @@ const PROBE: &[&str] = &[
 #[test]
 fn sync_exec_run_and_info_use_the_configured_installation() {
     let fixture = Fixture::configured();
-    let first = success(fixture.command().arg("sync").output().unwrap());
+    let first = success(
+        fixture
+            .command()
+            .args(["-F", "json", "sync"])
+            .output()
+            .unwrap(),
+    );
+    let report: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(report["schema_version"], 1);
+    assert_eq!(report["command"], "sync");
+    assert_eq!(report["data"]["changed"], true);
     assert!(String::from_utf8_lossy(&first.stderr).contains("Your bundle is ready"));
     assert!(fixture.root.path().join("Gemfile.lock").is_file());
     let lock = fs::read(fixture.root.path().join("Gemfile.lock")).unwrap();
@@ -28,7 +38,14 @@ fn sync_exec_run_and_info_use_the_configured_installation() {
         lock
     );
     for args in [PROBE, &["run", "probe"], &["r", "probe"]] {
-        let output = success(fixture.command().args(args).output().unwrap());
+        let output = success(
+            fixture
+                .command()
+                .env("RB_FORMAT", "json")
+                .args(args)
+                .output()
+                .unwrap(),
+        );
         assert_eq!(
             String::from_utf8(output.stdout).unwrap().trim(),
             "backend-installed, Bundler-activated"

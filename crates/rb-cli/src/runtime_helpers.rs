@@ -1,5 +1,5 @@
 use crate::Shell;
-use crate::commands::{new_command, shell_integration_command};
+use crate::commands::shell_integration_command;
 use rb_core::butler::{ButlerError, ButlerRuntime};
 use std::path::PathBuf;
 
@@ -78,6 +78,7 @@ pub fn export_gemfile_command_wrapper(
     .map_err(|error| ButlerError::General(error.to_string()))?;
     let project_file = context.project_file().clone();
     let output = output.map(|file| context.process.directory().join(file));
+    let presentation = context.output;
     with_ruby_runtime(context, |runtime| {
         crate::commands::export_gemfile::export_gemfile_command(
             runtime,
@@ -85,13 +86,15 @@ pub fn export_gemfile_command_wrapper(
             project_file.as_deref(),
             output.as_deref(),
             format.into(),
+            &presentation,
         )
     })
 }
 
 /// New command wrapper - no runtime needed
 pub fn new_command_wrapper(context: &CommandContext) -> Result<(), ButlerError> {
-    new_command(context.process.directory()).map_err(ButlerError::General)
+    crate::commands::new::init_with_output(context.process.directory(), &context.output)
+        .map_err(ButlerError::General)
 }
 
 /// Shell integration command wrapper - no runtime needed
