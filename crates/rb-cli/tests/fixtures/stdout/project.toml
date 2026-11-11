@@ -1,0 +1,6 @@
+[project]
+name = "Tea room"
+description = "A quiet room"
+[scripts]
+check = "ruby -v"
+serve = {command = "ruby app.rb", description = "Serve tea"}

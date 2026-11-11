@@ -1,0 +1,15 @@
+🎯 Run Project Scripts
+
+Tea room
+A quiet room
+
+Usage:
+  rb run <SCRIPT> [ARGS]...
+
+Scripts:
+  check  ruby -v
+  serve  Serve tea
+
+Details:
+  Project: <PROJECT>/rbproject.toml
+  Scripts: 2

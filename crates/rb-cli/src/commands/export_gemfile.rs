@@ -3,7 +3,6 @@ use rb_gemfile::{Evaluator, ExportFormat, write_project};
 use std::{
     ffi::OsStr,
     fs, io,
-    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -44,10 +43,19 @@ pub fn export_gemfile_command(
     project_file: Option<&Path>,
     output: Option<&Path>,
     format: ExportFormat,
+    presentation: &crate::output::Output,
 ) -> Result<(), ButlerError> {
     let ruby = runtime.selected_ruby()?.ruby_executable_path();
-    export(runtime, &ruby, gemfile, project_file, output, format)
-        .map_err(|error| ButlerError::General(error.to_string()))
+    export(
+        runtime,
+        &ruby,
+        gemfile,
+        project_file,
+        output,
+        format,
+        presentation,
+    )
+    .map_err(|error| ButlerError::General(error.to_string()))
 }
 
 fn export(
@@ -57,6 +65,7 @@ fn export(
     project_file: Option<&Path>,
     output: Option<&Path>,
     format: ExportFormat,
+    presentation: &crate::output::Output,
 ) -> io::Result<()> {
     let directory = gemfile.parent().unwrap();
     let default_project = directory.join("rbproject.toml");
@@ -113,10 +122,34 @@ fn export(
     if let Some(output) = output {
         write_project(output, &project)?;
         eprintln!("Exported {} to {}", gemfile.display(), output.display());
-    } else {
-        io::stdout().lock().write_all(project.as_bytes())?;
     }
+    let report = ExportReport {
+        project_format: match format {
+            ExportFormat::Toml => "toml",
+            ExportFormat::Kdl => "kdl",
+        },
+        source: gemfile,
+        destination: output,
+        content: output.is_none().then_some(project.as_str()),
+    };
+    presentation
+        .emit("export-gemfile", &report, || {
+            crate::output::document::Document::verbatim(if output.is_none() {
+                project.clone()
+            } else {
+                String::new()
+            })
+        })
+        .map_err(|error| io::Error::other(error.to_string()))?;
     Ok(())
+}
+
+#[derive(serde::Serialize)]
+struct ExportReport<'a> {
+    project_format: &'static str,
+    source: &'a Path,
+    destination: Option<&'a Path>,
+    content: Option<&'a str>,
 }
 
 #[cfg(test)]

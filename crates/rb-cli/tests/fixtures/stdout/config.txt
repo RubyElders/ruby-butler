@@ -1,0 +1,29 @@
+🎩 Current Configuration
+
+Rubies Directory: <PROJECT>/rubies
+  Source: CLI argument
+
+Ruby Version: latest
+  Source: default
+  Note: Will use latest available Ruby
+
+Gem Home: <HOME>/.gem
+  Source: default
+
+No Bundler: no
+  Source: default
+
+Working Directory: <PROJECT>
+  Source: default
+
+Auto-install Ruby: true
+  Source: default
+
+Package Backend: bundler
+  Source: default
+
+Configuration sources (in priority order):
+  1. CLI arguments
+  2. Environment variables
+  3. Configuration file
+  4. Built-in defaults

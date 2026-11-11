@@ -1,5 +1,4 @@
 use crate::Shell;
-use colored::Colorize;
 use std::io::IsTerminal;
 
 /// Metadata about a shell integration
@@ -24,50 +23,73 @@ pub fn available_integrations() -> Vec<ShellIntegration> {
 
 /// Show all available shell integrations with installation instructions
 pub fn show_available_integrations() {
-    println!("{}\n", "🎩 Available Shell Integrations".bold());
-    println!("{}", "Shells:".bold());
+    available_with_output(&crate::output::Output::default()).expect("writing shell integrations");
+}
 
-    for integration in available_integrations() {
-        println!(
-            "  {:<12} {}",
-            integration.shell_name.green(),
-            integration.description
-        );
-    }
-
-    println!("\n{}", "Installation:".bold());
-    for integration in available_integrations() {
-        println!(
-            "  {:<12} {}",
-            integration.shell_name.green(),
-            integration.install_instruction
-        );
-    }
+pub(crate) fn available_with_output(
+    output: &crate::output::Output,
+) -> Result<(), rb_core::butler::ButlerError> {
+    let report = available_integrations()
+        .into_iter()
+        .map(|value| IntegrationReport {
+            name: value.name,
+            shell: value.shell_name,
+            description: value.description,
+            instruction: value.install_instruction,
+        })
+        .collect::<Vec<_>>();
+    output.emit("shell-integration", &report, || {
+        crate::presentation::shell::document(&report)
+    })
+}
+#[derive(serde::Serialize)]
+pub(crate) struct IntegrationReport {
+    pub name: &'static str,
+    pub shell: &'static str,
+    pub description: &'static str,
+    pub instruction: &'static str,
 }
 
 pub fn shell_integration_command(shell: Shell) -> Result<(), Box<dyn std::error::Error>> {
-    match shell {
-        Shell::Bash => {
-            generate_bash_shim();
-            if std::io::stdout().is_terminal() {
-                print_bash_instructions();
-            }
-        }
+    shell_with_output(shell, &crate::output::Output::default()).map_err(Into::into)
+}
+pub(crate) fn shell_with_output(
+    shell: Shell,
+    output: &crate::output::Output,
+) -> Result<(), rb_core::butler::ButlerError> {
+    let shell_name = match shell {
+        Shell::Bash => "bash",
+    };
+    let source = bash_source();
+    output.emit(
+        "shell-integration",
+        &ShellSource {
+            shell: shell_name,
+            source: &source,
+        },
+        || crate::output::document::Document::verbatim(source.clone()),
+    )?;
+    if std::io::stdout().is_terminal() {
+        print_bash_instructions();
     }
-
     Ok(())
 }
 
-fn generate_bash_shim() {
-    print!(
-        r#"# Ruby Butler dynamic completion shim
-_rb_completion() {{
+#[derive(serde::Serialize)]
+struct ShellSource<'a> {
+    shell: &'static str,
+    source: &'a str,
+}
+
+fn bash_source() -> String {
+    r#"# Ruby Butler dynamic completion shim
+_rb_completion() {
     local cur prev words cword
     _init_completion || return
 
     # Call rb to get context-aware completions
     local completions
-    completions=$(rb __bash_complete "${{COMP_LINE}}" "${{COMP_POINT}}" 2>/dev/null)
+    completions=$(rb __bash_complete "${COMP_LINE}" "${COMP_POINT}" 2>/dev/null)
 
     if [ -n "$completions" ]; then
         # Check if all completions are directories (end with /)
@@ -100,11 +122,11 @@ _rb_completion() {{
                 ;;
         esac
     fi
-}}
+}
 
 complete -F _rb_completion rb
 "#
-    );
+    .to_string()
 }
 
 fn print_bash_instructions() {

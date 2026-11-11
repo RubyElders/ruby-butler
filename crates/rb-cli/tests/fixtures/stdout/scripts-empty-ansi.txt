@@ -1,0 +1,13 @@
+<ESC>[1;32m🎯 Run Project Scripts<ESC>[0m
+
+<ESC>[1;32mUsage:<ESC>[0m
+  rb run <SCRIPT> [ARGS]...
+
+<ESC>[1;32mScripts:<ESC>[0m
+  <ESC>[90mNo scripts defined.<ESC>[0m
+
+To define scripts, add them to <ESC>[36mrbproject.toml<ESC>[0m:
+
+  <ESC>[90m[scripts]<ESC>[0m
+  <ESC>[36mtest<ESC>[0m = <ESC>[90m"rspec"<ESC>[0m
+  <ESC>[36mlint<ESC>[0m = { command = <ESC>[90m"rubocop"<ESC>[0m, description = <ESC>[90m"Check code quality"<ESC>[0m }

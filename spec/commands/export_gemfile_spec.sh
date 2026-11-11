@@ -32,7 +32,7 @@ Describe "Ruby Butler Gemfile export"
   End
 
   It "exports KDL using global project settings"
-    When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" -C "$TEST_EXPORT_DIR/tea-room" -P settings.toml export-gemfile --format kdl
+    When run rb -R "$RUBIES_DIR" -r "$LATEST_RUBY" -C "$TEST_EXPORT_DIR/tea-room" -P settings.toml export-gemfile --project-format kdl
     The status should equal 0
     The stderr should equal ""
     The output should include 'name "Dinner service"'

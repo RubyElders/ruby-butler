@@ -1,5 +1,4 @@
 use crate::packages::PackageRuntime;
-use colored::*;
 use log::info;
 use rb_core::butler::ButlerError;
 use rb_core::project::ProjectRuntime;
@@ -7,106 +6,15 @@ use rb_core::project::ProjectRuntime;
 use super::exec::exec_command;
 
 pub(crate) fn list_available_scripts(
-    project_runtime: Option<ProjectRuntime>,
+    project: Option<ProjectRuntime>,
+    output: &crate::output::Output,
 ) -> Result<(), ButlerError> {
     info!("Listing available project scripts");
-    let project = match project_runtime {
-        Some(p) => p,
-        None => {
-            return Err(ButlerError::General(
-                "No project configuration detected in the current directory hierarchy.\n\nTo define project scripts, create one of these files (in priority order):\n  gem.kdl, gem.toml, rbproject.kdl, rbproject.toml\n\nOr specify a custom location: rb -P path/to/gem.kdl run".to_string()
-            ));
-        }
-    };
-
-    println!("{}", "🎯 Run Project Scripts".green().bold());
-    println!();
-
-    if let Some(name) = &project.metadata.name {
-        println!("{}", name);
-    }
-
-    if let Some(description) = &project.metadata.description {
-        println!("{}", description.bright_black());
-    }
-
-    if project.metadata.name.is_some() || project.metadata.description.is_some() {
-        println!();
-    }
-
-    // Usage section
-    println!("{}", "Usage:".green().bold());
-    println!("  rb run <SCRIPT> [ARGS]...");
-    println!();
-
-    let available_scripts = project.script_names();
-    let script_count = available_scripts.len();
-
-    if available_scripts.is_empty() {
-        println!("{}", "Scripts:".green().bold());
-        println!("  {}", "No scripts defined.".bright_black());
-        println!();
-        println!(
-            "To define scripts, add them to {}:",
-            project.config_filename.cyan()
-        );
-        println!();
-        println!("  {}", "[scripts]".bright_black());
-        println!("  {} = {}", "test".cyan(), "\"rspec\"".bright_black());
-        println!(
-            "  {} = {{ command = {}, description = {} }}",
-            "lint".cyan(),
-            "\"rubocop\"".bright_black(),
-            "\"Check code quality\"".bright_black()
-        );
-    } else {
-        // Scripts section - formatted like Clap's Commands section
-        println!("{}", "Scripts:".green().bold());
-
-        let max_name_width = available_scripts.iter().map(|s| s.len()).max().unwrap_or(0);
-
-        for name in available_scripts {
-            let script = project.get_script(name).unwrap();
-            let command = script.command();
-
-            if let Some(description) = script.description() {
-                // Show: name  description
-                println!(
-                    "  {:<width$}  {}",
-                    name.cyan().bold(),
-                    description.bright_black(),
-                    width = max_name_width
-                );
-            } else {
-                // Show: name  command
-                println!(
-                    "  {:<width$}  {}",
-                    name.cyan().bold(),
-                    command.bright_black(),
-                    width = max_name_width
-                );
-            }
-        }
-
-        println!();
-        println!("{}", "Details:".green().bold());
-        println!(
-            "  {}: {}",
-            "Project".bright_black(),
-            project
-                .rbproject_path()
-                .display()
-                .to_string()
-                .bright_black()
-        );
-        println!(
-            "  {}: {}",
-            "Scripts".bright_black(),
-            script_count.to_string().bright_black()
-        );
-    }
-
-    Ok(())
+    let project = project.ok_or_else(|| ButlerError::General("No project configuration detected in the current directory hierarchy.\n\nTo define project scripts, create one of these files (in priority order):\n  gem.kdl, gem.toml, rbproject.kdl, rbproject.toml\n\nOr specify a custom location: rb -P path/to/gem.kdl run".to_string()))?;
+    let report = crate::commands::info::project::ProjectSummary::collect(&project);
+    output.emit("run", &report, || {
+        crate::presentation::scripts::document(&report)
+    })
 }
 
 pub(crate) fn run_command(
@@ -118,7 +26,7 @@ pub(crate) fn run_command(
     report: &mut crate::reporting::PreparationReport,
 ) -> Result<(), ButlerError> {
     if script_name.is_none() {
-        return list_available_scripts(project_runtime);
+        return list_available_scripts(project_runtime, &crate::output::Output::default());
     }
 
     let script_name = script_name.unwrap();

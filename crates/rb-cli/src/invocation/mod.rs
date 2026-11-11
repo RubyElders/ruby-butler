@@ -12,6 +12,7 @@ pub(crate) struct SelectedRuby {
 
 /// Context information for command execution and error handling
 pub struct CommandContext {
+    pub(crate) output: crate::output::Output,
     config: TrackedConfig,
     project_file: Option<PathBuf>,
     origin: rb_core::process_context::ProcessContext,
@@ -71,6 +72,7 @@ impl CommandContext {
         let process = inputs.at(config.work_dir.get());
         let project_file = project_file.map(|file| process.directory().join(file));
         Self {
+            output: crate::output::Output::default(),
             config,
             project_file,
             origin: inputs,
@@ -107,6 +109,11 @@ impl CommandContext {
                 Ok(None)
             }
         }
+    }
+
+    pub fn with_output(mut self, format: crate::output::OutputFormat) -> Self {
+        self.output = crate::output::Output::new(format);
+        self
     }
 
     pub fn config(&self) -> &TrackedConfig {

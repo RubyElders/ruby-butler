@@ -1,87 +1,61 @@
-use crate::config::TrackedConfig;
-use colored::*;
-use log::info;
-use rb_core::butler::ButlerError;
-use rb_core::project::ProjectRuntime;
+use crate::{config::TrackedConfig, output::Output};
+use rb_core::{butler::ButlerError, project::ProjectRuntime};
+use serde::Serialize;
+use std::{collections::BTreeMap, path::PathBuf};
 
+#[derive(Serialize)]
+pub(crate) struct ScriptReport {
+    pub command: String,
+    pub description: Option<String>,
+}
+#[derive(Serialize)]
+pub(crate) struct ProjectSummary {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub file: PathBuf,
+    pub config_filename: String,
+    pub scripts: BTreeMap<String, ScriptReport>,
+}
+impl ProjectSummary {
+    pub(crate) fn collect(project: &ProjectRuntime) -> Self {
+        Self {
+            name: project.metadata.name.clone(),
+            description: project.metadata.description.clone(),
+            file: project.rbproject_path(),
+            config_filename: project.config_filename.clone(),
+            scripts: project
+                .script_names()
+                .into_iter()
+                .map(|name| {
+                    let script = project.get_script(name).unwrap();
+                    (
+                        name.to_string(),
+                        ScriptReport {
+                            command: script.command().to_string(),
+                            description: script.description().map(str::to_owned),
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+#[derive(Serialize)]
+pub(crate) struct ProjectReport {
+    pub project: Option<ProjectSummary>,
+    pub configuration: super::config::ConfigurationReport,
+}
 pub(crate) fn project_command(
     config: &TrackedConfig,
-    project_runtime: Option<ProjectRuntime>,
+    project: Option<ProjectRuntime>,
+    output: &Output,
 ) -> Result<(), ButlerError> {
-    info!("Inspecting project configuration");
-    present_project_info(config, project_runtime)?;
-    Ok(())
-}
-
-fn present_project_info(
-    config: &TrackedConfig,
-    project_runtime: Option<ProjectRuntime>,
-) -> Result<(), ButlerError> {
-    println!("{}", "📁 Project Configuration".to_string().bold());
-    println!();
-
-    match project_runtime {
-        Some(project_runtime) => {
-            println!(
-                "  {} {}",
-                "Project File:".bold(),
-                project_runtime.rbproject_path().display()
-            );
-            println!();
-
-            if let Some(name) = &project_runtime.metadata.name {
-                println!("  {} {}", "Name:".bold(), name.cyan());
-            }
-
-            if let Some(description) = &project_runtime.metadata.description {
-                println!("  {} {}", "Description:".bold(), description.dimmed());
-            }
-
-            if !project_runtime.scripts.is_empty() {
-                println!();
-                println!("  {}", "Scripts:".bold());
-                for (name, script) in &project_runtime.scripts {
-                    if let Some(desc) = script.description() {
-                        println!(
-                            "    {} → {} {}",
-                            name.cyan(),
-                            script.command().dimmed(),
-                            format!("({})", desc).bright_black()
-                        );
-                    } else {
-                        println!("    {} → {}", name.cyan(), script.command().dimmed());
-                    }
-                }
-            }
-        }
-        None => {
-            println!(
-                "  {}",
-                "No rbproject.toml found in current directory or parents".dimmed()
-            );
-            println!();
-            println!("  {} Run {} to create one.", "Tip:".bold(), "rb new".cyan());
-        }
-    }
-
-    println!();
-
-    println!("{}", "🔧 Effective Configuration".to_string().bold());
-    println!();
-    println!(
-        "  {} {}",
-        "Rubies Directory:".bold(),
-        config.rubies_dir.get().display()
-    );
-
-    let gem_base = config.gem_home.get();
-    println!("  {} {}", "Gem Home:".bold(), gem_base.display());
-
-    if let Some(requested) = &config.ruby_version {
-        let requested = requested.get();
-        println!("  {} {}", "Requested Ruby:".bold(), requested);
-    }
-
-    println!();
-    Ok(())
+    log::info!("Inspecting project configuration");
+    let report = ProjectReport {
+        project: project.as_ref().map(ProjectSummary::collect),
+        configuration: super::config::ConfigurationReport::collect(config),
+    };
+    output.emit("info.project", &report, || {
+        crate::presentation::project::document(&report)
+    })
 }

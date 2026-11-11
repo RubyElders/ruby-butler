@@ -1,0 +1,7 @@
+🎩 Available Shell Integrations
+
+Shells:
+  bash         Dynamic command completion for Bash shell
+
+Installation:
+  bash         Add to ~/.bashrc: eval "$(rb shell-integration bash)"
