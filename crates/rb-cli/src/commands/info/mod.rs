@@ -1,4 +1,5 @@
 pub mod config;
+pub(crate) mod discovery;
 pub mod env;
 pub mod project;
 pub mod runtime;

@@ -1,5 +1,5 @@
 use crate::{
-    commands::info::env::EnvironmentReport,
+    commands::info::discovery::EnvironmentReport,
     output::document::{Block, Document, Line, Span, plain},
 };
 use colored::Color;
@@ -19,9 +19,40 @@ pub(crate) fn document(report: &EnvironmentReport) -> Document {
     let mut doc = Document::default();
     doc.heading(plain("🌍 Your Current Ruby Environment").bold());
     doc.blank();
-    let environment = &report.environment;
+    let Some(environment) = &report.environment else {
+        field(&mut doc, "Backend", value(&report.backend), 12);
+        field(&mut doc, "Ruby request", value(&report.ruby.request), 12);
+        if let Some(version) = &report.ruby.version {
+            field(&mut doc, "Ruby version", value(version), 12);
+        }
+        if let Some(path) = &report.ruby.path {
+            field(&mut doc, "Installation", value(path.display()), 12);
+        }
+        field(
+            &mut doc,
+            "Installed",
+            value(if report.ruby.installed { "Yes" } else { "No" }),
+            12,
+        );
+        if let Some(project) = &report.project {
+            field(&mut doc, "Project root", value(project.root.display()), 12);
+        }
+        if let Some(cache) = &report.cache {
+            field(
+                &mut doc,
+                "Cache inputs",
+                value(if cache.inputs.complete {
+                    "Complete"
+                } else {
+                    "Incomplete"
+                }),
+                12,
+            );
+        }
+        return doc;
+    };
     let width = 16;
-    let version = report.ruby.version.as_str();
+    let version = report.ruby.version.as_deref().unwrap_or_default();
     doc.line(Line::spaced([
         plain("💎 CRuby").color(Color::Green),
         plain(format!("({version})")).color(Color::Cyan),
@@ -29,7 +60,7 @@ pub(crate) fn document(report: &EnvironmentReport) -> Document {
     field(
         &mut doc,
         "Installation",
-        value(report.ruby.path.display()),
+        value(report.ruby.path.as_ref().unwrap().display()),
         width,
     );
     field(

@@ -105,7 +105,19 @@ pub fn dispatch_command(
                     crate::commands::info::runtime::runtime_command(runtime, &output)
                 })
             }
-            InfoCommands::Env => {
+            InfoCommands::Env {
+                discover,
+                probe,
+                resolve_ruby,
+            } if discover || probe => {
+                let report =
+                    crate::commands::info::discovery::discover(context, probe, resolve_ruby)
+                        .map_err(|error| ButlerError::General(format!("{error:#}")))?;
+                output.emit("info.env", &report, || {
+                    crate::presentation::info::env::document(&report)
+                })
+            }
+            InfoCommands::Env { .. } => {
                 let project = context.script_project().ok().flatten();
                 with_package_runtime(context, |runtime, backend| {
                     crate::commands::info::env::environment_command(

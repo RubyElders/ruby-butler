@@ -151,10 +151,13 @@ impl CommandContext {
         let bundler = if skip_bundler {
             None
         } else {
-            self.projects()
-                .bundler_root
-                .as_ref()
-                .map(|root| rb_core::BundlerRuntime::new(root, selection.runtime.version.clone()))
+            self.projects().bundler_gemfile.as_ref().map(|file| {
+                rb_core::BundlerRuntime::new(
+                    file.parent().unwrap(),
+                    selection.runtime.version.clone(),
+                )
+                .with_gemfile(file)
+            })
         };
         Ok(ButlerRuntime::compose_selected(
             self.process.clone(),

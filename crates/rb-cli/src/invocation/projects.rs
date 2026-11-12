@@ -18,7 +18,7 @@ pub(crate) struct ProjectLocations {
     pub script_file: Option<PathBuf>,
     pub dependency: Option<DependencyLocation>,
     pub ruby_input: Option<PathBuf>,
-    pub bundler_root: Option<PathBuf>,
+    pub bundler_gemfile: Option<PathBuf>,
     project: OnceCell<Result<Option<ProjectRuntime>, String>>,
 }
 
@@ -31,7 +31,7 @@ impl ProjectLocations {
         let mut script_file = None;
         let mut dependency = None;
         let mut ruby_input = None;
-        let mut bundler_root = None;
+        let mut bundler_gemfile = None;
         for root in directory.ancestors() {
             let project = PROJECT_FILES
                 .iter()
@@ -53,13 +53,13 @@ impl ProjectLocations {
                 });
             }
             if ruby_input.is_none() {
-                ruby_input = project.or(gemfile).or_else(|| {
+                ruby_input = project.or(gemfile.clone()).or_else(|| {
                     let file = root.join(".ruby-version");
                     file.is_file().then_some(file)
                 });
             }
-            if bundler_root.is_none() && root.join("Gemfile").is_file() {
-                bundler_root = Some(root.into());
+            if bundler_gemfile.is_none() {
+                bundler_gemfile = gemfile;
             }
         }
         let gemfile_override = gemfile_override
@@ -68,6 +68,9 @@ impl ProjectLocations {
         if let Some(file) = project_file {
             let file = directory.join(file);
             script_file = Some(file.clone());
+            if let Some(gemfile) = &gemfile_override {
+                bundler_gemfile = Some(gemfile.clone());
+            }
             ruby_input = Some(file.clone());
             dependency = Some(DependencyLocation {
                 root: file.parent().unwrap_or(directory).into(),
@@ -76,6 +79,7 @@ impl ProjectLocations {
                 explicit: true,
             });
         } else if let Some(file) = gemfile_override {
+            bundler_gemfile = Some(file.clone());
             ruby_input = Some(file.clone());
             dependency = Some(DependencyLocation {
                 root: file.parent().unwrap_or(directory).into(),
@@ -88,7 +92,7 @@ impl ProjectLocations {
             script_file,
             dependency,
             ruby_input,
-            bundler_root,
+            bundler_gemfile,
             project: OnceCell::new(),
         }
     }
