@@ -2,6 +2,7 @@ use anyhow::{Result, ensure};
 use sha2::{Digest, Sha256};
 use std::{
     fs,
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -92,7 +93,15 @@ pub(crate) fn fingerprint(root: &Path, paths: &[PathBuf]) -> Result<String> {
                 hash.update(metadata.permissions().mode().to_le_bytes());
             }
             hash.update(metadata.len().to_le_bytes());
-            hash.update(fs::read(absolute)?);
+            let mut file = fs::File::open(absolute)?;
+            let mut buffer = [0; crate::constants::READ_BUFFER_BYTES];
+            loop {
+                let count = file.read(&mut buffer)?;
+                if count == 0 {
+                    break;
+                }
+                hash.update(&buffer[..count]);
+            }
         }
     }
     Ok(format!("{:x}", hash.finalize()))

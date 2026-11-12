@@ -36,4 +36,6 @@ Credential stores, different sources for the same gem across targets, custom loc
 
 Tests require Ruby with Bundler 2.6 or newer. Run `cargo test -p rb-packages`, or try `cargo run -p rb-packages --example prepare -- /path/to/app /path/to/ruby /path/to/cache`.
 
-Native CLI preparation shares downloads under `$XDG_CACHE_HOME/rb` (normally `~/.cache/rb` on Linux). Archives are scoped by normalized registry URL and verified SHA-256. Installed bundles remain project-local. Prepared-state checks inspect dependency inputs, lockfiles and recorded installation state; installed gem payloads are not scanned.
+Native CLI preparation shares downloads under `$XDG_CACHE_HOME/rb` (normally `~/.cache/rb` on Linux). Archives are scoped by normalized registry URL and verified SHA-256. Completed gem installations and extensions are shared under `installations-v1/`, keyed by source, payload checksum, Ruby/ABI/platform and build/dependency settings. Each project receives its own copies; matching packages skip extraction and compilation. Cache writes are locked and only completed entries with matching package and build identities are reused. Installed gems, gemspecs and extensions are not hashed. Installed bundles remain project-local. Prepared-state checks inspect dependency inputs, lockfiles and recorded installation state; installed gem payloads are not scanned.
+
+Cache inspection returns compatibility keys and exact dependency fingerprints when all inputs are observed. Git dependencies currently receive compatibility keys only.

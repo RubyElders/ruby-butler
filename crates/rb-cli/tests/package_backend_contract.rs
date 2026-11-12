@@ -429,3 +429,28 @@ fn completion_and_execution_apply_configured_relative_working_directory_once() {
         "context_tool"
     );
 }
+
+#[test]
+fn sync_repairs_missing_installed_specifications() {
+    let fixture = Fixture::configured();
+    success(fixture.command().arg("sync").output().unwrap());
+    let lock = fs::read(fixture.root.path().join("Gemfile.lock")).unwrap();
+    let specification = fixture
+        .bin_dir()
+        .parent()
+        .unwrap()
+        .join("specifications/backend_fixture-1.0.0.gemspec");
+    assert!(specification.is_file());
+    fs::remove_file(&specification).unwrap();
+    success(fixture.command().arg("sync").output().unwrap());
+    assert!(specification.is_file());
+    assert_eq!(
+        fs::read(fixture.root.path().join("Gemfile.lock")).unwrap(),
+        lock
+    );
+    let output = success(fixture.command().args(PROBE).output().unwrap());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "backend-installed, Bundler-activated"
+    );
+}

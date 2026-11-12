@@ -1326,6 +1326,7 @@ dependencies = [
  "base64 0.22.1",
  "flate2",
  "rb-gem-types",
+ "serde",
  "serde_json",
  "serde_yaml_ng",
  "sha1",

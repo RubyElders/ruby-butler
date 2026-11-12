@@ -1,6 +1,6 @@
 mod common;
 use common::server::Server;
-use rb_packages::{PrepareOptions, prepare, prepared};
+use rb_packages::{PrepareOptions, prepare, prepared, prepared_for_sync};
 use rb_task::TaskEvents;
 use std::{collections::BTreeMap, fs};
 
@@ -55,6 +55,29 @@ fn ready_state_checks_dependency_inputs_and_installation_state_without_registry_
         "Startup must not scan installed payloads"
     );
     fs::remove_file(&payload).unwrap();
+    for path in [
+        bundle
+            .installed
+            .gem_home
+            .join("specifications/teacup-1.0.0.gemspec"),
+        bundle
+            .installed
+            .gem_home
+            .join("gems/teacup-1.0.0/installation.json"),
+    ] {
+        let bytes = fs::read(&path).unwrap();
+        fs::remove_file(&path).unwrap();
+        assert!(
+            prepared(&options).unwrap().is_some(),
+            "Launching must not inspect gem metadata"
+        );
+        assert!(
+            prepared_for_sync(&options).unwrap().is_none(),
+            "Synchronization must detect missing metadata"
+        );
+        fs::write(&path, bytes).unwrap();
+        assert!(prepared_for_sync(&options).unwrap().is_some());
+    }
     let requests = server.requests.lock().unwrap().len();
     for path in [
         gemfile.clone(),

@@ -44,6 +44,40 @@ impl ProjectInput {
         )
     }
 
+    pub fn load_gemfile_with_inputs(
+        root: &Path,
+        ruby: &Path,
+        gemfile: &Path,
+        directory: &Path,
+        environment: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+    ) -> Result<Self> {
+        let root = dunce::canonicalize(root)?;
+        let gemfile = dunce::canonicalize(directory.join(gemfile))?;
+        let evaluated = snapshot_cache(&root, SNAPSHOT_FILE, Some(&gemfile)).evaluate(
+            &Evaluator::with_inputs(ruby, directory.to_owned(), environment.clone()),
+            &gemfile,
+        )?;
+        let mut manifest = evaluated.evaluation.manifest;
+        normalize_paths(&mut manifest, &root)?;
+        let lockfile = if gemfile.file_name().is_some_and(|name| name == "gems.rb") {
+            gemfile.with_file_name("gems.locked")
+        } else {
+            let mut file = gemfile.as_os_str().to_owned();
+            file.push(".lock");
+            file.into()
+        };
+        Ok(Self {
+            root,
+            manifest,
+            gemfile: Some(gemfile.clone()),
+            lockfile,
+            bundler_gemfile: gemfile,
+            reused: evaluated.reused,
+            evaluation_inputs: evaluated.evaluation.inputs,
+            evaluation_environment: evaluated.evaluation.environment,
+        })
+    }
+
     pub fn load_with_inputs(
         root: &Path,
         ruby: &Path,
@@ -122,26 +156,7 @@ impl ProjectInput {
             )?;
             (parse_project(&document)?, cached.reused, Some(gemfile))
         };
-        let dependency_paths = manifest.dependencies.values_mut().flat_map(|dependency| {
-            std::iter::once(&mut dependency.path)
-                .chain(
-                    dependency
-                        .variants
-                        .iter_mut()
-                        .map(|variant| &mut variant.path),
-                )
-                .flatten()
-        });
-        for path in dependency_paths.chain(
-            manifest
-                .gemspecs
-                .iter_mut()
-                .map(|package| &mut package.path),
-        ) {
-            *path = dunce::canonicalize(root.join(&*path))?
-                .to_string_lossy()
-                .into_owned();
-        }
+        normalize_paths(&mut manifest, &root)?;
         ensure!(
             manifest.bundle.lockfile.is_none(),
             "Custom lockfile paths are not supported by Bundler compatibility preparation"
@@ -187,6 +202,30 @@ impl ProjectInput {
             evaluation_environment,
         })
     }
+}
+
+fn normalize_paths(manifest: &mut Manifest, root: &Path) -> Result<()> {
+    let dependency_paths = manifest.dependencies.values_mut().flat_map(|dependency| {
+        std::iter::once(&mut dependency.path)
+            .chain(
+                dependency
+                    .variants
+                    .iter_mut()
+                    .map(|variant| &mut variant.path),
+            )
+            .flatten()
+    });
+    for path in dependency_paths.chain(
+        manifest
+            .gemspecs
+            .iter_mut()
+            .map(|package| &mut package.path),
+    ) {
+        *path = dunce::canonicalize(root.join(&*path))?
+            .to_string_lossy()
+            .into_owned();
+    }
+    Ok(())
 }
 
 fn parse_project(input: &str) -> Result<Manifest> {

@@ -161,7 +161,7 @@ impl Driver for NativeBackend {
         let options = self
             .options(runtime)?
             .context("No project file, gems.rb or Gemfile found")?;
-        if let Some(installed) = rb_packages::prepared(&options)? {
+        if let Some(installed) = rb_packages::prepared_for_sync(&options)? {
             return Ok(PreparedInstallation {
                 runtime: Self::activate(runtime, installed),
                 changed: false,
