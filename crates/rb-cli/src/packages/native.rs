@@ -100,6 +100,14 @@ impl NativeBackend {
 }
 
 impl Driver for NativeBackend {
+    fn location(&self) -> Option<crate::invocation::DependencyLocation> {
+        if self.disabled {
+            None
+        } else {
+            self.location.clone()
+        }
+    }
+
     fn inspect(&self, runtime: &ButlerRuntime) -> Result<PackageEnvironment> {
         let mut environment = PackageEnvironment {
             runtime: runtime.clone(),
@@ -134,6 +142,25 @@ impl Driver for NativeBackend {
             required_ruby: None,
         });
         Ok(environment)
+    }
+
+    fn cache_inputs(&self, runtime: &ButlerRuntime) -> Result<Option<super::PackageCache>> {
+        if self.disabled {
+            return Ok(None);
+        }
+        self.options(runtime)?
+            .map(|options| {
+                let inputs = rb_packages::inspect_cache(&options)?;
+                let details = self
+                    .inspect(runtime)?
+                    .details
+                    .context("No native installation")?;
+                Ok(super::PackageCache {
+                    paths: vec![details.installation],
+                    inputs,
+                })
+            })
+            .transpose()
     }
 
     fn check(&self, runtime: &ButlerRuntime) -> Result<BackendStatus> {

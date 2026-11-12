@@ -293,7 +293,26 @@ pub enum InfoCommands {
     },
 
     /// 🌍 Effective Ruby/package environment
-    Env,
+    Env {
+        #[arg(
+            long,
+            conflicts_with = "probe",
+            help = "Discover paths and Ruby selection before runtime preparation"
+        )]
+        discover: bool,
+        #[arg(
+            long,
+            conflicts_with = "discover",
+            help = "Evaluate dependency inputs using the selected installed Ruby"
+        )]
+        probe: bool,
+        #[arg(
+            long,
+            requires = "discover",
+            help = "Select a downloadable Ruby when none is installed"
+        )]
+        resolve_ruby: bool,
+    },
 
     /// 📁 Resolved rbproject.toml and settings
     Project,

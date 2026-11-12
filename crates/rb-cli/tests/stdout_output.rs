@@ -316,7 +316,24 @@ fn json_does_not_wrap_child_streams_or_change_their_exit_status() {
             .unwrap(),
         "info.env",
     );
+    assert_eq!(data["inspection"], "environment");
     assert_eq!(data["ruby"]["installed"], true);
+}
+
+#[test]
+fn inspection_modes_are_explicit_and_mutually_exclusive() {
+    let fixture = Fixture::new();
+    for args in [vec!["--discover", "--probe"], vec!["--resolve-ruby"]] {
+        let output = fixture
+            .command()
+            .args(["-F", "json", "info", "env"])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(!output.stderr.is_empty());
+    }
 }
 
 #[test]

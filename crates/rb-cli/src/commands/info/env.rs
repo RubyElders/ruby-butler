@@ -1,4 +1,7 @@
-use super::project::ProjectSummary;
+use super::{
+    discovery::{DependencyProject, EnvironmentReport, RubySelection},
+    project::ProjectSummary,
+};
 use crate::{
     output::Output,
     packages::{PackageBackend, PackageRuntime},
@@ -6,24 +9,6 @@ use crate::{
 use rb_core::{butler::ButlerError, project::ProjectRuntime};
 use serde::Serialize;
 use std::path::PathBuf;
-
-#[derive(Serialize)]
-pub(crate) struct EnvironmentReport {
-    pub rb_version: &'static str,
-    pub working_directory: PathBuf,
-    pub backend: String,
-    pub ruby: RubySelection,
-    pub environment: EnvironmentDetails,
-    pub script_project: Option<ProjectSummary>,
-}
-
-#[derive(Serialize)]
-pub(crate) struct RubySelection {
-    pub request: String,
-    pub version: String,
-    pub path: PathBuf,
-    pub installed: bool,
-}
 
 #[derive(Serialize)]
 pub(crate) struct PackageDetails {
@@ -73,19 +58,26 @@ pub(crate) fn environment_command(
     let ruby = environment.ruby()?;
     let report = EnvironmentReport {
         rb_version: env!("CARGO_PKG_VERSION"),
+        inspection: "environment",
         working_directory: environment.current_dir().into(),
         backend: backend_name.into(),
+        project: backend.location().map(|location| DependencyProject {
+            root: location.root,
+            project_file: location.project_file,
+            gemfile: location.gemfile,
+        }),
         ruby: RubySelection {
             request: runtime
                 .requested_ruby_version()
                 .map(str::to_owned)
                 .unwrap_or_else(|| "latest".into()),
-            version: ruby.version.to_string(),
-            path: ruby.root.clone(),
+            version: Some(ruby.version.to_string()),
+            path: Some(ruby.root.clone()),
             installed: true,
         },
+        cache: None,
         script_project: project.as_ref().map(ProjectSummary::collect),
-        environment: EnvironmentDetails {
+        environment: Some(EnvironmentDetails {
             gem_home: environment.gem_home(),
             gem_dirs: environment.gem_dirs(),
             bin_dirs: environment.bin_dirs(),
@@ -99,7 +91,7 @@ pub(crate) fn environment_command(
                 required_ruby: details.required_ruby.as_ref().map(ToString::to_string),
                 configured: details.configured,
             }),
-        },
+        }),
     };
     output.emit("info.env", &report, || {
         crate::presentation::info::env::document(&report)
