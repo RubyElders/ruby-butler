@@ -5,6 +5,7 @@ use std::path::PathBuf;
 #[derive(Clone, Debug)]
 pub struct InstallOptions {
     pub workers: usize,
+    pub cache: Option<PathBuf>,
     pub build: BuildOptions,
 }
 
@@ -16,6 +17,7 @@ impl InstallOptions {
     ) -> Self {
         Self {
             workers: DEFAULT_WORKERS,
+            cache: None,
             build: BuildOptions::with_inputs(ruby, directory, environment),
         }
     }
@@ -23,6 +25,7 @@ impl InstallOptions {
     pub fn new(ruby: impl Into<PathBuf>) -> Self {
         Self {
             workers: DEFAULT_WORKERS,
+            cache: None,
             build: BuildOptions::new(ruby),
         }
     }

@@ -184,6 +184,14 @@ impl SourceIndex {
             .context("Source package is unavailable")
     }
 
+    pub(crate) fn preparation_environment(&self) -> Option<std::collections::BTreeSet<String>> {
+        let mut names = std::collections::BTreeSet::new();
+        for package in self.packages.values().flatten() {
+            names.extend(package.environment.as_ref()?.iter().cloned());
+        }
+        Some(names)
+    }
+
     pub(crate) fn preparation_inputs(&self) -> std::collections::BTreeSet<PathBuf> {
         self.packages
             .values()

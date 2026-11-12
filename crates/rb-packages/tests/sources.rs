@@ -28,6 +28,28 @@ fn source(root: &Path) -> PathBuf {
     directory
 }
 
+#[cfg(unix)]
+fn native_source(root: &Path) -> PathBuf {
+    let source = source(root);
+    fs::create_dir_all(source.join("ext/fixture")).unwrap();
+    fs::write(
+        source.join("ext/fixture/extconf.rb"),
+        include_str!("fixtures/sources/extconf.rb"),
+    )
+    .unwrap();
+    fs::write(
+        source.join("ext/fixture/source_native.c"),
+        include_str!("fixtures/sources/source_native.c"),
+    )
+    .unwrap();
+    fs::write(
+        source.join("lib/fixture.rb"),
+        "require_relative 'fixture/version'; require 'source_native'\n",
+    )
+    .unwrap();
+    source
+}
+
 fn git(directory: &Path, arguments: &[&str]) -> String {
     let output = Command::new("git")
         .arg("-C")
@@ -285,23 +307,7 @@ fn path_source_is_snapshotted_without_mutating_project_and_refreshes_on_edit() {
 fn native_sources_compile_and_load_with_frozen_bundler() {
     for kind in ["git", "path"] {
         let root = tempfile::tempdir().unwrap();
-        let source = source(root.path());
-        fs::create_dir_all(source.join("ext/fixture")).unwrap();
-        fs::write(
-            source.join("ext/fixture/extconf.rb"),
-            include_str!("fixtures/sources/extconf.rb"),
-        )
-        .unwrap();
-        fs::write(
-            source.join("ext/fixture/source_native.c"),
-            include_str!("fixtures/sources/source_native.c"),
-        )
-        .unwrap();
-        fs::write(
-            source.join("lib/fixture.rb"),
-            "require_relative 'fixture/version'; require 'source_native'\n",
-        )
-        .unwrap();
+        let source = native_source(root.path());
         if kind == "git" {
             git(&source, &["init", "--initial-branch=main"]);
             commit(&source);
@@ -779,5 +785,163 @@ fn unlisted_source_files_preserve_path_snapshot_locations() {
     assert_eq!(
         require(&second, "require 'fixture'; puts Fixture::VERSION"),
         "1.0.0\n"
+    );
+}
+
+#[test]
+fn local_gemspec_environment_changes_invalidate_prepared_state() {
+    let root = tempfile::tempdir().unwrap();
+    let source = source(root.path());
+    fs::write(source.join("fixture.gemspec"), "Gem::Specification.new { |s| s.name='fixture'; s.version=ENV.fetch('RAILS_ENV', '1.0.0'); s.summary='Fixture'; s.authors=['Fixture']; s.files=['lib/fixture.rb', 'lib/fixture/version.rb'] }\n").unwrap();
+    fs::write(
+        root.path().join("Gemfile"),
+        "gem 'fixture', path: 'source-repository'\n",
+    )
+    .unwrap();
+    let options_for = |version: &str| {
+        let mut options = options(root.path());
+        let mut environment = options.install.build.inherited_environment().clone();
+        environment.insert("RAILS_ENV".into(), version.into());
+        options.install.build = rb_gem_installer::BuildOptions::with_inputs(
+            &options.ruby,
+            root.path().to_owned(),
+            environment,
+        );
+        options.record_state = true;
+        options
+    };
+    let first = options_for("1.0.0");
+    prepare(first.clone(), TaskEvents::default()).unwrap();
+    assert!(rb_packages::prepared(&first).unwrap().is_some());
+    let changed = options_for("2.0.0");
+    assert!(rb_packages::prepared(&changed).unwrap().is_none());
+    let prepared = prepare(changed, TaskEvents::default()).unwrap();
+    assert_eq!(
+        prepared.plan.packages[0]
+            .record
+            .package
+            .id
+            .version
+            .to_string(),
+        "2.0.0"
+    );
+}
+
+#[test]
+fn annotated_git_tags_keep_bundler_lock_identity_and_checkout_the_commit() {
+    let root = tempfile::tempdir().unwrap();
+    let source = source(root.path());
+    git(&source, &["init", "--initial-branch=main"]);
+    let commit = commit(&source);
+    git(
+        &source,
+        &[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.test",
+            "tag",
+            "-a",
+            "v1",
+            "-m",
+            "Fixture",
+        ],
+    );
+    let tag = git(&source, &["rev-parse", "v1"]);
+    assert_ne!(tag, commit);
+    fs::write(
+        root.path().join("Gemfile"),
+        format!(
+            "gem 'fixture', git: {:?}, tag: 'v1'\n",
+            source.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    let prepared = prepare(options(root.path()), TaskEvents::default()).unwrap();
+    let source = prepared
+        .plan
+        .lockfile
+        .sources
+        .iter()
+        .find(|source| source.kind == rb_lockfile::SourceKind::Git)
+        .unwrap();
+    assert_eq!(source.options["revision"], tag);
+    assert_eq!(
+        require(&prepared, "require 'fixture'; puts Fixture::VERSION"),
+        "1.0.0\n"
+    );
+    let lock = fs::read_to_string(&prepared.input.lockfile).unwrap();
+    let mut frozen = options(root.path());
+    frozen.plan.mode = LockMode::Locked;
+    let warm = prepare(frozen, TaskEvents::default()).unwrap();
+    assert_eq!(fs::read_to_string(warm.input.lockfile).unwrap(), lock);
+}
+
+#[cfg(unix)]
+#[test]
+fn restored_git_extensions_reuse_builds_after_a_fresh_checkout() {
+    let root = tempfile::tempdir().unwrap();
+    let source = native_source(root.path());
+    git(&source, &["init", "--initial-branch=main"]);
+    commit(&source);
+    fs::write(
+        root.path().join("Gemfile"),
+        format!(
+            "gem 'fixture', git: {}\n",
+            serde_json::to_string(&source.to_string_lossy()).unwrap()
+        ),
+    )
+    .unwrap();
+    let settings = options(root.path());
+    let runtime = common::runtime();
+    let input = rb_packages::ProjectInput::load(root.path(), &runtime.executable).unwrap();
+    rb_packages::SourceIndex::new(
+        &input,
+        &runtime,
+        &settings.cache,
+        false,
+        None,
+        LockMode::Prefer,
+    )
+    .unwrap();
+    let repository = fs::read_dir(settings.cache.join("git"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let checkout = fs::read_dir(repository.join("checkouts"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    for file in git(&checkout, &["ls-files"]).lines() {
+        fs::File::options()
+            .write(true)
+            .open(checkout.join(file))
+            .unwrap()
+            .set_modified(
+                std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000),
+            )
+            .unwrap();
+    }
+    let first = prepare(settings.clone(), TaskEvents::default()).unwrap();
+    assert_eq!(first.installed.installed, 1);
+    let lock = fs::read(root.path().join("Gemfile.lock")).unwrap();
+    let saved_home = root.path().join("saved-gem-home");
+    fs::rename(&first.installed.gem_home, &saved_home).unwrap();
+    fs::remove_dir_all(root.path().join(".rb")).unwrap();
+    fs::create_dir_all(first.installed.gem_home.parent().unwrap()).unwrap();
+    fs::rename(&saved_home, &first.installed.gem_home).unwrap();
+    let mut locked = settings;
+    locked.plan.mode = LockMode::Locked;
+    let restored = prepare(locked, TaskEvents::default()).unwrap();
+    assert_eq!(restored.installed.installed, 0);
+    assert_eq!(restored.installed.reused, 1);
+    assert_eq!(fs::read(root.path().join("Gemfile.lock")).unwrap(), lock);
+    assert_eq!(
+        require(&restored, "require 'fixture'; puts Fixture.answer"),
+        "42\n"
     );
 }

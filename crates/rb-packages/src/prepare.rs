@@ -44,6 +44,10 @@ impl PrepareOptions {
         environment: std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
     ) -> Self {
         let ruby = ruby.into();
+        let cache = cache.into();
+        let mut install =
+            InstallOptions::with_inputs(&ruby, directory.clone(), environment.clone());
+        install.cache = Some(cache.clone());
         Self {
             project: project.into(),
             project_file: None,
@@ -52,10 +56,10 @@ impl PrepareOptions {
                 .filter(|file| !file.is_empty())
                 .map(|file| directory.join(file)),
             record_state: false,
-            cache: cache.into(),
+            cache,
             offline: false,
             plan: PlanOptions::default(),
-            install: InstallOptions::with_inputs(&ruby, directory, environment),
+            install,
             ruby,
         }
     }
@@ -123,7 +127,7 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
     let ruby = options.ruby.clone();
     let project_file = options.project_file.clone();
     let input_options = options.clone();
-    let input = crate::task::run("load dependencies", events.clone(), move |_| {
+    let mut input = crate::task::run("load dependencies", events.clone(), move |_| {
         ProjectInput::load_with_inputs(
             &project,
             &ruby,
@@ -164,6 +168,10 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
         )?;
         Ok((plan, index))
     })?;
+    input.evaluation_environment = input.evaluation_environment.and_then(|mut names| {
+        names.extend(index.preparation_environment()?);
+        Some(names)
+    });
     let observed = if let Some(candidate) = candidate.clone() {
         let options = options.clone();
         let input = input.clone();
@@ -192,10 +200,12 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
     let previous_identity = std::fs::read_to_string(&identity_file).ok();
     let layout =
         crate::BundleLayout::new(&input.root, &runtime.engine, &runtime.version.to_string());
-    let mut installed = if previous_identity.as_deref() == Some(&fingerprint)
+    let reusable = previous_identity.as_deref() == Some(&fingerprint)
         && layout.gem_home.is_dir()
-        && index.sources_current(&layout.gem_home, &plan, &runtime)?
-    {
+        && crate::receipt::installation_metadata(&layout.gem_home, &plan)
+            .is_ok_and(|paths| paths.iter().all(|path| path.is_file()))
+        && index.sources_current(&layout.gem_home, &plan, &runtime)?;
+    let mut installed = if reusable {
         InstalledBundle {
             gem_home: layout.gem_home,
             bundle_path: layout.bundle,
@@ -242,7 +252,7 @@ pub fn prepare(options: PrepareOptions, events: TaskEvents) -> Result<PreparedBu
             Ok(())
         })?;
     }
-    let changed = previous_identity.as_deref() != Some(&fingerprint) || installed.installed > 0;
+    let changed = !reusable;
     rb_gemfile::write_project(&identity_file, &fingerprint)?;
     let prepared = PreparedBundle {
         input,

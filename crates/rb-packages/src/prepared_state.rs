@@ -21,6 +21,9 @@ struct State {
     environment: Option<BTreeSet<String>>,
     input_hash: String,
     metadata_hash: String,
+    installation_metadata: BTreeSet<PathBuf>,
+    #[serde(default)]
+    cache_dependencies: BTreeSet<PathBuf>,
     installed: InstalledBundle,
     lockfile: PathBuf,
 }
@@ -38,7 +41,23 @@ pub(crate) struct Candidate {
     before: String,
 }
 
-pub(crate) fn lock(root: &Path) -> Result<File> {
+pub(crate) struct ProjectLock(File);
+
+impl std::ops::Deref for ProjectLock {
+    type Target = File;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Drop for ProjectLock {
+    fn drop(&mut self) {
+        let _ = self.0.unlock();
+    }
+}
+
+pub(crate) fn lock(root: &Path) -> Result<ProjectLock> {
     let state = root.join(STATE_DIRECTORY);
     fs::create_dir_all(&state)?;
     let file = fs::OpenOptions::new()
@@ -48,11 +67,20 @@ pub(crate) fn lock(root: &Path) -> Result<File> {
         .truncate(false)
         .open(state.join(PROJECT_LOCK))?;
     file.lock()?;
-    Ok(file)
+    Ok(ProjectLock(file))
 }
 
 /// Returns a successful installation when its dependency inputs and metadata still match.
 pub fn prepared(options: &PrepareOptions) -> Result<Option<InstalledBundle>> {
+    cached(options, false)
+}
+
+/// Checks installed gem metadata is present before skipping explicit synchronization.
+pub fn prepared_for_sync(options: &PrepareOptions) -> Result<Option<InstalledBundle>> {
+    cached(options, true)
+}
+
+fn cached(options: &PrepareOptions, verify_installation: bool) -> Result<Option<InstalledBundle>> {
     if !options.record_state {
         return Ok(None);
     }
@@ -69,10 +97,15 @@ pub fn prepared(options: &PrepareOptions) -> Result<Option<InstalledBundle>> {
     if _lock.try_lock_shared().is_err() {
         return Ok(None);
     }
-    Ok(attempt(read(options, &filename)))
+    let _lock = ProjectLock(_lock);
+    Ok(attempt(read(options, &filename, verify_installation)))
 }
 
-fn read(options: &PrepareOptions, filename: &Path) -> Result<InstalledBundle> {
+fn read(
+    options: &PrepareOptions,
+    filename: &Path,
+    verify_installation: bool,
+) -> Result<InstalledBundle> {
     let envelope: Envelope = serde_json::from_slice(&fs::read(filename)?)?;
     let state = envelope.state;
     ensure!(
@@ -110,6 +143,15 @@ fn read(options: &PrepareOptions, filename: &Path) -> Result<InstalledBundle> {
     ensure!(
         state.metadata_hash == metadata(options, &state.installed, &state.lockfile)?,
         "Dependency metadata changed"
+    );
+    ensure!(
+        state.cache_dependencies.iter().all(|path| path.is_file())
+            && (!verify_installation
+                || state
+                    .installation_metadata
+                    .iter()
+                    .all(|path| path.is_file())),
+        "Installed gem metadata is missing"
     );
     let mut installed = state.installed;
     installed.reused += installed.installed;
@@ -180,11 +222,23 @@ impl Candidate {
                 )?,
             "Source inputs changed during preparation"
         );
+        let installation_metadata =
+            crate::receipt::installation_metadata(&prepared.installed.gem_home, &prepared.plan)?;
+        let cache_dependencies = installation_metadata
+            .iter()
+            .filter(|path| {
+                path.file_name()
+                    .is_some_and(|name| name == crate::constants::INSTALLATION_CACHE_MANIFEST)
+            })
+            .cloned()
+            .collect();
         let state = State {
             configuration: configuration(options)?,
             bundle_fingerprint: prepared.fingerprint.clone(),
             input_hash: before,
             metadata_hash: metadata(options, &prepared.installed, &prepared.input.lockfile)?,
+            installation_metadata,
+            cache_dependencies,
             lockfile: prepared.input.lockfile.clone(),
             installed: prepared.installed.clone(),
             anchor: self.anchor,
@@ -313,6 +367,18 @@ pub(crate) fn attempt<T>(result: Result<T>) -> Option<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn completed_preparation_releases_inherited_file_descriptors() {
+        let root = tempfile::tempdir().unwrap();
+        let writer = lock(root.path()).unwrap();
+        let inherited = writer.try_clone().unwrap();
+        drop(writer);
+        let reader = File::open(root.path().join(STATE_DIRECTORY).join(PROJECT_LOCK)).unwrap();
+        assert!(reader.try_lock_shared().is_ok());
+        drop(inherited);
+    }
 
     #[test]
     fn busy_preparation_is_a_cache_miss_without_waiting() {

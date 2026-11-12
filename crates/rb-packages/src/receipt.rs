@@ -3,7 +3,11 @@ use anyhow::{Context, Result};
 use rb_gem_installer::BuildOptions;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub(crate) struct Receipt {
@@ -46,6 +50,39 @@ pub(crate) struct InstalledReceipt {
     pub(crate) files: Vec<PathBuf>,
     pub(crate) build_artifacts: Vec<PathBuf>,
     pub(crate) extension: Option<PathBuf>,
+    #[serde(default)]
+    pub(crate) cache_dependencies: Vec<PathBuf>,
+}
+
+pub(crate) fn installation_metadata(
+    home: &Path,
+    plan: &crate::PackagePlan,
+) -> Result<BTreeSet<PathBuf>> {
+    let mut paths = BTreeSet::new();
+    for package in plan.packages.iter().filter(|package| package.install) {
+        let full_name = format!(
+            "{}-{}",
+            package.record.package.id.name, package.record.archive_version
+        );
+        let receipt = home
+            .join(crate::constants::GEMS_DIRECTORY)
+            .join(&full_name)
+            .join(crate::constants::INSTALL_RECEIPT);
+        let installed: InstalledReceipt = serde_json::from_slice(&fs::read(&receipt)?)?;
+        paths.extend(installed.cache_dependencies.iter().cloned());
+        paths.insert(receipt);
+        paths.insert(
+            home.join(crate::constants::SPECIFICATIONS_DIRECTORY)
+                .join(format!("{full_name}.gemspec")),
+        );
+        if let Some(extension) = installed.extension {
+            paths.insert(
+                home.join(extension)
+                    .join(crate::constants::BUILD_COMPLETE_MARKER),
+            );
+        }
+    }
+    Ok(paths)
 }
 
 pub(crate) const BUILD_ENVIRONMENT: &[&str] = &[
@@ -63,7 +100,7 @@ pub(crate) const BUILD_ENVIRONMENT: &[&str] = &[
     "SDKROOT",
 ];
 
-fn configuration_hash(
+pub(crate) fn configuration_hash(
     build: &BuildOptions,
     runtime: &RubyEnvironment,
     tools: &[&PackageRecord],

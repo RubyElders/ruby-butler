@@ -513,3 +513,90 @@ fn missing_prepared_state_does_not_stage_an_unchanged_installation() {
         String::from_utf8_lossy(&ready.stderr)
     );
 }
+
+#[test]
+fn git_worktrees_reuse_global_compilation_during_automatic_preparation() {
+    let fixture = Fixture::new("native");
+    let counter = fixture.rubies.path().join("build-count");
+    let extconf = fixture
+        .root
+        .path()
+        .join("local/ext/backend_fixture/extconf.rb");
+    let script = fs::read_to_string(&extconf).unwrap();
+    fs::write(
+        &extconf,
+        format!(
+            "File.open(ENV.fetch('BUILD_COUNTER'), 'a') {{ |file| file.puts 'build' }}\n{script}"
+        ),
+    )
+    .unwrap();
+    success(
+        fixture
+            .command()
+            .env("BUILD_COUNTER", &counter)
+            .arg("sync")
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(fs::read_to_string(&counter).unwrap(), "build\n");
+    let git = |arguments: &[&str]| {
+        success(
+            std::process::Command::new("git")
+                .current_dir(fixture.root.path())
+                .args(arguments)
+                .output()
+                .unwrap(),
+        );
+    };
+    git(&["init", "--initial-branch=main"]);
+    git(&["add", "Gemfile", "Gemfile.lock", "rbproject.toml", "local"]);
+    git(&[
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.test",
+        "commit",
+        "-m",
+        "Fixture",
+    ]);
+    for name in ["feature-one", "feature two"] {
+        let worktree = fixture.root.path().join(".trees").join(name);
+        git(&[
+            "worktree",
+            "add",
+            "--detach",
+            worktree.to_str().unwrap(),
+            "HEAD",
+        ]);
+        let output = success(
+            fixture
+                .command_in(&worktree, fixture.rubies.path())
+                .env("BUILD_COUNTER", &counter)
+                .args([
+                    "x",
+                    "ruby",
+                    "-rbackend_fixture",
+                    "-rbackend_fixture_native",
+                    "-e",
+                    "puts BackendFixture::VALUE; puts Dir.pwd",
+                ])
+                .output()
+                .unwrap(),
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            text.contains("backend-installed, Bundler-activated"),
+            "{text}"
+        );
+        assert!(
+            text.contains(worktree.canonicalize().unwrap().to_str().unwrap()),
+            "{text}"
+        );
+        assert_eq!(fs::read_to_string(&counter).unwrap(), "build\n");
+        assert_eq!(
+            fs::read(worktree.join("Gemfile.lock")).unwrap(),
+            fs::read(fixture.root.path().join("Gemfile.lock")).unwrap()
+        );
+        assert!(String::from_utf8_lossy(&output.stderr).contains("reuse 1/1 backend_fixture"));
+    }
+}

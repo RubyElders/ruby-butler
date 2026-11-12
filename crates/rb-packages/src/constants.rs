@@ -6,7 +6,7 @@ pub(crate) const GEM_HOME_DIRECTORY: &str = "bundle";
 pub(crate) const SNAPSHOT_FILE: &str = "gemfile.snapshot.json";
 pub(crate) const MANIFEST_FILE: &str = "rbproject.toml";
 pub(crate) const BUNDLE_FINGERPRINT: &str = "fingerprint";
-pub(crate) const PREPARED_STATE_VERSION: u32 = 4;
+pub(crate) const PREPARED_STATE_VERSION: u32 = 6;
 pub(crate) const PREPARED_STATE: &str = "prepared.json";
 pub(crate) const INSTALL_RECEIPT: &str = "installation.json";
 pub(crate) const DEFAULT_WORKERS: usize = 4;
@@ -39,3 +39,6 @@ pub(crate) const RUNTIME_DIRECTORY: &str = "runtime";
 pub(crate) const GEMFILE_FILE: &str = "Gemfile";
 pub(crate) const GEM_METADATA_MEMBER: &str = "metadata.gz";
 pub(crate) const GEM_PAYLOAD_MEMBER: &str = "data.tar.gz";
+
+pub(crate) const INSTALLATION_CACHE_DIRECTORY: &str = "installations-v1";
+pub(crate) const INSTALLATION_CACHE_MANIFEST: &str = "complete.json";

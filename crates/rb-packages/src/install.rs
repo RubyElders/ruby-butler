@@ -108,6 +108,10 @@ pub fn install(
                 let reused = registered.as_ref().is_some_and(|previous| {
                     previous.receipt == receipt
                         && previous
+                            .cache_dependencies
+                            .iter()
+                            .all(|path| path.is_file())
+                        && previous
                             .files
                             .iter()
                             .all(|path| fs::symlink_metadata(directory.join(path)).is_ok())
@@ -135,19 +139,30 @@ pub fn install(
                 } else {
                     None
                 };
-                slots.insert(
-                    record.package.id.name.clone(),
-                    Arc::new(Mutex::new(Slot {
-                        directory,
-                        archive: None,
-                        metadata: None,
-                        staging: None,
-                        reused,
-                        receipt,
-                        gem,
-                        dependencies: dependencies(&records, &record.package.id.name),
-                    })),
-                );
+                let mut slot = Slot {
+                    directory,
+                    record: record.clone(),
+                    archive: None,
+                    metadata: None,
+                    staging: None,
+                    reused,
+                    restored: false,
+                    receipt,
+                    gem,
+                    dependencies: dependencies(&records, &record.package.id.name),
+                };
+                if !slot.reused
+                    && let Some(cache) = &options.cache
+                    && let Some(entry) = crate::installation_cache::Entry::try_open(
+                        cache,
+                        &slot.receipt,
+                        slot.directory.file_name().unwrap().to_str().unwrap(),
+                        &runtime,
+                    )?
+                {
+                    entry.restore(&mut slot, &staged_home, record, &runtime)?;
+                }
+                slots.insert(record.package.id.name.clone(), Arc::new(Mutex::new(slot)));
             }
             let slots = Arc::new(slots);
             Ok((
@@ -366,7 +381,8 @@ pub fn install(
         crate::task::run("prepare source snapshots", events.clone(), move |_| {
             source_index.stage_sources(&source_home, &source_plan, &source_runtime)
         })?;
-    if reused != slots.len() || sources_changed {
+    let restored = slots.values().any(|slot| slot.lock().unwrap().restored);
+    if reused != slots.len() || restored || sources_changed {
         crate::task::run("publish bundle", events, move |_| {
             let backup = transaction_path.join("previous");
             if destination.exists() {

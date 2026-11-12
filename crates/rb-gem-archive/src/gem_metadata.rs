@@ -1,8 +1,9 @@
 use rb_gem_types::{PackageId, Requirement};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Declared gem identity and metadata; payload extraction and activation are separate.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GemMetadata {
     pub id: PackageId,
     pub dependencies: BTreeMap<String, Requirement>,
