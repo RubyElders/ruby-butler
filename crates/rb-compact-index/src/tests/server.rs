@@ -129,3 +129,39 @@ fn nonblocking_accepted_socket_reads_a_fragmented_request() {
         b"GET /info/rake HTTP/1.1\r\nHost: localhost\r\n\r\n"
     );
 }
+
+#[test]
+fn client_reuses_a_keep_alive_connection_for_distinct_metadata_requests() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let source = format!("http://{}/", listener.local_addr().unwrap());
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut paths = Vec::new();
+        for _ in 0..3 {
+            let request = read_request(&mut stream).unwrap();
+            let request = String::from_utf8(request).unwrap();
+            let path = request.split_whitespace().nth(1).unwrap();
+            paths.push(path.to_owned());
+            let body = if path == "/versions" {
+                "---\napp 1.0\nother 1.0\n".into()
+            } else {
+                format!("---\n1.0 |checksum:{}\n", "a".repeat(64))
+            };
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: keep-alive\r\n\r\n{body}",
+                body.len()
+            )
+            .unwrap();
+        }
+        paths
+    });
+    let cache = tempfile::tempdir().unwrap();
+    let client = Client::new(&source, cache.path(), false).unwrap();
+    assert_eq!(client.info("app").unwrap().len(), 1);
+    assert_eq!(client.clone().info("other").unwrap().len(), 1);
+    assert_eq!(
+        server.join().unwrap(),
+        ["/versions", "/info/app", "/info/other"]
+    );
+}

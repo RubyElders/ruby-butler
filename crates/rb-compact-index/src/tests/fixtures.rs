@@ -103,10 +103,21 @@ fn captured_sources_revalidate_and_reuse_verified_metadata_offline() {
         let expected = parse(name, body).unwrap();
         assert_eq!(client.info(name).unwrap(), expected);
         server.responses.lock().unwrap().remove(&path);
-        assert_eq!(client.info(name).unwrap(), expected);
+        assert_eq!(
+            Client::new(&source, cache.path(), false)
+                .unwrap()
+                .info(name)
+                .unwrap(),
+            expected
+        );
         assert_eq!(
             server.requests.lock().unwrap().as_slice(),
-            [path.clone(), path]
+            [
+                format!("/{prefix}versions"),
+                path.clone(),
+                format!("/{prefix}versions"),
+                path
+            ]
         );
         drop(server);
         assert_eq!(
@@ -148,7 +159,7 @@ fn redirects_fetch_and_cache_the_final_metadata() {
     );
     assert_eq!(
         server.requests.lock().unwrap().as_slice(),
-        ["/info/rake", "/upstream/info/rake"]
+        ["/versions", "/info/rake", "/upstream/info/rake"]
     );
     assert_eq!(
         Client::new(&server.source, cache.path(), true)
@@ -177,11 +188,14 @@ fn authentication_errors_do_not_trigger_fallback_or_replace_cached_metadata() {
             .lock()
             .unwrap()
             .insert("/info/rake".into(), status.into());
-        let error = client.info("rake").unwrap_err();
+        let error = Client::new(&server.source, cache.path(), false)
+            .unwrap()
+            .info("rake")
+            .unwrap_err();
         assert!(error.to_string().contains(&status[..3]), "{error}");
         assert_eq!(
             server.requests.lock().unwrap().as_slice(),
-            ["/info/rake", "/info/rake"]
+            ["/versions", "/info/rake", "/versions", "/info/rake"]
         );
         assert_eq!(
             Client::new(&server.source, cache.path(), true)

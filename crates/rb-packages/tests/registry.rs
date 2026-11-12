@@ -59,7 +59,7 @@ fn prepares_from_gemfile_then_reuses_offline_without_contacting_registry() {
     assert_eq!(result.installed.installed, 1);
     assert!(result.input.bundler_gemfile.is_file());
     let count = server.requests.lock().unwrap().len();
-    assert_eq!(count, 2);
+    assert_eq!(count, 3);
     options.offline = true;
     let reused = rb_packages::prepare(options, events).unwrap();
     assert_eq!(reused.installed.reused, 1);

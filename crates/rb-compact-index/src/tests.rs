@@ -21,6 +21,8 @@ mod download;
 mod fixtures;
 mod full_index;
 mod info;
+mod metadata_cache;
+mod ranges;
 mod server;
 mod versions;
 

@@ -4,6 +4,7 @@ mod cache;
 mod client;
 mod constants;
 mod full_index;
+mod index_response;
 mod info;
 mod validation;
 mod versions;
