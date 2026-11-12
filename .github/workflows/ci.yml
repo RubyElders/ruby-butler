@@ -160,11 +160,17 @@ jobs:
       run: cargo build -p rb-gem-installer -p rb-packages --examples
 
   test-rust:
-    name: Rust Tests
+    name: Rust Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+        - os: ubuntu-latest
+          artifact: rb-linux-release
+        - os: windows-latest
+          artifact: rb-windows-release
+        - os: macos-latest
+          artifact: rb-macos-release
     steps:
     - uses: actions/checkout@v4
 
@@ -210,13 +216,14 @@ jobs:
     - name: Build release
       run: cargo build --release
 
-    - name: Upload Linux release binary (for other jobs)
-      if: matrix.os == 'ubuntu-latest'
+    - name: Upload release binary
       uses: actions/upload-artifact@v4
       with:
-        name: rb-linux-release
-        path: target/release/rb
-        retention-days: 1
+        name: ${{ matrix.artifact }}
+        path: |
+          target/release/rb
+          target/release/rb.exe
+        retention-days: 7
 
   test-package-backends:
     name: Package Backend (${{ matrix.backend }}, ${{ matrix.os }})
