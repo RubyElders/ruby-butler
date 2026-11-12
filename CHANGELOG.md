@@ -5,6 +5,16 @@ All notable changes to Ruby Butler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-11-12
+
+### Added
+- Global `--format json` / `-F json` output for inspection, help, version, script listings, export and operation results. `RB_FORMAT` selects the default; explicit command-line options take precedence. JSON reports share a versioned envelope with command-specific data.
+- CI artifacts for Linux, macOS and Windows release binaries, retained for seven days for development and integration testing.
+
+### Changed
+- Gemfile export uses `--project-format toml|kdl` to select the generated syntax independently of text/JSON presentation.
+- Command data collection and text presentation use shared reports. Existing text layouts and stderr progress are preserved; executed programs and shell completion keep their own output.
+
 ## [0.4.1] - 2026-11-10
 
 ### Fixed
