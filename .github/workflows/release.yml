@@ -114,6 +114,18 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
+        draft: true
         files: |
           rb-${{ matrix.suffix }}${{ matrix.ext }}
           rb-${{ matrix.suffix }}-debug${{ matrix.ext }}
+
+  publish-release:
+    name: Publish Release
+    needs: build-release
+    runs-on: ubuntu-latest
+    steps:
+    - name: Publish complete release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
