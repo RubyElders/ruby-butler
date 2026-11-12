@@ -82,8 +82,14 @@ fn metadata_revalidates_and_works_offline() {
     let client = Client::new(&server.source, cache.path(), false).unwrap();
     let first = client.info("app").unwrap();
     server.responses.lock().unwrap().remove("/info/app");
-    assert_eq!(client.info("app").unwrap(), first);
-    assert_eq!(server.requests.lock().unwrap().len(), 2);
+    assert_eq!(
+        Client::new(&server.source, cache.path(), false)
+            .unwrap()
+            .info("app")
+            .unwrap(),
+        first
+    );
+    assert_eq!(server.requests.lock().unwrap().len(), 4);
     let offline = Client::new(&server.source, cache.path(), true).unwrap();
     drop(server);
     assert_eq!(offline.info("app").unwrap(), first);
@@ -122,7 +128,8 @@ fn verified_metadata_survives_invalid_replacements() {
         ),
     );
     assert!(
-        client
+        Client::new(&server.source, cache.path(), false)
+            .unwrap()
             .info("app")
             .unwrap_err()
             .to_string()
@@ -136,7 +143,12 @@ fn verified_metadata_survives_invalid_replacements() {
         .lock()
         .unwrap()
         .insert("/info/app".into(), b"invalid metadata".to_vec());
-    assert!(client.info("app").is_err());
+    assert!(
+        Client::new(&server.source, cache.path(), false)
+            .unwrap()
+            .info("app")
+            .is_err()
+    );
     assert_eq!(offline.info("app").unwrap(), expected);
 }
 
@@ -216,7 +228,11 @@ fn namespace_requests_and_offline_cache_keep_the_source_prefix() {
     assert_eq!(fs::read(&path).unwrap(), archive);
     assert_eq!(
         server.requests.lock().unwrap().as_slice(),
-        ["/@team/info/app", "/@team/gems/app-1.0.gem"]
+        [
+            "/@team/versions",
+            "/@team/info/app",
+            "/@team/gems/app-1.0.gem"
+        ]
     );
     let offline = Client::new(&source, cache.path(), true).unwrap();
     assert_eq!(offline.info("app").unwrap(), records);
@@ -226,7 +242,7 @@ fn namespace_requests_and_offline_cache_keep_the_source_prefix() {
             .info("app")
             .is_err()
     );
-    assert_eq!(server.requests.lock().unwrap().len(), 2);
+    assert_eq!(server.requests.lock().unwrap().len(), 3);
 }
 
 #[test]
@@ -249,7 +265,7 @@ fn missing_optional_lookup_is_cached_offline_and_rechecked_online() {
     assert!(client.info_or_empty("missing").unwrap().is_empty());
     assert_eq!(
         *server.requests.lock().unwrap(),
-        ["/info/missing", "/versions"]
+        ["/versions", "/info/missing"]
     );
     let offline = Client::new(&server.source, cache.path(), true).unwrap();
     assert!(offline.info_or_empty("missing").unwrap().is_empty());
@@ -257,11 +273,26 @@ fn missing_optional_lookup_is_cached_offline_and_rechecked_online() {
         "/info/missing".into(),
         format!("---\n1.0 |checksum:{}\n", "a".repeat(64)).into_bytes(),
     );
-    let found = client.info_or_empty("missing").unwrap();
+    server.revalidate.store(false, Ordering::Relaxed);
+    server
+        .responses
+        .lock()
+        .unwrap()
+        .insert("/versions".into(), b"---\nmissing 1.0\n".to_vec());
+    let found = Client::new(&server.source, cache.path(), false)
+        .unwrap()
+        .info_or_empty("missing")
+        .unwrap();
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].version, "1.0");
     drop(server);
-    assert_eq!(offline.info_or_empty("missing").unwrap(), found);
+    assert_eq!(
+        Client::new(client.source(), cache.path(), true)
+            .unwrap()
+            .info_or_empty("missing")
+            .unwrap(),
+        found
+    );
 }
 
 #[test]
@@ -285,7 +316,10 @@ fn optional_lookup_does_not_hide_access_server_or_protocol_errors() {
         let cache = tempfile::tempdir().unwrap();
         let client = Client::new(&server.source, cache.path(), false).unwrap();
         assert!(client.info_or_empty("private").is_err());
-        assert_eq!(*server.requests.lock().unwrap(), ["/info/private"]);
+        assert_eq!(
+            *server.requests.lock().unwrap(),
+            ["/versions", "/info/private"]
+        );
         assert!(
             Client::new(&server.source, cache.path(), true)
                 .unwrap()

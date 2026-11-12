@@ -5,7 +5,7 @@ fn names_are_scoped_cached_offline_and_do_not_collide_with_gem_metadata() {
     let server = Server::new();
     server.responses.lock().unwrap().insert(
         "/versions".into(),
-        b"created_at: fixture\n---\naddon 1.0 a\nchild 1.0 \naddon 2.0 c\n".to_vec(),
+        b"created_at: fixture\n---\naddon 1.0 a\nchild 1.0 \n- 1 a\naddon 2.0 c\n".to_vec(),
     );
     server.responses.lock().unwrap().insert(
         "/info/versions".into(),
@@ -14,7 +14,7 @@ fn names_are_scoped_cached_offline_and_do_not_collide_with_gem_metadata() {
     let cache = tempfile::tempdir().unwrap();
     let client = Client::new(&server.source, cache.path(), false).unwrap();
     let names = client.names().unwrap().unwrap();
-    assert_eq!(names, ["addon".into(), "child".into()].into());
+    assert_eq!(names, ["-".into(), "addon".into(), "child".into()].into());
     assert_eq!(client.info("versions").unwrap()[0].version, "1.0");
     let offline = Client::new(&server.source, cache.path(), true).unwrap();
     drop(server);
@@ -92,7 +92,12 @@ fn malformed_names_do_not_replace_the_cached_registry_listing() {
             .lock()
             .unwrap()
             .insert("/versions".into(), body.as_bytes().to_vec());
-        assert!(client.names().is_err());
+        assert!(
+            Client::new(&server.source, cache.path(), false)
+                .unwrap()
+                .names()
+                .is_err()
+        );
         assert_eq!(
             Client::new(&server.source, cache.path(), true)
                 .unwrap()
@@ -112,7 +117,8 @@ fn malformed_names_do_not_replace_the_cached_registry_listing() {
         .unwrap()
         .insert("/versions".into(), "Repr-Digest: sha-256=:AAAA:\r\n".into());
     assert!(
-        client
+        Client::new(&server.source, cache.path(), false)
+            .unwrap()
             .names()
             .unwrap_err()
             .to_string()

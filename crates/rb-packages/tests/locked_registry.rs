@@ -34,8 +34,14 @@ fn locked_sources_do_not_discover_dependencies_of_unselected_releases() {
     .unwrap();
     assert_eq!(result.lockfile, first.lockfile);
     assert!(!result.lock_changed);
-    assert_eq!(*private.requests.lock().unwrap(), ["/info/tea"]);
-    assert_eq!(*public.requests.lock().unwrap(), ["/info/water"]);
+    assert_eq!(
+        *private.requests.lock().unwrap(),
+        ["/versions", "/info/tea"]
+    );
+    assert_eq!(
+        *public.requests.lock().unwrap(),
+        ["/versions", "/info/water"]
+    );
 }
 
 #[test]
@@ -55,17 +61,25 @@ fn locked_registry_metadata_requests_overlap() {
         urls.push(format!("http://{}/", listener.local_addr().unwrap()));
         let arrived = arrived.clone();
         servers.push(thread::spawn(move || {
-            let (mut socket, _) = listener.accept().unwrap();
-            socket
-                .set_read_timeout(Some(Duration::from_secs(5)))
-                .unwrap();
-            let mut request = Vec::new();
-            let mut buffer = [0; 1024];
-            while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
-                let count = socket.read(&mut buffer).unwrap();
-                assert_ne!(count, 0);
-                request.extend_from_slice(&buffer[..count]);
-            }
+            let mut socket = loop {
+                let (mut socket, _) = listener.accept().unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut request = Vec::new();
+                let mut buffer = [0; 1024];
+                while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                    let count = socket.read(&mut buffer).unwrap();
+                    assert_ne!(count, 0);
+                    request.extend_from_slice(&buffer[..count]);
+                }
+                if request.starts_with(b"GET /versions ") {
+                    socket.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+                    continue;
+                }
+                assert!(request.starts_with(b"GET /info/"));
+                break socket;
+            };
             let (count, ready) = &*arrived;
             let mut count = count.lock().unwrap();
             *count += 1;

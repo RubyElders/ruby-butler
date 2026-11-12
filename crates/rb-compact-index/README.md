@@ -22,11 +22,11 @@ for gem in client.info("rack")? {
 | `Client::download` | Fetch an archive with an expected SHA-256 checksum. |
 | `parse` | Parse a compact-index response without HTTP or cache access. |
 
-Metadata is cached per source and revalidated with ETags. Archives are cached per normalized source and SHA-256 checksum, and verified before reuse. File locks and atomic writes support concurrent callers. Offline mode reads cached metadata and archives without contacting the registry.
+Metadata is cached per source. Each client refreshes `/versions` once, using ETags and incremental Range requests, then reuses gem metadata whose checksum matches the index. Clones share connections and the same metadata snapshot; create a new client to refresh it. Sources without `/versions` use conditional per-gem requests. Archives are cached per normalized source and SHA-256 checksum, and verified before reuse. File locks and atomic writes support concurrent callers. Offline mode reads cached metadata and archives without contacting the registry.
 
 `GemInfo` keeps version strings, including platform suffixes, and metadata fields. Compact-index records retain server order. Repeated dependency requirements are combined with commas.
 
-HTTP(S) base URLs cannot contain credentials, query strings or fragments. SHA-256 `Repr-Digest` values are checked when present. Servers without compact-index endpoints fall back to `specs.4.8.gz` and optional prerelease metadata, parsed in Rust; this downloads matching archives to obtain their metadata. No source substitution occurs. Authentication, `/names`, `/versions` parsing and incremental Range requests are not implemented.
+HTTP(S) base URLs cannot contain credentials, query strings or fragments. SHA-256 `Repr-Digest` values are checked when present. Servers without compact-index endpoints fall back to `specs.4.8.gz` and optional prerelease metadata, parsed in Rust; this downloads matching archives to obtain their metadata. No source substitution occurs.
 
 Run `cargo test -p rb-compact-index`. HTTP tests use loopback fixture servers and require no public registry or Ruby installation.
 

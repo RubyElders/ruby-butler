@@ -1,24 +1,32 @@
 use crate::{
     GemInfo,
-    cache::{atomic_write, checksum, limited_read, lock, stream_archive},
+    cache::{atomic_write, checksum, lock, stream_archive},
     constants::{
         ARCHIVE_CACHE_DIRECTORY, ARCHIVE_PATH_PREFIX, CONNECT_TIMEOUT, FULL_INFO_CACHE_SUFFIX,
         INDEX_CACHE_DIRECTORY, INFO_PATH_PREFIX, MAX_COMPACT_INFO_BYTES, REQUEST_TIMEOUT,
-        VERSIONS_PATH,
     },
+    index_response::read_index,
     parse,
     validation::{validate_checksum, validate_name},
 };
 use anyhow::{Context, Result, bail, ensure};
 use base64::Engine;
+use md5::{Digest, Md5};
 use reqwest::{Url, blocking::Client as HttpClient, header};
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
 use std::{
+    collections::BTreeMap,
     fs::{self, File},
     io::Write,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex, OnceLock},
 };
+
+#[derive(Default)]
+pub(crate) struct MetadataState {
+    pub(crate) versions: OnceLock<Result<Option<crate::versions::Versions>, String>>,
+    records: Mutex<BTreeMap<(String, bool), Vec<GemInfo>>>,
+}
 
 #[derive(Clone)]
 pub struct Client {
@@ -26,6 +34,7 @@ pub struct Client {
     pub(crate) cache: PathBuf,
     pub(crate) offline: bool,
     pub(crate) client: HttpClient,
+    pub(crate) metadata: Arc<MetadataState>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -55,6 +64,7 @@ impl Client {
             source: url.to_string(),
             cache: cache.to_path_buf(),
             offline,
+            metadata: Arc::default(),
             client: HttpClient::builder()
                 .timeout(REQUEST_TIMEOUT)
                 .connect_timeout(CONNECT_TIMEOUT)
@@ -80,6 +90,7 @@ impl Client {
         ))?;
         authorization.set_sensitive(true);
         headers.insert(header::AUTHORIZATION, authorization);
+        self.metadata = Arc::default();
         self.client = HttpClient::builder()
             .timeout(REQUEST_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT)
@@ -106,6 +117,20 @@ impl Client {
             .join(checksum(self.source.as_bytes()));
         fs::create_dir_all(&directory)?;
         let _guard = lock(&directory.join(format!("{name}.lock")))?;
+        let key = (name.to_owned(), allow_missing);
+        if let Some(records) = self.metadata.records.lock().unwrap().get(&key) {
+            return Ok(records.clone());
+        }
+        let result = self.read_info(name, allow_missing, &directory)?;
+        self.metadata
+            .records
+            .lock()
+            .unwrap()
+            .insert(key, result.clone());
+        Ok(result)
+    }
+
+    fn read_info(&self, name: &str, allow_missing: bool, directory: &Path) -> Result<Vec<GemInfo>> {
         let path = directory.join(format!("{name}.json"));
         let cached: Option<CachedInfo> = fs::read(&path)
             .ok()
@@ -124,11 +149,23 @@ impl Client {
                     .body,
             );
         }
+        let versions = self.versions()?;
+        let expected = versions.and_then(|versions| versions.checksums.get(name));
+        if versions.is_some()
+            && let Some(cached) = &cached
+            && expected.is_none_or(|expected| {
+                format!("{:x}", Md5::digest(cached.body.as_bytes())).eq_ignore_ascii_case(expected)
+            })
+        {
+            return parse(name, &cached.body);
+        }
         let mut request = self
             .client
             .get(format!("{}{INFO_PATH_PREFIX}{name}", self.source))
             .header(header::ACCEPT_ENCODING, "identity");
-        if let Some(etag) = cached.as_ref().and_then(|c| c.etag.as_ref()) {
+        if expected.is_none_or(String::is_empty)
+            && let Some(etag) = cached.as_ref().and_then(|c| c.etag.as_ref())
+        {
             request = request.header(header::IF_NONE_MATCH, etag);
         }
         let response = request
@@ -141,14 +178,9 @@ impl Client {
             );
         }
         if response.status() == reqwest::StatusCode::NOT_FOUND {
-            let versions = self
-                .client
-                .head(format!("{}{VERSIONS_PATH}", self.source))
-                .send()?;
-            if versions.status() == reqwest::StatusCode::NOT_FOUND {
-                return self.full_info(name, &directory);
+            if self.versions()?.is_none() {
+                return self.full_info(name, directory);
             }
-            versions.error_for_status()?;
             if allow_missing {
                 atomic_write(
                     &path,
@@ -221,26 +253,4 @@ impl Client {
         archive.persist(&path)?;
         Ok(path)
     }
-}
-
-pub(crate) fn read_index(response: reqwest::blocking::Response, limit: u64) -> Result<Vec<u8>> {
-    let digest = response
-        .headers()
-        .get("repr-digest")
-        .and_then(|v| v.to_str().ok())
-        .map(str::to_owned);
-    let bytes = limited_read(response, limit)?;
-    if let Some(digest) = digest
-        && let Some(value) = digest
-            .split(',')
-            .find_map(|part| part.trim().strip_prefix("sha-256="))
-    {
-        let expected =
-            base64::engine::general_purpose::STANDARD.decode(value.trim_matches([':', '"']))?;
-        ensure!(
-            sha2::Sha256::digest(&bytes).as_slice() == expected,
-            "Index digest mismatch"
-        );
-    }
-    Ok(bytes)
 }
