@@ -78,6 +78,20 @@ struct CachedRelease {
 }
 
 impl Installer {
+    fn catalog_request(&self) -> reqwest::blocking::RequestBuilder {
+        let request = self.client.get(&self.catalog_url);
+        if self.catalog_url == CATALOG_URL
+            && let Some(token) = ["GH_TOKEN", "GITHUB_TOKEN"]
+                .iter()
+                .filter_map(|name| self.environment.get(std::ffi::OsStr::new(name)))
+                .filter_map(|value| value.to_str())
+                .find(|value| !value.is_empty())
+        {
+            return request.bearer_auth(token);
+        }
+        request
+    }
+
     pub fn catalog(&self) -> Result<Release> {
         fs::create_dir_all(&self.cache)?;
         let path = self.cache.join("catalog.json");
@@ -90,7 +104,7 @@ impl Installer {
         {
             return Ok(cached.release.clone());
         }
-        let mut request = self.client.get(&self.catalog_url);
+        let mut request = self.catalog_request();
         if let Some(etag) = cached.as_ref().and_then(|cached| cached.etag.as_ref()) {
             request = request.header(reqwest::header::IF_NONE_MATCH, etag);
         }
@@ -133,4 +147,89 @@ pub(crate) fn read_limited(reader: impl Read, limit: u64) -> Result<Vec<u8>> {
         bail!("Release metadata exceeds the size limit");
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reqwest::header::AUTHORIZATION;
+    use std::collections::BTreeMap;
+
+    fn installer(environment: &[(&str, &str)]) -> Installer {
+        Installer::with_inputs(
+            std::env::temp_dir(),
+            std::env::temp_dir(),
+            environment
+                .iter()
+                .map(|(name, value)| ((*name).into(), (*value).into()))
+                .collect::<BTreeMap<_, _>>(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn catalog_credentials_apply_only_to_the_official_api_request() {
+        let source = installer(&[("GH_TOKEN", "catalog-canary")]);
+        let request = source.catalog_request().build().unwrap();
+        assert_eq!(request.headers()[AUTHORIZATION], "Bearer catalog-canary");
+        assert!(request.headers()[AUTHORIZATION].is_sensitive());
+        assert!(
+            source
+                .client
+                .get("https://github.com/spinel-coop/rv-ruby/releases/download/test/archive.tar.gz")
+                .build()
+                .unwrap()
+                .headers()
+                .get(AUTHORIZATION)
+                .is_none()
+        );
+        for url in [
+            "https://other.example/catalog.json",
+            "http://api.github.com/repos/spinel-coop/rv-ruby/releases/latest",
+        ] {
+            let custom = installer(&[("GH_TOKEN", "catalog-canary")]).with_catalog_url(url);
+            assert!(
+                custom
+                    .catalog_request()
+                    .build()
+                    .unwrap()
+                    .headers()
+                    .get(AUTHORIZATION)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn catalog_token_precedence_ignores_empty_values() {
+        for (environment, expected) in [
+            (
+                vec![("GITHUB_TOKEN", "fallback-canary")],
+                "Bearer fallback-canary",
+            ),
+            (
+                vec![("GH_TOKEN", ""), ("GITHUB_TOKEN", "fallback-canary")],
+                "Bearer fallback-canary",
+            ),
+            (
+                vec![
+                    ("GH_TOKEN", "preferred-canary"),
+                    ("GITHUB_TOKEN", "fallback-canary"),
+                ],
+                "Bearer preferred-canary",
+            ),
+        ] {
+            let request = installer(&environment).catalog_request().build().unwrap();
+            assert_eq!(request.headers()[AUTHORIZATION], expected);
+        }
+        assert!(
+            installer(&[])
+                .catalog_request()
+                .build()
+                .unwrap()
+                .headers()
+                .get(AUTHORIZATION)
+                .is_none()
+        );
+    }
 }
