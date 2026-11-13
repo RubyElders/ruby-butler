@@ -448,6 +448,17 @@ fn equivalent_path_sources_share_installations_and_payload_edits_invalidate_them
         let options = rb_packages::PrepareOptions::new(&project, &runtime.executable, &cache);
         let prepared = rb_packages::prepare(options, TaskEvents::default()).unwrap();
         assert_eq!(prepared.installed.installed, installed);
+        for entry in fs::read_dir(cache.join("installations-v1")).unwrap() {
+            let receipt = entry
+                .unwrap()
+                .path()
+                .join("home/gems/teacup-1.0.0/installation.json");
+            if receipt.is_file() {
+                let text = fs::read_to_string(receipt).unwrap();
+                assert!(!text.contains(project.to_str().unwrap()), "{text}");
+            }
+        }
+
         let output = run(
             &runtime,
             &prepared.installed,
@@ -589,4 +600,54 @@ fn extensions_build_against_stable_cached_dependencies_and_repair_after_cache_re
         fs::read_to_string(root.path().join("builds")).unwrap(),
         "build\nbuild\n"
     );
+}
+
+#[test]
+fn parallel_restores_publish_colliding_executables_in_stable_order() {
+    let root = tempfile::tempdir().unwrap();
+    let runtime = runtime();
+    let mut index = MemoryIndex::default();
+    for name in ["alpha", "zulu"] {
+        add_archive(
+            &mut index,
+            root.path(),
+            name,
+            &[],
+            &[],
+            &[("bin/shared", b"puts 'fixture'\n")],
+        );
+    }
+    let plan = plan(
+        &manifest("https://rubygems.org", "alpha='>= 0'\nzulu='>= 0'"),
+        &runtime,
+        None,
+        &index,
+        &PlanOptions::default(),
+    )
+    .unwrap();
+    let index = Arc::new(index);
+    let mut options = InstallOptions::new(&runtime.executable);
+    options.cache = Some(root.path().join("cache"));
+    for (name, workers) in [("one", 1), ("two", 4)] {
+        options.workers = workers;
+        let project = root.path().join(name);
+        fs::create_dir_all(&project).unwrap();
+        let bundle = install(
+            &project,
+            &plan,
+            &runtime,
+            index.clone(),
+            options.clone(),
+            TaskEvents::default(),
+        )
+        .unwrap();
+        let wrapper = fs::read_to_string(bundle.gem_home.join("bin/shared")).unwrap();
+        assert!(
+            wrapper.contains("Gem.activate_bin_path(\"zulu\""),
+            "{wrapper}"
+        );
+        if name == "two" {
+            assert_eq!(bundle.installed, 0);
+        }
+    }
 }

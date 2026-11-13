@@ -212,15 +212,40 @@ impl PackageIndex for RegistryIndex {
                                 .clients
                                 .get(source)
                                 .context("Unknown locked registry source")?;
-                            let records = client
-                                .info(&package.package.id.name)?
-                                .into_iter()
-                                .filter(|info| info.version == package.archive_version)
-                                .map(|info| {
-                                    PackageRecord::from_info(&package.package.id.name, source, info)
+                            let select = |records: Vec<rb_compact_index::GemInfo>| {
+                                let records = records
+                                    .into_iter()
+                                    .filter(|info| info.version == package.archive_version)
+                                    .map(|info| {
+                                        PackageRecord::from_info(
+                                            &package.package.id.name,
+                                            source,
+                                            info,
+                                        )
+                                    })
+                                    .collect::<Result<Vec<_>>>()?;
+                                crate::provider::select_locked(package, records)
+                            };
+                            if let Some(record) = client
+                                .cached_info(&package.package.id.name)
+                                .ok()
+                                .flatten()
+                                .and_then(|records| select(records).ok())
+                                .filter(|record| {
+                                    record.validate().is_ok()
+                                        && crate::validation::same_dependencies(
+                                            &package.package.dependencies,
+                                            &record.package.dependencies,
+                                        )
+                                        && (package.checksum.bytes().all(|byte| byte == b'0')
+                                            || package
+                                                .checksum
+                                                .eq_ignore_ascii_case(&record.checksum))
                                 })
-                                .collect::<Result<Vec<_>>>()?;
-                            crate::provider::select_locked(package, records)
+                            {
+                                return Ok(record);
+                            }
+                            select(client.info(&package.package.id.name)?)
                         })();
                         results.lock().unwrap().insert(position, result);
                     }

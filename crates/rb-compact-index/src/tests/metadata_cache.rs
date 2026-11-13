@@ -145,3 +145,62 @@ fn last_versions_entry_controls_metadata_freshness_and_missing_checksum_revalida
         ]
     );
 }
+
+#[test]
+fn cached_lookup_does_not_refresh_or_pin_later_online_lookups() {
+    let server = Server::new();
+    let body = info("1.0");
+    server
+        .responses
+        .lock()
+        .unwrap()
+        .insert("/info/app".into(), body.into_bytes());
+    let cache = tempfile::tempdir().unwrap();
+    let client = Client::new(&server.source, cache.path(), false).unwrap();
+    assert!(client.cached_info("app").unwrap().is_none());
+    assert!(server.requests.lock().unwrap().is_empty());
+    client.info("app").unwrap();
+    server.requests.lock().unwrap().clear();
+    let client = Client::new(&server.source, cache.path(), false).unwrap();
+    assert_eq!(
+        client.cached_info("app").unwrap().unwrap()[0].version,
+        "1.0"
+    );
+    assert!(server.requests.lock().unwrap().is_empty());
+    server.revalidate.store(false, Ordering::Relaxed);
+    server
+        .responses
+        .lock()
+        .unwrap()
+        .insert("/info/app".into(), info("2.0").into_bytes());
+    assert_eq!(client.info("app").unwrap()[0].version, "2.0");
+    assert_eq!(*server.requests.lock().unwrap(), ["/versions", "/info/app"]);
+    drop(server);
+    assert_eq!(
+        Client::new(client.source(), cache.path(), false)
+            .unwrap()
+            .cached_info("app")
+            .unwrap()
+            .unwrap()[0]
+            .version,
+        "2.0"
+    );
+}
+
+#[test]
+fn malformed_compact_cache_preserves_the_offline_full_index_fallback() {
+    let cache = tempfile::tempdir().unwrap();
+    let source = "https://gems.example.test/";
+    let directory = cache.path().join("index").join(checksum(source.as_bytes()));
+    fs::create_dir_all(&directory).unwrap();
+    fs::write(directory.join("app.json"), "invalid JSON").unwrap();
+    let expected = parse("app", &info("1.0")).unwrap();
+    fs::write(
+        directory.join("app.full-platforms.json"),
+        serde_json::to_vec(&expected).unwrap(),
+    )
+    .unwrap();
+    let client = Client::new(source, cache.path(), true).unwrap();
+    assert_eq!(client.cached_info("app").unwrap(), Some(expected.clone()));
+    assert_eq!(client.info("app").unwrap(), expected);
+}

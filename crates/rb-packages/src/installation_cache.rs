@@ -145,6 +145,14 @@ impl Entry {
             }
             copy_tree(&self.home().join(extension), &target)?;
         }
+        let receipt = normalized_receipt(&installed.receipt)?;
+        if receipt != installed.receipt {
+            installed.receipt = receipt;
+            fs::write(
+                self.gem().join(INSTALL_RECEIPT),
+                serde_json::to_vec(&installed)?,
+            )?;
+        }
         installed.cache_dependencies = if manifest.metadata.extensions.is_empty() {
             Vec::new()
         } else {
@@ -156,7 +164,6 @@ impl Entry {
             slot.directory.join(INSTALL_RECEIPT),
             serde_json::to_vec(&installed)?,
         )?;
-        crate::wrappers::wrappers(home, &manifest.metadata)?;
         slot.gem = Some(installed.gem);
         slot.metadata = Some(manifest.metadata);
         slot.staging = None;
@@ -224,11 +231,7 @@ fn normalized_source(source: &PackageSource) -> Result<PackageSource> {
 }
 
 fn key(receipt: &Receipt, full_name: &str, runtime: &RubyEnvironment) -> Result<String> {
-    let mut receipt = receipt.clone();
-    receipt.source = normalized_source(&receipt.source)?;
-    for (source, _, _) in receipt.dependencies.values_mut() {
-        *source = normalized_source(source)?;
-    }
+    let receipt = normalized_receipt(receipt)?;
     let bytes = serde_json::to_vec(&(
         &receipt,
         full_name,
@@ -240,6 +243,15 @@ fn key(receipt: &Receipt, full_name: &str, runtime: &RubyEnvironment) -> Result<
     ))
     .context("Identifying cached installation")?;
     Ok(format!("{:x}", Sha256::digest(bytes)))
+}
+
+pub(crate) fn normalized_receipt(receipt: &Receipt) -> Result<Receipt> {
+    let mut receipt = receipt.clone();
+    receipt.source = normalized_source(&receipt.source)?;
+    for (source, _, _) in receipt.dependencies.values_mut() {
+        *source = normalized_source(source)?;
+    }
+    Ok(receipt)
 }
 
 #[cfg(test)]

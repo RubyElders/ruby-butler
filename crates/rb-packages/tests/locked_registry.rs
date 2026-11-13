@@ -123,3 +123,99 @@ fn locked_registry_metadata_requests_overlap() {
         assert!(server.join().unwrap(), "Metadata was fetched serially");
     }
 }
+
+#[test]
+fn locked_graph_reuses_source_metadata_across_projects_without_freezing_group_settings() {
+    let server = Server::new(BTreeMap::from([(
+        "/info/water".into(),
+        format!("---\n1.0 |checksum:{}\n", "a".repeat(64)).into_bytes(),
+    )]));
+    let manifest = manifest(&server.url, "water={version='>= 0',groups=['test']}");
+    let runtime = runtime();
+    let mut records = MemoryIndex::default();
+    let mut water = record("water", "1.0", &[]);
+    water.source = server.url.clone().into();
+    add(&mut records, water);
+    let initial = plan(&manifest, &runtime, None, &records, &PlanOptions::default()).unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    let index = RegistryIndex::new(&manifest, cache.path(), false).unwrap();
+    plan(
+        &manifest,
+        &runtime,
+        Some(&initial.lockfile),
+        &index,
+        &PlanOptions::default(),
+    )
+    .unwrap();
+    let requests = server.requests.lock().unwrap().clone();
+    drop(server);
+    let index = RegistryIndex::new(&manifest, cache.path(), false).unwrap();
+    let without = PlanOptions {
+        without: ["test".into()].into(),
+        ..Default::default()
+    };
+    let next = plan(
+        &manifest,
+        &runtime,
+        Some(&initial.lockfile),
+        &index,
+        &without,
+    )
+    .unwrap();
+    assert_eq!(next.lockfile, initial.lockfile);
+    assert!(!next.packages[0].install);
+    let normal = plan(
+        &manifest,
+        &runtime,
+        Some(&initial.lockfile),
+        &index,
+        &PlanOptions::default(),
+    )
+    .unwrap();
+    assert!(normal.packages[0].install);
+    assert_eq!(requests, ["/versions", "/info/water"]);
+    let source = cache.path().join("index");
+    let directory = std::fs::read_dir(source)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let cached: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(directory.join("water.json")).unwrap()).unwrap();
+    assert_eq!(cached.as_object().unwrap().len(), 2);
+    assert!(cached.get("body").is_some());
+    assert!(cached.get("etag").is_some());
+}
+
+#[test]
+fn locked_metadata_mismatch_fetches_replacement_and_explicit_updates_refresh_sources() {
+    let server = Server::new(BTreeMap::from([(
+        "/info/water".into(),
+        format!("---\n1.0 |checksum:{}\n", "a".repeat(64)).into_bytes(),
+    )]));
+    let manifest = manifest(&server.url, "water='>= 0'");
+    let runtime = runtime();
+    let cache = tempfile::tempdir().unwrap();
+    let index = RegistryIndex::new(&manifest, cache.path(), false).unwrap();
+    let first = plan(&manifest, &runtime, None, &index, &PlanOptions::default()).unwrap();
+    let before = server.requests.lock().unwrap().len();
+    let index = RegistryIndex::new(&manifest, cache.path(), false).unwrap();
+    let mut altered = first.lockfile.clone();
+    let sums = altered.checksums.as_mut().unwrap();
+    *sums.values_mut().next().unwrap() = Some("b".repeat(64));
+    let locked = PlanOptions {
+        mode: rb_packages::LockMode::Locked,
+        ..Default::default()
+    };
+    assert!(plan(&manifest, &runtime, Some(&altered), &index, &locked).is_err());
+    assert!(server.requests.lock().unwrap().len() > before);
+    let before = server.requests.lock().unwrap().len();
+    let index = RegistryIndex::new(&manifest, cache.path(), false).unwrap();
+    let update = PlanOptions {
+        mode: rb_packages::LockMode::Update,
+        ..Default::default()
+    };
+    plan(&manifest, &runtime, Some(&first.lockfile), &index, &update).unwrap();
+    assert!(server.requests.lock().unwrap().len() > before);
+}

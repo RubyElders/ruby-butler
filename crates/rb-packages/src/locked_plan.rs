@@ -138,16 +138,10 @@ pub(crate) fn plan(
             record.package.id
         );
         ensure!(
-            expected.package.dependencies.len() == record.package.dependencies.len()
-                && expected
-                    .package
-                    .dependencies
-                    .iter()
-                    .all(
-                        |(name, required)| record.package.dependencies.get(name).is_some_and(
-                            |actual| crate::validation::same_requirement(required, actual)
-                        )
-                    ),
+            crate::validation::same_dependencies(
+                &expected.package.dependencies,
+                &record.package.dependencies
+            ),
             "Locked dependency metadata changed for {}",
             record.package.id
         );

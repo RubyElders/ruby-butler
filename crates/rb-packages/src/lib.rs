@@ -19,6 +19,7 @@ mod locked_plan;
 mod output_lines;
 mod package_build;
 mod package_install;
+mod package_restore;
 mod package_source;
 mod plan;
 mod prepare;

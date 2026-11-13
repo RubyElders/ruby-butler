@@ -83,7 +83,11 @@ pub(crate) fn build(
     fs::write(
         root.join(INSTALL_RECEIPT),
         serde_json::to_vec(&InstalledReceipt {
-            receipt: slot.receipt.clone(),
+            receipt: if root == slot.directory {
+                crate::installation_cache::normalized_receipt(&slot.receipt)?
+            } else {
+                slot.receipt.clone()
+            },
             gem: gem.clone(),
             files: payload_files
                 .into_iter()

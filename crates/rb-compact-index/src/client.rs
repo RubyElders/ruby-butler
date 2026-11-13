@@ -109,6 +109,26 @@ impl Client {
         self.fetch_info(name, true)
     }
 
+    /// Reads existing source metadata without refreshing the registry.
+    pub fn cached_info(&self, name: &str) -> Result<Option<Vec<GemInfo>>> {
+        validate_name(name)?;
+        let directory = self
+            .cache
+            .join(INDEX_CACHE_DIRECTORY)
+            .join(checksum(self.source.as_bytes()));
+        let cached: Option<CachedInfo> = fs::read(directory.join(format!("{name}.json")))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+        if let Some(cached) = cached {
+            return Ok(Some(parse(name, &cached.body)?));
+        }
+        match fs::read(directory.join(format!("{name}{FULL_INFO_CACHE_SUFFIX}"))) {
+            Ok(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
     fn fetch_info(&self, name: &str, allow_missing: bool) -> Result<Vec<GemInfo>> {
         validate_name(name)?;
         let directory = self
@@ -131,24 +151,15 @@ impl Client {
     }
 
     fn read_info(&self, name: &str, allow_missing: bool, directory: &Path) -> Result<Vec<GemInfo>> {
+        if self.offline {
+            return self
+                .cached_info(name)?
+                .context(format!("No cached metadata for {name} (offline)"));
+        }
         let path = directory.join(format!("{name}.json"));
         let cached: Option<CachedInfo> = fs::read(&path)
             .ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok());
-        if self.offline {
-            if cached.is_none() {
-                let full = directory.join(format!("{name}{FULL_INFO_CACHE_SUFFIX}"));
-                if full.exists() {
-                    return Ok(serde_json::from_slice(&fs::read(full)?)?);
-                }
-            }
-            return parse(
-                name,
-                &cached
-                    .context(format!("No cached metadata for {name} (offline)"))?
-                    .body,
-            );
-        }
         let versions = self.versions()?;
         let expected = versions.and_then(|versions| versions.checksums.get(name));
         if versions.is_some()
