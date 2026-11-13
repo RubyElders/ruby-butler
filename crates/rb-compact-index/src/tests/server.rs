@@ -90,7 +90,7 @@ impl Drop for Server {
     }
 }
 
-fn read_request(stream: &mut std::net::TcpStream) -> std::io::Result<Vec<u8>> {
+pub(super) fn read_request(stream: &mut std::net::TcpStream) -> std::io::Result<Vec<u8>> {
     stream.set_nonblocking(false)?;
     stream.set_read_timeout(Some(Duration::from_secs(5)))?;
     let mut request = Vec::new();

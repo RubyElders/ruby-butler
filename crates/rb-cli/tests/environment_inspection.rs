@@ -174,10 +174,18 @@ fn inspection_respects_project_config_working_directory_and_external_gemfile() {
     assert_eq!(report["schema_version"], 1);
     assert_eq!(report["command"], "info.env");
     let value = &report["data"];
-    assert_eq!(value["working_directory"], child.to_string_lossy().as_ref());
+    assert_eq!(
+        value["working_directory"],
+        child.canonicalize().unwrap().to_string_lossy().as_ref()
+    );
     assert_eq!(
         value["project"]["project_file"],
-        child.join("custom.toml").to_string_lossy().as_ref()
+        child
+            .join("custom.toml")
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .as_ref()
     );
     assert_eq!(value["ruby"]["version"], "3.4.10");
     fs::write(child.join("Dependencies"), "raise 'must not evaluate'\n").unwrap();
@@ -195,7 +203,12 @@ fn inspection_respects_project_config_working_directory_and_external_gemfile() {
     let value = &report["data"];
     assert_eq!(
         value["project"]["gemfile"],
-        child.join("Dependencies").to_string_lossy().as_ref()
+        child
+            .join("Dependencies")
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .as_ref()
     );
 }
 
@@ -257,12 +270,14 @@ fn both_backends_probe_the_external_gemfile_and_its_lockfile() {
         let value = &report["data"];
         assert_eq!(
             value["project"]["root"],
-            external.to_string_lossy().as_ref()
+            external.canonicalize().unwrap().to_string_lossy().as_ref()
         );
         assert_eq!(
             value["cache"]["lockfile"],
             external
                 .join("Dependencies.lock")
+                .canonicalize()
+                .unwrap()
                 .to_string_lossy()
                 .as_ref()
         );

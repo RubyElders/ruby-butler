@@ -81,7 +81,7 @@ pub fn add_archive_with_ruby(
     files: &[(&str, &[u8])],
     ruby: &str,
 ) {
-    let metadata = serde_json::json!({ "name": name, "version": "1.0.0", "platform": "ruby", "required_ruby_version": ruby, "dependencies": dependencies.iter().map(|(n,r)| serde_json::json!({"name":n,"requirement": {"requirements": [[">=", {"version":r.trim_start_matches(">= ")}]]}, "type":"runtime"})).collect::<Vec<_>>(), "require_paths": ["lib"], "extensions": extensions, "files": files.iter().map(|(p,_)| *p).collect::<Vec<_>>(), "executables": if files.iter().any(|(p,_)| p.starts_with("bin/")) { vec![name] } else { vec![] }, "bindir":"bin" });
+    let metadata = serde_json::json!({ "name": name, "version": "1.0.0", "platform": "ruby", "required_ruby_version": ruby, "dependencies": dependencies.iter().map(|(n,r)| serde_json::json!({"name":n,"requirement": {"requirements": [[">=", {"version":r.trim_start_matches(">= ")}]]}, "type":"runtime"})).collect::<Vec<_>>(), "require_paths": ["lib"], "extensions": extensions, "files": files.iter().map(|(p,_)| *p).collect::<Vec<_>>(), "executables": files.iter().filter_map(|(path, _)| path.strip_prefix("bin/")).collect::<Vec<_>>(), "bindir":"bin" });
     let payload = tar(files);
     let archive = tar(&[
         (

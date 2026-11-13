@@ -139,7 +139,7 @@ pub fn install(
                 } else {
                     None
                 };
-                let mut slot = Slot {
+                let slot = Slot {
                     directory,
                     record: record.clone(),
                     archive: None,
@@ -151,17 +151,6 @@ pub fn install(
                     gem,
                     dependencies: dependencies(&records, &record.package.id.name),
                 };
-                if !slot.reused
-                    && let Some(cache) = &options.cache
-                    && let Some(entry) = crate::installation_cache::Entry::try_open(
-                        cache,
-                        &slot.receipt,
-                        slot.directory.file_name().unwrap().to_str().unwrap(),
-                        &runtime,
-                    )?
-                {
-                    entry.restore(&mut slot, &staged_home, record, &runtime)?;
-                }
                 slots.insert(record.package.id.name.clone(), Arc::new(Mutex::new(slot)));
             }
             let slots = Arc::new(slots);
@@ -177,9 +166,14 @@ pub fn install(
             ))
         })?;
     let _installation_lock = lockfile;
+    crate::package_restore::restore(&slots, &staged_home, &runtime, &options, events.clone())?;
     let mut graph = TaskGraph::new();
     let mut actions: BTreeMap<_, TaskAction> = BTreeMap::new();
-    for planned in plan.packages.iter().filter(|p| p.install) {
+    for planned in plan
+        .packages
+        .iter()
+        .filter(|p| p.install && !slots[&p.record.package.id.name].lock().unwrap().reused)
+    {
         let record = planned.record.clone();
         let name = record.package.id.name.clone();
         let download = graph.add(format!("download {}", record.package.id), []);
@@ -289,7 +283,7 @@ pub fn install(
     let mut pending: BTreeMap<_, _> = plan
         .packages
         .iter()
-        .filter(|p| p.install)
+        .filter(|p| p.install && !slots[&p.record.package.id.name].lock().unwrap().reused)
         .map(|p| (p.record.package.id.name.clone(), p.record.clone()))
         .collect();
     let mut dependents: BTreeMap<String, usize> = BTreeMap::new();
@@ -298,6 +292,11 @@ pub fn install(
             *dependents.entry(dependency.clone()).or_default() += 1;
         }
     }
+    let available: std::collections::BTreeSet<_> = slots
+        .iter()
+        .filter(|(_, slot)| slot.lock().unwrap().reused)
+        .map(|(name, _)| name.clone())
+        .collect();
     let mut completed = BTreeMap::new();
     while !pending.is_empty() {
         let mut ready: Vec<_> = pending
@@ -309,7 +308,10 @@ pub fn install(
                         .metadata
                         .as_ref()
                         .is_some_and(|m| m.extensions.is_empty())
-                    || slot.dependencies.iter().all(|d| completed.contains_key(d))
+                    || slot
+                        .dependencies
+                        .iter()
+                        .all(|d| completed.contains_key(d) || available.contains(d))
             })
             .map(|(name, _)| name.clone())
             .collect();
@@ -364,6 +366,14 @@ pub fn install(
         }
     }
     Executor::new(options.workers, events.clone()).run(graph, actions)?;
+    for slot in slots.values() {
+        let slot = slot.lock().unwrap();
+        if slot.restored
+            && let Some(metadata) = &slot.metadata
+        {
+            crate::wrappers::wrappers(&staged_home, metadata)?;
+        }
+    }
     let mut reused = 0;
     for slot in slots.values() {
         if slot.lock().unwrap().reused {
