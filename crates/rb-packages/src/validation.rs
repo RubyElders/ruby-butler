@@ -77,3 +77,15 @@ pub(crate) fn same_requirement(
             .constraints()
             .all(|constraint| left.constraints().any(|other| constraint == other))
 }
+
+pub(crate) fn same_dependencies(
+    left: &std::collections::BTreeMap<String, rb_gem_types::Requirement>,
+    right: &std::collections::BTreeMap<String, rb_gem_types::Requirement>,
+) -> bool {
+    left.len() == right.len()
+        && left.iter().all(|(name, required)| {
+            right
+                .get(name)
+                .is_some_and(|actual| same_requirement(required, actual))
+        })
+}

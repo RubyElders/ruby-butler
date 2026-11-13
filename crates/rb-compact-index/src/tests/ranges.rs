@@ -28,15 +28,7 @@ fn serve(replies: Vec<Vec<u8>>) -> (String, thread::JoinHandle<Vec<String>>) {
                     Err(error) => panic!("{error}"),
                 }
             };
-            let mut request = Vec::new();
-            stream
-                .set_read_timeout(Some(Duration::from_secs(5)))
-                .unwrap();
-            while !request.ends_with(b"\r\n\r\n") {
-                let mut byte = [0];
-                assert_eq!(stream.read(&mut byte).unwrap(), 1);
-                request.push(byte[0]);
-            }
+            let request = super::server::read_request(&mut stream).unwrap();
             requests.push(String::from_utf8(request).unwrap());
             stream.write_all(&reply).unwrap();
         }
@@ -177,5 +169,29 @@ fn not_modified_without_cached_versions_is_an_error() {
             .unwrap()
             .names()
             .is_err()
+    );
+}
+
+#[test]
+fn range_server_reads_a_fragmented_request() {
+    let reply = response("200 OK", b"---\napp 1.0 a\n", "");
+    let (source, server) = serve(vec![reply.clone()]);
+    let address = source
+        .strip_prefix("http://")
+        .unwrap()
+        .trim_end_matches('/');
+    let mut stream = std::net::TcpStream::connect(address).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    stream.write_all(b"GET /versions HTTP/1.1\r\n").unwrap();
+    thread::sleep(Duration::from_millis(20));
+    stream.write_all(b"Host: localhost\r\n\r\n").unwrap();
+    let mut received = Vec::new();
+    stream.read_to_end(&mut received).unwrap();
+    assert_eq!(received, reply);
+    assert_eq!(
+        server.join().unwrap(),
+        ["GET /versions HTTP/1.1\r\nHost: localhost\r\n\r\n"]
     );
 }
