@@ -5,7 +5,7 @@ use crate::{
     package_install::install_slot,
     receipt::{InstalledReceipt, Receipt},
     slot::Slot,
-    validation::{ensure_record, verify},
+    validation::ensure_record,
 };
 use anyhow::{Context, Result, ensure};
 use rb_task::{Executor, TaskAction, TaskEvents, TaskGraph};
@@ -25,7 +25,11 @@ pub fn install(
     options: InstallOptions,
     events: TaskEvents,
 ) -> Result<InstalledBundle> {
-    let project = project.to_owned();
+    ensure!(options.workers > 0, "Worker count must be positive");
+    fs::create_dir_all(project)?;
+    let project = dunce::canonicalize(project)?;
+    let build_dependencies = crate::BundleLayout::build_dependencies(&project);
+    let init_build_dependencies = build_dependencies.clone();
     let init_plan = plan.clone();
     let init_runtime = runtime.clone();
     let (bundle, home, lockfile, transaction, staged_home, runtime, options, slots) =
@@ -34,7 +38,6 @@ pub fn install(
             let plan = &init_plan;
             let runtime = &init_runtime;
             let options = options.clone();
-            ensure!(options.workers > 0, "Worker count must be positive");
             let layout =
                 crate::BundleLayout::new(project, &runtime.engine, &runtime.version.to_string());
             let bundle = layout.bundle;
@@ -105,6 +108,14 @@ pub fn install(
                 let registered = fs::read(directory.join(INSTALL_RECEIPT))
                     .ok()
                     .and_then(|b| serde_json::from_slice::<InstalledReceipt>(&b).ok());
+                if let Some(previous) = &registered {
+                    receipt.build_directory = previous
+                        .receipt
+                        .build_directory
+                        .as_ref()
+                        .filter(|path| *path == &init_build_dependencies)
+                        .cloned();
+                }
                 let reused = registered.as_ref().is_some_and(|previous| {
                     previous.receipt == receipt
                         && previous
@@ -142,7 +153,7 @@ pub fn install(
                 let slot = Slot {
                     directory,
                     record: record.clone(),
-                    archive: None,
+                    input: None,
                     metadata: None,
                     staging: None,
                     reused,
@@ -176,8 +187,14 @@ pub fn install(
     {
         let record = planned.record.clone();
         let name = record.package.id.name.clone();
-        let download = graph.add(format!("download {}", record.package.id), []);
-        let extract = graph.add(format!("extract {}", record.package.id), [download]);
+        let (download_phase, extract_phase) =
+            if matches!(record.source, crate::PackageSource::Registry(_)) {
+                ("download", "extract")
+            } else {
+                ("prepare", "stage")
+            };
+        let download = graph.add(format!("{download_phase} {}", record.package.id), []);
+        let extract = graph.add(format!("{extract_phase} {}", record.package.id), [download]);
         let index = index.clone();
         let slot_download = slots[&name].clone();
         let download_record = record.clone();
@@ -186,14 +203,13 @@ pub fn install(
             Arc::new(move |context| {
                 let mut slot = slot_download.lock().unwrap();
                 if !slot.reused {
-                    let path = index
-                        .archive(&download_record)
+                    let input = index
+                        .input(&download_record)
                         .map_err(|e| format!("{e:#}"))?;
-                    verify(&path, &download_record.checksum).map_err(|e| format!("{e:#}"))?;
-                    slot.archive = Some(path);
+                    slot.input = Some(input);
                 }
                 context.progress(
-                    "download",
+                    download_phase,
                     1,
                     1,
                     Some(if slot.reused {
@@ -220,15 +236,16 @@ pub fn install(
                     .tempdir_in(home_extract.as_path())
                     .map_err(|e| e.to_string())?;
                 let directory = staging.path().join("gem");
-                let metadata = rb_gem_installer::install(
-                    fs::File::open(slot.archive.as_ref().unwrap()).map_err(|e| e.to_string())?,
-                    &directory,
-                )
-                .map_err(|e| format!("{e:#}"))?;
+                let metadata = slot
+                    .input
+                    .take()
+                    .unwrap()
+                    .stage(&directory, &record.checksum)
+                    .map_err(|e| format!("{e:#}"))?;
                 ensure_record(&metadata, &record, &ruby).map_err(|e| format!("{e:#}"))?;
                 slot.staging = Some(staging);
                 slot.metadata = Some(metadata);
-                context.progress("extract", 1, 1, Some(name.clone()));
+                context.progress(extract_phase, 1, 1, Some(name.clone()));
                 Ok(())
             }),
         );
@@ -356,11 +373,20 @@ pub fn install(
             let home = staged_home.clone();
             let runtime = runtime.clone();
             let options = options.clone();
+            let build_dependencies = build_dependencies.clone();
             actions.insert(
                 id,
                 Arc::new(move |context| {
-                    install_slot(&slots, &name, &home, &runtime, &options, &context)
-                        .map_err(|e| format!("{e:#}"))
+                    install_slot(
+                        &slots,
+                        &name,
+                        &home,
+                        &build_dependencies,
+                        &runtime,
+                        &options,
+                        &context,
+                    )
+                    .map_err(|e| format!("{e:#}"))
                 }),
             );
         }

@@ -173,7 +173,7 @@ fn inline_source_credentials_are_not_part_of_public_cache_keys() {
 }
 
 #[test]
-fn git_sources_without_observed_gemspec_inputs_cannot_have_an_exact_key() {
+fn git_sources_have_artifact_keys_without_fetching_or_evaluating_the_repository() {
     let root = tempfile::tempdir().unwrap();
     fs::write(
         root.path().join("Gemfile"),
@@ -182,7 +182,16 @@ fn git_sources_without_observed_gemspec_inputs_cannot_have_an_exact_key() {
     .unwrap();
     fs::write(root.path().join("Gemfile.lock"), "fixture\n").unwrap();
     let result = inspect_cache(&options(root.path())).unwrap();
-    assert!(!result.complete);
-    assert!(result.fingerprint.is_none());
+    assert!(result.complete);
+    assert_eq!(result.fingerprint.as_ref().unwrap().len(), 64);
     assert_eq!(result.compatibility.len(), 64);
+    fs::write(
+        root.path().join("Gemfile.lock"),
+        "another locked revision\n",
+    )
+    .unwrap();
+    assert_ne!(
+        result.fingerprint,
+        inspect_cache(&options(root.path())).unwrap().fingerprint
+    );
 }

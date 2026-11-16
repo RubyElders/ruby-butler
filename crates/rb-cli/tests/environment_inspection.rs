@@ -122,6 +122,27 @@ fn probe_reports_backend_installation_and_tracks_selected_dependency_helpers() {
         assert_eq!(first["ruby"]["installed"], true);
         assert_eq!(first["cache"]["fingerprint"].as_str().unwrap().len(), 64);
         let path = first["cache"]["paths"][0].as_str().unwrap();
+        let paths: Vec<_> = first["cache"]["paths"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|path| std::path::Path::new(path.as_str().unwrap()))
+            .collect();
+        for directory in ["git", "gems", "index", "installations-v1"] {
+            assert!(paths.iter().any(|path| path.ends_with(directory)));
+        }
+        assert!(
+            !paths
+                .iter()
+                .any(|path| path.ends_with("config") || path.ends_with("prepared.json"))
+        );
+        if backend == "native" {
+            assert!(
+                paths
+                    .iter()
+                    .any(|path| path.ends_with(".rb/build-dependencies"))
+            );
+        }
         assert!(path.contains(if backend == "bundler" {
             "/.rb/vendor/bundler"
         } else {

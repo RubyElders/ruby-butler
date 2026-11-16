@@ -8,6 +8,12 @@ pub struct BundleLayout {
 }
 
 impl BundleLayout {
+    pub fn build_dependencies(project: &Path) -> PathBuf {
+        project
+            .join(STATE_DIRECTORY)
+            .join(crate::constants::BUILD_DEPENDENCIES_DIRECTORY)
+    }
+
     pub fn new(project: &Path, engine: &str, version: &str) -> Self {
         let bundle = project.join(STATE_DIRECTORY).join(GEM_HOME_DIRECTORY);
         let abi = version.split('.').take(2).collect::<Vec<_>>().join(".") + ".0";

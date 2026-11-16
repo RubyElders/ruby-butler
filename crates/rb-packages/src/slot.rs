@@ -10,7 +10,7 @@ pub(crate) type Slots = BTreeMap<String, Arc<Mutex<Slot>>>;
 pub(crate) struct Slot {
     pub(crate) directory: PathBuf,
     pub(crate) record: crate::PackageRecord,
-    pub(crate) archive: Option<PathBuf>,
+    pub(crate) input: Option<crate::PackageInput>,
     pub(crate) metadata: Option<rb_gem_archive::GemMetadata>,
     pub(crate) staging: Option<tempfile::TempDir>,
     pub(crate) reused: bool,

@@ -80,7 +80,7 @@ fn name(value: &str) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn parse(bytes: &[u8]) -> Result<GemMetadata> {
+pub fn parse(bytes: &[u8]) -> Result<GemMetadata> {
     let document: Value = serde_yaml_ng::from_slice(bytes).context("Reading gem metadata")?;
     let spec = untag(&document);
     ensure!(spec.is_mapping(), "Gem metadata must be a mapping");

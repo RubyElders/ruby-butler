@@ -28,6 +28,11 @@ pub(crate) fn build(
     );
     let mut build = options.build.clone();
     build.ruby = runtime.executable.clone();
+    let cache_dependencies = dependencies
+        .iter()
+        .map(|gem| gem.root.join(INSTALL_RECEIPT))
+        .filter(|path| path.is_file())
+        .collect();
     build.dependencies.extend(dependencies);
     let report = if metadata.extensions.is_empty() {
         None
@@ -94,7 +99,7 @@ pub(crate) fn build(
                 .chain(artifacts.iter().cloned())
                 .collect(),
             build_artifacts: artifacts.to_vec(),
-            cache_dependencies: Vec::new(),
+            cache_dependencies,
             extension: (!metadata.extensions.is_empty()).then(|| {
                 PathBuf::from(crate::constants::EXTENSIONS_DIRECTORY)
                     .join(&runtime.platform)

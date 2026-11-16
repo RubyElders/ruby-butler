@@ -1,14 +1,10 @@
 use crate::{PackageRecord, PackageSource, source_specs::SourceSpecification};
 use anyhow::{Result, ensure};
-use sha2::{Digest, Sha256};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 pub(crate) struct SourcePackage {
     pub(crate) record: PackageRecord,
-    pub(crate) archive: PathBuf,
+    pub(crate) metadata: rb_gem_archive::GemMetadata,
     pub(crate) directory: PathBuf,
     pub(crate) gemspec: PathBuf,
     pub(crate) serialized: String,
@@ -23,7 +19,6 @@ impl SourcePackage {
         spec: SourceSpecification,
         source: &PackageSource,
         directory: &Path,
-        cache: &Path,
         snapshot: &str,
     ) -> Result<Self> {
         let gem_root = directory.join(spec.gemspec.parent().unwrap());
@@ -33,9 +28,11 @@ impl SourcePackage {
         );
         let inputs = spec.tracked_paths(directory)?;
         let payload = spec.payload(&gem_root)?;
-        let bytes = crate::source_archive::archive(&gem_root, &spec.metadata, &payload)?;
-        let checksum = format!("{:x}", Sha256::digest(&bytes));
-        let metadata = rb_gem_archive::read(bytes.as_slice())?;
+        let metadata = rb_gem_archive::parse_metadata(spec.metadata.as_bytes())?;
+        let checksum = crate::PackageInput::checksum(
+            &metadata,
+            &crate::source_files::fingerprint(&gem_root, &payload)?,
+        )?;
         let record = PackageRecord {
             archive_version: metadata.id.archive_version(),
             package: rb_resolver::Package {
@@ -44,24 +41,14 @@ impl SourcePackage {
                 ruby: metadata.ruby.clone(),
             },
             source: source.clone(),
-            checksum: checksum.clone(),
+            checksum,
             declared_ruby: Some(metadata.ruby.clone()),
-            rubygems: Some(metadata.rubygems),
+            rubygems: Some(metadata.rubygems.clone()),
         };
         record.validate()?;
-        let artifact = cache
-            .join(crate::constants::SOURCE_ARCHIVES_DIRECTORY)
-            .join(format!("{checksum}.gem"));
-        fs::create_dir_all(artifact.parent().unwrap())?;
-        if crate::validation::verify(&artifact, &checksum).is_err() {
-            use std::io::Write;
-            let mut temporary = tempfile::NamedTempFile::new_in(artifact.parent().unwrap())?;
-            temporary.write_all(&bytes)?;
-            temporary.persist(&artifact).map_err(|error| error.error)?;
-        }
         Ok(Self {
             record,
-            archive: artifact,
+            metadata,
             directory: directory.to_owned(),
             gemspec: spec.gemspec,
             serialized: spec.specification,

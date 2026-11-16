@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod build_dependencies;
 mod build_tools;
 mod bundle_layout;
 mod bundler_credentials;
@@ -18,6 +19,7 @@ mod installed_bundle;
 mod locked_plan;
 mod output_lines;
 mod package_build;
+mod package_input;
 mod package_install;
 mod package_restore;
 mod package_source;
@@ -29,7 +31,6 @@ mod receipt;
 mod registry_index;
 mod runtime;
 mod slot;
-mod source_archive;
 mod source_compatibility;
 mod source_files;
 mod source_index;
@@ -44,11 +45,12 @@ mod validation;
 mod wrappers;
 
 pub use bundle_layout::BundleLayout;
-pub use cache::{CacheInputs, inspect_cache, inspect_gemfile_cache};
+pub use cache::{CacheInputs, cache_paths, inspect_cache, inspect_gemfile_cache};
 pub use input::ProjectInput;
 pub use install::install;
 pub use install_options::InstallOptions;
 pub use installed_bundle::InstalledBundle;
+pub use package_input::PackageInput;
 pub use plan::{LockMode, PackagePlan, PlanOptions, PlannedPackage, plan};
 pub use prepare::{PrepareOptions, PreparedBundle, prepare};
 pub use prepared_state::{prepared, prepared_for_sync};

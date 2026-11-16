@@ -5,8 +5,22 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
+
+pub fn cache_paths(cache: &Path) -> Vec<PathBuf> {
+    rb_compact_index::cache_paths(cache)
+        .into_iter()
+        .chain(
+            [
+                crate::constants::GIT_CACHE_DIRECTORY,
+                crate::constants::INSTALLATION_CACHE_DIRECTORY,
+            ]
+            .into_iter()
+            .map(|directory| cache.join(directory)),
+        )
+        .collect()
+}
 
 #[derive(Serialize)]
 pub struct CacheInputs {
@@ -78,15 +92,6 @@ fn inspect(options: &PrepareOptions, kind: InputKind) -> Result<CacheInputs> {
                 .flat_map(|dependency| dependency.source.iter().chain(&dependency.git))
         }))
         .any(|source| credential_url(source))
-    {
-        return Ok(result);
-    }
-    if input
-        .manifest
-        .dependencies
-        .values()
-        .flat_map(|dependency| std::iter::once(dependency).chain(&dependency.variants))
-        .any(|dependency| dependency.enabled && dependency.git.is_some())
     {
         return Ok(result);
     }

@@ -27,5 +27,6 @@ toml = "0.8"
 kdl = "6"
 url = "2"
 
+[dev-dependencies]
 flate2 = "1"
 tar = "0.4"

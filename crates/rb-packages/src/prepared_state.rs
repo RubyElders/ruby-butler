@@ -227,8 +227,9 @@ impl Candidate {
         let cache_dependencies = installation_metadata
             .iter()
             .filter(|path| {
-                path.file_name()
-                    .is_some_and(|name| name == crate::constants::INSTALLATION_CACHE_MANIFEST)
+                path.starts_with(crate::BundleLayout::build_dependencies(
+                    &prepared.input.root,
+                ))
             })
             .cloned()
             .collect();

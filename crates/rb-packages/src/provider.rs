@@ -93,6 +93,9 @@ impl PackageRecord {
 pub trait PackageIndex: Send + Sync {
     fn candidates(&self, name: &str) -> Result<Vec<PackageRecord>>;
     fn archive(&self, record: &PackageRecord) -> Result<PathBuf>;
+    fn input(&self, record: &PackageRecord) -> Result<crate::PackageInput> {
+        Ok(crate::PackageInput::Archive(self.archive(record)?))
+    }
     fn locked_records(&self, packages: &[PackageRecord]) -> Result<Vec<PackageRecord>> {
         packages
             .iter()

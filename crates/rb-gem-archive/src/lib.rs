@@ -8,3 +8,4 @@ mod metadata;
 
 pub use archive::read;
 pub use gem_metadata::GemMetadata;
+pub use metadata::parse as parse_metadata;
