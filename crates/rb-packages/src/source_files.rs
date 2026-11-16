@@ -107,6 +107,36 @@ pub(crate) fn fingerprint(root: &Path, paths: &[PathBuf]) -> Result<String> {
     Ok(format!("{:x}", hash.finalize()))
 }
 
+pub(crate) fn copy_files<'a>(
+    source: &Path,
+    destination: &Path,
+    files: impl IntoIterator<Item = &'a PathBuf>,
+) -> Result<()> {
+    fs::create_dir_all(destination)?;
+    for relative in files {
+        let from = source.join(relative);
+        let to = destination.join(relative);
+        fs::create_dir_all(to.parent().unwrap())?;
+        if fs::symlink_metadata(&from)?.file_type().is_symlink() {
+            let target = fs::read_link(&from)?;
+            ensure!(!target.is_absolute(), "Source links must be relative");
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(target, to)?;
+            #[cfg(windows)]
+            {
+                if from.is_dir() {
+                    std::os::windows::fs::symlink_dir(target, to)?;
+                } else {
+                    std::os::windows::fs::symlink_file(target, to)?;
+                }
+            }
+        } else {
+            fs::copy(from, to)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -204,19 +204,6 @@ impl Drop for Entry {
     }
 }
 
-pub(crate) fn dependency(
-    cache: &Path,
-    receipt: &Receipt,
-    full_name: &str,
-    runtime: &RubyEnvironment,
-) -> Result<Option<(PathBuf, PathBuf)>> {
-    let entry = Entry::open(cache, receipt, full_name, runtime)?;
-    Ok(entry
-        .read()
-        .is_ok()
-        .then(|| (entry.gem(), entry.manifest_path())))
-}
-
 fn normalized_source(source: &PackageSource) -> Result<PackageSource> {
     Ok(match source {
         PackageSource::Registry(source) => {
@@ -230,7 +217,7 @@ fn normalized_source(source: &PackageSource) -> Result<PackageSource> {
     })
 }
 
-fn key(receipt: &Receipt, full_name: &str, runtime: &RubyEnvironment) -> Result<String> {
+pub(crate) fn key(receipt: &Receipt, full_name: &str, runtime: &RubyEnvironment) -> Result<String> {
     let receipt = normalized_receipt(receipt)?;
     let bytes = serde_json::to_vec(&(
         &receipt,
@@ -270,6 +257,7 @@ mod tests {
             abi: "4.0.0".into(),
             configuration_hash: "b".repeat(64),
             dependencies: BTreeMap::new(),
+            build_directory: None,
         }
     }
 
@@ -324,6 +312,10 @@ mod tests {
             },
             Receipt {
                 configuration_hash: "d".repeat(64),
+                ..base.clone()
+            },
+            Receipt {
+                build_directory: Some("/project/.rb/build-dependencies".into()),
                 ..base.clone()
             },
             Receipt {

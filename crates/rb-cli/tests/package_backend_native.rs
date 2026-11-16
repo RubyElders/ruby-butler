@@ -34,11 +34,11 @@ fn native_sync_exec_and_run_use_the_same_bundler_compatible_installation() {
     assert!(!fixture.root.path().join(".rb/vendor/bundler").exists());
     assert!(!fixture.root.path().join(".rb/cache").exists());
     assert!(
-        fixture
+        !fixture
             .rubies
             .path()
             .join("cache/rb/source-archives")
-            .is_dir()
+            .exists()
     );
     let identity_path = fixture.root.path().join(".rb/bundle/fingerprint");
     let identity = fs::read(&identity_path).unwrap();
@@ -78,6 +78,42 @@ fn native_sync_exec_and_run_use_the_same_bundler_compatible_installation() {
         output.stderr.is_empty(),
         "{}",
         String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn launching_a_prepared_native_installation_needs_no_shared_cache() {
+    let fixture = Fixture::new("native");
+    success(fixture.command().arg("sync").output().unwrap());
+    fs::remove_dir_all(fixture.rubies.path().join("cache/rb")).unwrap();
+    let output = success(
+        fixture
+            .command()
+            .args([
+                "x",
+                "ruby",
+                "-rbackend_fixture",
+                "-rbackend_fixture_native",
+                "-e",
+                "puts BackendFixture::VALUE",
+            ])
+            .output()
+            .unwrap(),
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("backend-installed, Bundler-activated")
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !fixture
+            .rubies
+            .path()
+            .join("cache/rb/installations-v1")
+            .exists()
     );
 }
 

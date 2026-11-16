@@ -1,12 +1,13 @@
 use crate::{InstallOptions, RubyEnvironment, slot::Slots};
 use anyhow::{Context, Result, ensure};
 use rb_task::TaskContext;
-use std::{collections::BTreeMap, path::Path};
+use std::path::Path;
 
 pub(crate) fn install_slot(
     slots: &Slots,
     name: &str,
     home: &Path,
+    build_directory: &Path,
     runtime: &RubyEnvironment,
     options: &InstallOptions,
     context: &TaskContext,
@@ -15,9 +16,7 @@ pub(crate) fn install_slot(
     if !slot.reused {
         let metadata = slot.metadata.as_ref().unwrap();
         let mut dependencies = Vec::new();
-        let mut cached = options.cache.is_some();
         let mut markers = Vec::new();
-        let mut roots = BTreeMap::new();
         for dependency in slot
             .dependencies
             .iter()
@@ -28,24 +27,13 @@ pub(crate) fn install_slot(
                 .context("Missing build dependency")?
                 .lock()
                 .unwrap();
-            let gem = other
+            let mut gem = other
                 .gem
                 .clone()
                 .context("Build dependency is incomplete")?;
-            if let Some(cache) = &options.cache {
-                let full_name = other.directory.file_name().unwrap().to_str().unwrap();
-                if let Some((root, marker)) = crate::installation_cache::dependency(
-                    cache,
-                    &other.receipt,
-                    full_name,
-                    runtime,
-                )? {
-                    roots.insert(dependency.clone(), root);
-                    markers.push(marker);
-                } else {
-                    cached = false;
-                }
-            }
+            gem.root =
+                crate::build_dependencies::stage(build_directory, &gem, &other.receipt, runtime)?;
+            markers.push(gem.root.join(crate::constants::INSTALL_RECEIPT));
             dependencies.push(gem);
         }
         if crate::build_tools::requires_rake(metadata)
@@ -54,21 +42,13 @@ pub(crate) fn install_slot(
             dependencies.push(runtime.build_tools.iter().find(|gem| gem.name == "rake")
                 .context("Rakefile extension requires rake; provide a build dependency or install rake with the selected Ruby")?.clone());
         }
-        if cached {
-            for gem in &mut dependencies {
-                if let Some(root) = roots.remove(&gem.name) {
-                    gem.root = root;
-                }
-            }
+        slot.receipt.build_directory = (!markers.is_empty()).then(|| build_directory.to_owned());
+        if let Some(cache) = &options.cache {
             let directory = slot.directory.clone();
             let full_name = directory.file_name().unwrap().to_str().unwrap();
             context.progress("checking shared cache", 0, 1, Some(name.into()));
-            let entry = crate::installation_cache::Entry::open(
-                options.cache.as_ref().unwrap(),
-                &slot.receipt,
-                full_name,
-                runtime,
-            )?;
+            let entry =
+                crate::installation_cache::Entry::open(cache, &slot.receipt, full_name, runtime)?;
             let record = slot.record.clone();
             if !entry.restore(&mut slot, home, &record, runtime)? {
                 entry.begin()?;

@@ -479,7 +479,7 @@ fn equivalent_path_sources_share_installations_and_payload_edits_invalidate_them
 
 #[cfg(unix)]
 #[test]
-fn extensions_build_against_stable_cached_dependencies_and_repair_after_cache_removal() {
+fn restored_project_keeps_native_build_dependencies_without_the_global_cache() {
     let root = tempfile::tempdir().unwrap();
     let mut index = MemoryIndex::default();
     add_archive(
@@ -541,7 +541,7 @@ fn extensions_build_against_stable_cached_dependencies_and_repair_after_cache_re
     let index = Arc::new(index);
     let one = root.path().join("one");
     let two = root.path().join("two");
-    for (project, expected) in [(&one, 3), (&two, 0)] {
+    for (project, expected) in [(&one, 3), (&two, 1)] {
         fs::create_dir_all(project).unwrap();
         let bundle = install(
             project,
@@ -554,49 +554,66 @@ fn extensions_build_against_stable_cached_dependencies_and_repair_after_cache_re
         .unwrap();
         assert_eq!(bundle.installed, expected);
         check(&runtime, &bundle, project);
-        let path = fs::read_to_string(
+        let paths = fs::read_to_string(
             bundle
                 .gem_home
                 .join("gems/teacup-1.0.0/ext/dependency-location"),
         )
         .unwrap();
-        assert_eq!(path.lines().count(), 2);
-        let cache = options.cache.as_ref().unwrap().canonicalize().unwrap();
-        assert!(path.lines().all(|path| Path::new(path).starts_with(&cache)));
-        if project == &one {
-            fs::remove_dir_all(bundle.bundle_path).unwrap();
-        }
+        assert_eq!(paths.lines().count(), 2);
+        let project = project.canonicalize().unwrap();
+        assert!(
+            paths
+                .lines()
+                .all(|path| Path::new(path).starts_with(project.join(".rb/build-dependencies")))
+        );
     }
     assert_eq!(
         fs::read_to_string(root.path().join("builds")).unwrap(),
-        "build\n"
+        "build\nbuild\n"
     );
-    let leaf_entry = fs::read_dir(options.cache.as_ref().unwrap().join("installations-v1"))
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .find(|path| {
-            fs::read(path.join("complete.json"))
-                .ok()
-                .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-                .is_some_and(|value| value["metadata"]["id"]["name"] == "leaf")
-        })
-        .unwrap();
-    fs::remove_dir_all(leaf_entry).unwrap();
-    let repaired = install(&two, &plan, &runtime, index, options, TaskEvents::default()).unwrap();
-    assert_eq!(repaired.installed, 1);
-    check(&runtime, &repaired, &two);
-    let locations = fs::read_to_string(
-        repaired
+    let archive = root.path().join("installation.tar.gz");
+    let compressed = flate2::write::GzEncoder::new(
+        fs::File::create(&archive).unwrap(),
+        flate2::Compression::fast(),
+    );
+    let mut writer = tar::Builder::new(compressed);
+    writer.append_dir_all(".rb", two.join(".rb")).unwrap();
+    writer.into_inner().unwrap().finish().unwrap();
+    fs::remove_dir_all(two.join(".rb")).unwrap();
+    fs::remove_dir_all(options.cache.as_ref().unwrap()).unwrap();
+    tar::Archive::new(flate2::read::GzDecoder::new(
+        fs::File::open(archive).unwrap(),
+    ))
+    .unpack(&two)
+    .unwrap();
+    let restored = install(&two, &plan, &runtime, index, options, TaskEvents::default()).unwrap();
+    assert_eq!((restored.installed, restored.reused), (0, 3));
+    check(&runtime, &restored, &two);
+    let paths = fs::read_to_string(
+        restored
             .gem_home
             .join("gems/teacup-1.0.0/ext/dependency-location"),
     )
     .unwrap();
-    assert_eq!(locations.lines().count(), 2);
-    assert!(
-        locations
-            .lines()
-            .all(|path| Path::new(path).starts_with(&two))
-    );
+    for (path, name) in paths.lines().zip(["leaf", "other"]) {
+        let output = run(
+            &runtime,
+            &restored,
+            &two,
+            &format!(
+                "load {:?}; puts {}",
+                Path::new(path).join("lib").join(format!("{name}.rb")),
+                name.to_uppercase()
+            ),
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(stdout(&output), "42\n");
+    }
     assert_eq!(
         fs::read_to_string(root.path().join("builds")).unwrap(),
         "build\nbuild\n"

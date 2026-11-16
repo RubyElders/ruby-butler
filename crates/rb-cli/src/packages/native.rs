@@ -155,10 +155,12 @@ impl Driver for NativeBackend {
                     .inspect(runtime)?
                     .details
                     .context("No native installation")?;
-                Ok(super::PackageCache {
-                    paths: vec![details.installation],
-                    inputs,
-                })
+                let mut paths = vec![
+                    details.installation,
+                    rb_packages::BundleLayout::build_dependencies(&options.project),
+                ];
+                paths.extend(rb_packages::cache_paths(&options.cache));
+                Ok(super::PackageCache { paths, inputs })
             })
             .transpose()
     }

@@ -62,17 +62,19 @@ impl Driver for BundlerBackend {
         options.gemfile = Some(bundler.gemfile_path());
         let inputs = rb_packages::inspect_gemfile_cache(&options)?;
         let home = bundler.ruby_vendor_dir(&runtime.selected_ruby()?.version);
-        let paths = [
+        let mut paths: Vec<_> = [
             "gems",
             "specifications",
             "extensions",
             "bin",
             "plugins",
+            "cache",
             "bundler/gems",
         ]
         .iter()
         .map(|directory| home.join(directory))
         .collect();
+        paths.extend(rb_packages::cache_paths(&options.cache));
         Ok(Some(super::PackageCache { paths, inputs }))
     }
 

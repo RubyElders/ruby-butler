@@ -5,8 +5,18 @@ use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
+
+pub fn cache_paths(root: &Path) -> Vec<PathBuf> {
+    [
+        crate::constants::INDEX_CACHE_DIRECTORY,
+        crate::constants::ARCHIVE_CACHE_DIRECTORY,
+    ]
+    .into_iter()
+    .map(|directory| root.join(directory))
+    .collect()
+}
 
 pub(crate) fn stream_archive(mut input: impl Read, mut output: impl Write) -> Result<String> {
     let mut digest = Sha256::new();

@@ -9,6 +9,7 @@ mod info;
 mod validation;
 mod versions;
 
+pub use cache::cache_paths;
 pub use client::Client;
 pub use info::{GemInfo, parse};
 

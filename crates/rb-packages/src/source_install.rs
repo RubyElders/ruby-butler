@@ -57,32 +57,6 @@ pub(crate) fn directory(package: &SourcePackage, home: &Path) -> Result<PathBuf>
     })
 }
 
-fn copy_snapshot(source: &Path, destination: &Path, files: &BTreeSet<PathBuf>) -> Result<()> {
-    fs::create_dir_all(destination)?;
-    for relative in files {
-        let from = source.join(relative);
-        let to = destination.join(relative);
-        fs::create_dir_all(to.parent().unwrap())?;
-        if fs::symlink_metadata(&from)?.file_type().is_symlink() {
-            let target = fs::read_link(&from)?;
-            ensure!(!target.is_absolute(), "Source links must be relative");
-            #[cfg(unix)]
-            std::os::unix::fs::symlink(target, to)?;
-            #[cfg(windows)]
-            {
-                if from.is_dir() {
-                    std::os::windows::fs::symlink_dir(target, to)?;
-                } else {
-                    std::os::windows::fs::symlink_file(target, to)?;
-                }
-            }
-        } else {
-            fs::copy(from, to)?;
-        }
-    }
-    Ok(())
-}
-
 pub(crate) fn stage(
     index: &SourceIndex,
     home: &Path,
@@ -107,7 +81,7 @@ pub(crate) fn stage(
                 if destination.exists() {
                     fs::remove_dir_all(&destination)?;
                 }
-                copy_snapshot(&package.directory, &destination, &files)?;
+                crate::source_files::copy_files(&package.directory, &destination, &files)?;
                 fs::write(&stamp, &package.snapshot)?;
                 changed = true;
             }

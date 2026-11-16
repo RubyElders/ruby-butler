@@ -156,7 +156,7 @@ impl SourceIndex {
                 .collect::<Vec<_>>();
             let snapshot = crate::source_files::fingerprint(&directory, &inputs)?;
             for spec in specifications {
-                let package = SourcePackage::new(spec, &source, &directory, cache, &snapshot)?;
+                let package = SourcePackage::new(spec, &source, &directory, &snapshot)?;
                 packages
                     .entry(package.record.package.id.name.clone())
                     .or_default()
@@ -306,8 +306,19 @@ impl PackageIndex for SourceIndex {
         if matches!(record.source, PackageSource::Registry(_)) {
             self.registry.archive(record)
         } else {
-            Ok(self.local(record)?.archive.clone())
+            anyhow::bail!("Source packages are staged directly")
         }
+    }
+    fn input(&self, record: &PackageRecord) -> Result<crate::PackageInput> {
+        if matches!(record.source, PackageSource::Registry(_)) {
+            return self.registry.input(record);
+        }
+        let package = self.local(record)?;
+        Ok(crate::PackageInput::Directory {
+            root: package.directory.join(package.gemspec.parent().unwrap()),
+            files: package.payload.clone(),
+            metadata: Box::new(package.metadata.clone()),
+        })
     }
     fn stage_sources(
         &self,

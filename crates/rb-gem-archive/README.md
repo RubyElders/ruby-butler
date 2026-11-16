@@ -12,3 +12,5 @@ println!("{}", metadata.id);
 ```
 
 This slice reads declared metadata. It streams the compressed data member for hashing, but does not inspect or extract its payload, validate install paths, compile extensions or activate gems. Ruby YAML object tags are treated as data. Bounded signature members are accepted, but certificate trust and signature authenticity are not verified. Installation and payload validation belong to a later phase.
+
+`parse_metadata` also reads evaluated gemspec YAML without a gem archive.

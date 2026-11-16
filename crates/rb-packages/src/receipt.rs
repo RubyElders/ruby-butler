@@ -20,6 +20,8 @@ pub(crate) struct Receipt {
     pub(crate) abi: String,
     pub(crate) configuration_hash: String,
     pub(crate) dependencies: BTreeMap<String, (crate::PackageSource, String, String)>,
+    #[serde(default)]
+    pub(crate) build_directory: Option<PathBuf>,
 }
 
 impl Receipt {
@@ -39,6 +41,7 @@ impl Receipt {
             abi: runtime.abi.clone(),
             configuration_hash: configuration_hash(build, runtime, tools)?,
             dependencies: BTreeMap::new(),
+            build_directory: None,
         })
     }
 }
