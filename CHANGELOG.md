@@ -5,6 +5,18 @@ All notable changes to Ruby Butler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-11-18
+
+### Added
+- Shared native gem installations and compiled extensions across projects, with private copies under each project's `.rb` directory. Cache entries are scoped by source, Ruby, platform and build settings.
+- `rb info env --discover` reports project paths and Ruby selection before preparation; `--resolve-ruby` can select an available download. `rb info env --probe` evaluates dependency inputs and reports cache paths and keys. Both support the global JSON output format for CI integrations.
+- Ruby catalog requests accept `GH_TOKEN` or `GITHUB_TOKEN` to avoid unauthenticated GitHub rate limits.
+
+### Changed
+- Native Git and path dependencies install directly from source files through the shared installer, without generating temporary gem archives. Restored project installations retain compiled extensions and their native build dependencies without requiring the global cache.
+- Native preparation reuses unchanged compact index responses, cached locked metadata and matching installations, avoiding unnecessary requests and staging work. Installed gem payloads are not hashed.
+- Releases become public only after all platform binaries have been uploaded.
+
 ## [0.4.2] - 2026-11-12
 
 ### Added

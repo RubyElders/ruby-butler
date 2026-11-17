@@ -1254,7 +1254,7 @@ dependencies = [
 
 [[package]]
 name = "rb-cli"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -1283,7 +1283,7 @@ dependencies = [
 
 [[package]]
 name = "rb-compact-index"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "alox-48",
  "anyhow",
@@ -1302,7 +1302,7 @@ dependencies = [
 
 [[package]]
 name = "rb-core"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "colored",
  "home",
@@ -1320,7 +1320,7 @@ dependencies = [
 
 [[package]]
 name = "rb-gem-archive"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1336,7 +1336,7 @@ dependencies = [
 
 [[package]]
 name = "rb-gem-installer"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "flate2",
@@ -1354,7 +1354,7 @@ dependencies = [
 
 [[package]]
 name = "rb-gem-types"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "regex",
  "serde",
@@ -1363,7 +1363,7 @@ dependencies = [
 
 [[package]]
 name = "rb-gemfile"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "dunce",
  "kdl",
@@ -1378,14 +1378,14 @@ dependencies = [
 
 [[package]]
 name = "rb-lockfile"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "rb-gem-types",
 ]
 
 [[package]]
 name = "rb-microgems"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -1394,7 +1394,7 @@ dependencies = [
 
 [[package]]
 name = "rb-packages"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "dunce",
@@ -1422,7 +1422,7 @@ dependencies = [
 
 [[package]]
 name = "rb-progress"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "rb-task",
  "terminal_size",
@@ -1431,7 +1431,7 @@ dependencies = [
 
 [[package]]
 name = "rb-resolver"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "pubgrub",
  "rb-compact-index",
@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "rb-ruby-installer"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "flate2",
@@ -1462,11 +1462,11 @@ dependencies = [
 
 [[package]]
 name = "rb-task"
-version = "0.4.2"
+version = "0.4.3"
 
 [[package]]
 name = "rb-tests"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "flate2",
  "tar",
